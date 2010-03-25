@@ -35,4 +35,7 @@
 	ldr	\irqnr, [\base, #0xD0]
 	ldr	\irqnr, [\base, #0xD4]
 	cmp	\irqnr, #0xffffffff
+		movne     \tmp, #0xff
+		orrne     \tmp, #0xff00
+		cmpne     \irqnr, \tmp
 	.endm
