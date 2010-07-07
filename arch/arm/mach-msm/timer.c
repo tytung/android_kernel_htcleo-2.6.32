@@ -688,7 +688,9 @@ static void __init msm_timer_init(void)
 		struct clock_event_device *ce = &clock->clockevent;
 		struct clocksource *cs = &clock->clocksource;
 		writel(0, clock->regbase + TIMER_ENABLE);
-		writel(0, clock->regbase + TIMER_CLEAR);
+		// The timer should be cleared by setting the first bit.
+		writel(1, clock->regbase + TIMER_CLEAR);
+		writel(0, clock->regbase + TIMER_COUNT_VAL);
 		writel(~0, clock->regbase + TIMER_MATCH_VAL);
 		while (msm_read_timer_count(clock)) ; /* wait for clock to clear */
 
