@@ -59,7 +59,7 @@
  * being set up and there is no chance to restore the lr register to the value
  * before mcount was called.
  */
-#define __naked				__attribute__((naked)) notrace
+#define __naked				__attribute__((naked)) noinline __noclone notrace
 
 #define __noreturn			__attribute__((noreturn))
 
@@ -84,3 +84,7 @@
 #define _gcc_header(x) __gcc_header(linux/compiler-gcc##x.h)
 #define gcc_header(x) _gcc_header(x)
 #include gcc_header(__GNUC__)
+
+#if !defined(__noclone)
+#define __noclone	/* not needed */
+#endif
