@@ -4,6 +4,7 @@ obj-y += devices.o pwrtest.o
 obj-y += proc_comm.o
 obj-y += dex_comm.o
 obj-y += amss_para.o
+obj-y += pmic_global.o
 obj-y += vreg.o
 obj-y += pmic.o
 obj-y += remote_spinlock.o
