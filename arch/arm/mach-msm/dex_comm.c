@@ -31,8 +31,8 @@
 
 
 // from board-htcleo-power.c
-void notify_vbus_change_intr(void);
-
+//void notify_vbus_change_intr(void);
+void notify_vbus_change_intr(void){};
 
 #define MSM_A2M_INT(n) (MSM_CSR_BASE + 0x400 + (n) * 4)
 
@@ -69,11 +69,6 @@ static inline void notify_other_dex_comm(void)
 
 
 static DEFINE_SPINLOCK(dex_comm_lock);
-
-/* The higher level SMD support will install this to
- * provide a way to check for and handle modem restart?
- */
-int (*msm_check_for_modem_crash)(void);
 
 #define TIMEOUT (10000000) /* 10s in microseconds */
 
