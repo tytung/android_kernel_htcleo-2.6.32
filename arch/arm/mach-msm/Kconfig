@@ -124,6 +124,7 @@ config MSM_AMSS_VERSION
 	default 3200 if MSM_AMSS_VERSION_3200
 	default 1170 if MSM_AMSS_VERSION_1170
 	default 1200 if MSM_AMSS_VERSION_1200
+	default 1550 if MSM_AMSS_VERSION_1550
 choice
 	prompt "AMSS modem firmware version"
 
@@ -164,6 +165,9 @@ choice
 
 	config MSM_AMSS_VERSION_1200
 		bool "1.2.00"
+
+        config MSM_AMSS_VERSION_1550
+                bool "1.5.50"
 endchoice
 
 config MSM_DEBUG_UART
