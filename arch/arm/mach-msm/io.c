@@ -65,6 +65,16 @@ static struct map_desc msm_io_desc[] __initdata = {
 	MSM_DEVICE(GCC),
 	MSM_DEVICE(TCSR),
 #endif
+	MSM_DEVICE(TS),
+	MSM_DEVICE(SSBI),
+	MSM_DEVICE(TSSC),
+	MSM_DEVICE(RAM_CONSOLE),
+	{
+		.virtual =  (unsigned long) MSM_SHARED_RAM_BASE,
+		.pfn =      __phys_to_pfn(MSM_SHARED_RAM_PHYS),
+		.length =   MSM_SHARED_RAM_SIZE,
+		.type =     MT_DEVICE,
+	},
 #ifdef CONFIG_MSM_DEBUG_UART
 	MSM_DEVICE(DEBUG_UART),
 #endif
