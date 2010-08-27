@@ -271,6 +271,13 @@ config MACH_BRAVO
 	help
 	  Select this to support the Bravo device
 
+config MACH_HTCLEO
+	depends on ARCH_QSD8X50
+	default y
+	bool "HTC Leo"
+	help
+	  Select this to support the HTC Leo device
+
 config MACH_PASSIONC
 	depends on ARCH_QSD8X50
 	default n
