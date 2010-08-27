@@ -100,7 +100,7 @@ obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-rfkill.o board-bravoc-audio.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-wifi.o htc_awb_cal.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-microp.o
 
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o 
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o
 
 # MSM7x30 boards
 obj-$(CONFIG_ARCH_MSM7X30) += panel-samsungwvga-tl2796a.o panel-samsungwvga-s6e63m0.o panel-sonywvga-s6d16a0x21-7x30.o

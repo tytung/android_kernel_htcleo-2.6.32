@@ -39,6 +39,16 @@
 #include "board-htcleo.h"
 #include "devices.h"
 
+///////////////////////////////////////////////////////////////////////
+// SPI
+///////////////////////////////////////////////////////////////////////
+
+static struct platform_device qsd_device_spi =
+{
+    .name           = "spi_qsd",
+    .id             = 0,
+};
+
 /* Vibrator */
 static struct timed_gpio timed_gpios[] = {
 	{
@@ -68,6 +78,8 @@ static struct i2c_board_info base_i2c_devices[] =
 static struct platform_device *devices[] __initdata =
 {
 	&msm_device_i2c,
+	&qsd_device_spi,
+
 };
 
 static struct msm_acpu_clock_platform_data htcleo_clock_data = {
