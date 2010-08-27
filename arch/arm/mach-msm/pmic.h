@@ -386,4 +386,6 @@ int pmic_hsed_enable(
 	enum hsed_controller controller,
 	enum hsed_enable enable
 );
+int pmic_vreg_set_level(enum vreg_id id, uint16_t millivolt); 
+
 #endif
