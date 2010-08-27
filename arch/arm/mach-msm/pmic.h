@@ -305,6 +305,40 @@ enum ext_signal_selection_type {
 	PM_CURRENT_SINK_DTEST4,
 };
 
+enum vreg_id{
+	PM_VREG_MSMA_ID,
+	PM_VREG_MSMP_ID,
+	PM_VREG_MSME1_ID,
+	PM_VREG_MSMC1_ID,
+	PM_VREG_MSMC2_ID,
+	PM_VREG_GP3_ID,
+	PM_VREG_MSME2_ID,
+	PM_VREG_GP4_ID,
+	PM_VREG_GP1_ID,
+	PM_VREG_TCXO_ID,
+	PM_VREG_PA_ID,
+	PM_VREG_RFTX_ID,
+	PM_VREG_RFTX1_ID,
+	PM_VREG_RFTX2_ID,
+	PM_VREG_SYNT_ID,
+	PM_VREG_WLAN_ID,
+	PM_VREG_USB_ID,
+	PM_VREG_BOOST_ID,
+	PM_VREG_MMC_ID,
+	PM_VREG_RUIM_ID,
+	PM_VREG_MSMC0_ID,
+	PM_VREG_GP2_ID,
+	PM_VREG_GP5_ID,
+	PM_VREG_GP6_ID,
+	PM_VREG_RF_ID,
+	PM_VREG_RF_VCO_ID = PM_VREG_RF_ID+2,
+	PM_VREG_MPLL_ID,
+	PM_VREG_S2_ID,
+	PM_VREG_S3_ID,
+	PM_VREG_RFUBM_ID,
+	PM_VREG_NCP_ID,
+};
+
 int pmic_lp_mode_control(enum switch_cmd cmd, enum vreg_lp_id id);
 int pmic_secure_mpp_control_digital_output(enum mpp_which which,
 		enum mpp_dlogic_level level, enum mpp_dlogic_out_ctrl out);

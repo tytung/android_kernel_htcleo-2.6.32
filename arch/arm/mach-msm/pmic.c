@@ -607,3 +607,10 @@ int pmic_hsed_enable(
 				 HSED_ENABLE_PROC);
 }
 EXPORT_SYMBOL(pmic_hsed_enable);
+
+int pmic_vreg_set_level(enum vreg_id id, uint16_t millivolt)
+{
+	return pmic_rpc_set_only(id, millivolt, 0, 0, 2, VREG_SET_LEVEL_PROC);
+}
+EXPORT_SYMBOL(pmic_vreg_set_level);
+
