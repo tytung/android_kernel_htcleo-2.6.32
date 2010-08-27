@@ -230,6 +230,15 @@ static int msmfb_start_dma(struct msmfb_info *msmfb)
 	y = msmfb->update_info.top;
 	w = msmfb->update_info.eright - x;
 	h = msmfb->update_info.ebottom - y;
+	
+#if defined(CONFIG_MACH_HTCLEO)
+	// For some reason we need to force a full-screen update to prevent
+	// the screen from mixing up (top +-100px missing, garbled data
+	// at the bottom +-100px). Maybe it has to do with the vsync we
+	// had to disable in mdp_lcdc?
+	x = 0; y = 0; w = msmfb->xres; h = msmfb->yres;
+#endif
+
 	yoffset = msmfb->yoffset;
 	msmfb->update_info.left = msmfb->xres + 1;
 	msmfb->update_info.top = msmfb->yres + 1;
@@ -295,8 +304,11 @@ static void msmfb_pan_update(struct fb_info *info, uint32_t left, uint32_t top,
 	DLOG(SHOW_UPDATES, "update %d %d %d %d %d %d\n",
 		left, top, eright, ebottom, yoffset, pan_display);
 
-        if (msmfb->sleeping != AWAKE)
-                DLOG(SUSPEND_RESUME, "pan_update in state(%d)\n", msmfb->sleeping);
+#if !defined(CONFIG_MACH_HTCLEO)
+	// For some reason we need to remove it here, state is 1, we have to look later to this problem
+	if (msmfb->sleeping != AWAKE)
+		DLOG(SUSPEND_RESUME, "pan_update in state(%d)\n", msmfb->sleeping);
+#endif
 
 #if (defined(CONFIG_USB_FUNCTION_PROJECTOR) || defined(CONFIG_USB_ANDROID_PROJECTOR))
 	/* Jay, 8/1/09' */
