@@ -48,6 +48,8 @@ struct amss_value amss_def_para[] = {
 	{RPC_DOG_KEEPALIVE_NULL, 0, ""},  
 	{RPC_DOG_KEEPALIVE_BEACON, 1, ""},  
 	{DOG_KEEPALIVE_VERS, 0, ""},  
+	{HTC_PROCEDURE_SET_VIB_ON_OFF, 21, ""},  
+	{APP_TIMEREMOTE_PDEV_NAME, 0, "rs30000048:0x00010001"},  
 };
 
 
@@ -84,6 +86,7 @@ struct amss_value amss_6210_para[] = {
 	{RPC_ADSP_RTOS_MODEM_TO_APP_PROC, 2, ""},
 	{RPC_DOG_KEEPALIVE_BEACON, 1, ""},  
 	{DOG_KEEPALIVE_VERS, 0, ""},  
+	{APP_TIMEREMOTE_PDEV_NAME, 0, "rs30000048:0x00000000"},  
 };
 
 struct amss_value amss_6220_para[] = {
@@ -102,6 +105,7 @@ struct amss_value amss_6220_para[] = {
 	{RPC_ADSP_RTOS_MODEM_TO_APP_PROC, 2, ""},
 	{RPC_DOG_KEEPALIVE_BEACON, 2, ""},  
 	{DOG_KEEPALIVE_VERS, 0x731fa727, ""},  
+	{APP_TIMEREMOTE_PDEV_NAME, 0, "rs30000048:0da5b528"},  
 };
 
 
@@ -124,7 +128,14 @@ struct amss_value amss_6150_para[] = {
 	{RPC_ADSP_RTOS_ATOM_PROG_VERS, 0, "rs3000000a:00000000"},
 };
 
-struct amss_value amss_1550_para[] = {};
+struct amss_value amss_1550_para[] = {
+	{TIME_REMOTE_MTOA_VERS, 0x10002, ""},  
+	{HTC_PROCEDURE_SET_VIB_ON_OFF, 22, ""},  
+	{RPC_DOG_KEEPALIVE_BEACON, 2, ""},  
+	{DOG_KEEPALIVE_VERS, 0x10001, ""},  
+	{PM_LIBVERS, 0x30001, ""},  
+	{APP_TIMEREMOTE_PDEV_NAME, 0, "rs30000048:0x00010002"},  
+};
 
 // Get the short AMSS Version ( like 6120 )
 unsigned int get_amss_version(void)

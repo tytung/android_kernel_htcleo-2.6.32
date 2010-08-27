@@ -26,6 +26,7 @@
 
 #include <mach/msm_rpcrouter.h>
 #include <mach/msm_rpc_version.h>
+#include <mach/amss_para.h>
 
 #define RTC_DEBUG 0
 
@@ -257,7 +258,6 @@ static struct platform_driver msmrtc_driver = {
 	.suspend	= msmrtc_suspend,
 	.resume		= msmrtc_resume,
 	.driver	= {
-		.name	= APP_TIMEREMOTE_PDEV_NAME,
 		.owner	= THIS_MODULE,
 	},
 };
@@ -265,6 +265,21 @@ static struct platform_driver msmrtc_driver = {
 static int __init msmrtc_init(void)
 {
 	rtcalarm_time = 0;
+	switch(__amss_version) {
+	  case 6210:
+	    msmrtc_driver.driver.name="rs30000048:00000000";
+	    break;
+	  case 6220:
+	  case 6225:
+	    msmrtc_driver.driver.name="rs30000048:0da5b528";
+	    break;
+	  case 1550:
+	    msmrtc_driver.driver.name="rs30000048:00010002";
+	    break;
+	  default:
+	    msmrtc_driver.driver.name="rs30000048:00010001";
+	    break;
+	}
 	return platform_driver_register(&msmrtc_driver);
 }
 

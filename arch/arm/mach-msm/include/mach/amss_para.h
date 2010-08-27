@@ -46,6 +46,8 @@ enum amss_ids {
 	RPC_DOG_KEEPALIVE_NULL,  
 	RPC_DOG_KEEPALIVE_BEACON,
 	DOG_KEEPALIVE_VERS,
+	HTC_PROCEDURE_SET_VIB_ON_OFF,
+	APP_TIMEREMOTE_PDEV_NAME,
 };
 
 extern uint32_t amss_get_num_value(int);
