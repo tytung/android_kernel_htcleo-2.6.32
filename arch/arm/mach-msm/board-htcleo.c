@@ -24,6 +24,8 @@
 #include <linux/kernel.h>
 #include <linux/bootmem.h>
 #include <linux/platform_device.h>
+#include <linux/android_pmem.h>
+#include <linux/regulator/machine.h>
 #include <../../../drivers/staging/android/timed_gpio.h>
 
 #include <asm/mach-types.h>
@@ -35,9 +37,12 @@
 #include <mach/hardware.h>
 #include <mach/system.h>
 #include <mach/msm_iomap.h>
+#include <mach/perflock.h>
 
 #include "board-htcleo.h"
 #include "devices.h"
+#include "proc_comm.h"
+#include "dex_comm.h"
 
 ///////////////////////////////////////////////////////////////////////
 // SPI
@@ -75,9 +80,141 @@ static struct platform_device htcleo_timed_gpios = {
 static struct i2c_board_info base_i2c_devices[] =
 {
 };
+
+///////////////////////////////////////////////////////////////////////
+// KGSL (HW3D support)#include <linux/android_pmem.h>
+
+///////////////////////////////////////////////////////////////////////
+
+static struct resource msm_kgsl_resources[] =
+{
+	{
+		.name	= "kgsl_reg_memory",
+		.start	= MSM_GPU_REG_PHYS,
+		.end	= MSM_GPU_REG_PHYS + MSM_GPU_REG_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "kgsl_phys_memory",
+		.start	= MSM_GPU_PHYS_BASE,
+		.end	= MSM_GPU_PHYS_BASE + MSM_GPU_PHYS_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.start	= INT_GRAPHICS,
+		.end	= INT_GRAPHICS,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static int htcleo_kgsl_power_rail_mode(int follow_clk)
+{
+	int mode = follow_clk ? 0 : 1;
+	int rail_id = 0;
+	return msm_proc_comm(PCOM_CLK_REGIME_SEC_RAIL_CONTROL, &rail_id, &mode);
+}
+
+static int htcleo_kgsl_power(bool on)
+{
+	int cmd;
+	int rail_id = 0;
+
+    	cmd = on ? PCOM_CLK_REGIME_SEC_RAIL_ENABLE : PCOM_CLK_REGIME_SEC_RAIL_DISABLE;
+    	return msm_proc_comm(cmd, &rail_id, 0);
+}
+
+static struct platform_device msm_kgsl_device =
+{
+	.name		= "kgsl",
+	.id		= -1,
+	.resource	= msm_kgsl_resources,
+	.num_resources	= ARRAY_SIZE(msm_kgsl_resources),
+};
+
+static struct android_pmem_platform_data android_pmem_pdata = {
+	.name		= "pmem",
+	.no_allocator	= 0,
+	.cached		= 1,
+};
+
+static struct android_pmem_platform_data android_pmem_adsp_pdata = {
+	.name		= "pmem_adsp",
+	.no_allocator	= 0,
+	.cached		= 1,
+};
+
+static struct android_pmem_platform_data android_pmem_camera_pdata = {
+	.name		= "pmem_camera",
+        .start = MSM_PMEM_CAMERA_BASE,
+	.size = MSM_PMEM_CAMERA_SIZE,
+	.no_allocator	= 1,
+	.cached		= 1,
+};
+
+static struct platform_device android_pmem_device = {
+	.name		= "android_pmem",
+	.id		= 0,
+	.dev		= {
+		.platform_data = &android_pmem_pdata
+	},
+};
+
+static struct platform_device android_pmem_adsp_device = {
+	.name		= "android_pmem",
+	.id		= 1,
+	.dev		= {
+		.platform_data = &android_pmem_adsp_pdata,
+	},
+};
+
+static struct platform_device android_pmem_camera_device = {
+	.name		= "android_pmem",
+	.id		= 2,
+	.dev		= {
+		.platform_data = &android_pmem_camera_pdata,
+	},
+};
+
+static struct resource ram_console_resources[] = {
+	{
+		.start	= MSM_RAM_CONSOLE_BASE,
+		.end	= MSM_RAM_CONSOLE_BASE + MSM_RAM_CONSOLE_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device ram_console_device = {
+	.name		= "ram_console",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(ram_console_resources),
+	.resource	= ram_console_resources,
+};
+
 static struct platform_device *devices[] __initdata =
 {
-	&msm_device_i2c,
+	&ram_console_device,
+#if !defined(CONFIG_MSM_SERIAL_DEBUGGER)
+	&msm_device_uart1,
+#endif
+//	&bcm_bt_lpm_device,
+//	&msm_device_uart_dm1,
+	&msm_device_smd,
+//	&htcleo_rfkill,
+//	&msm_audio_device,
+//	&msm_device_hsusb,
+//	&usb_mass_storage_device,
+//	&android_usb_device,
+	&android_pmem_device,
+	&android_pmem_adsp_device,
+	&android_pmem_camera_device,
+//	&msm_device_i2c,
+//	&htcleo_backlight,
+//	&htcleo_headset,
+	&msm_kgsl_device,
+//	&capella_cm3602,
+//	&msm_camera_sensor_s5k3e2fx,
+//	&htcleo_flashlight_device,
+//	&htcleo_power,
 	&qsd_device_spi,
 
 };
@@ -115,9 +252,18 @@ static void __init htcleo_init(void)
 
 	msm_hw_reset_hook = htcleo_reset;
 
-        do_grp_reset();
+	do_grp_reset();
 
 	msm_acpu_clock_init(&htcleo_clock_data);
+	
+	init_dex_comm();
+	
+	/* set the gpu power rail to manual mode so clk en/dis will not
+	* turn off gpu power, and hang it on resume */
+        htcleo_kgsl_power_rail_mode(0);
+        htcleo_kgsl_power(false);
+        mdelay(100);
+        htcleo_kgsl_power(true);
 	
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 
