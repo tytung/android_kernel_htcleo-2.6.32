@@ -6,6 +6,12 @@ ifeq ($(CONFIG_ARCH_QSD8X50),y)
   zreladdr-y		:= 0x20008000
 params_phys-y		:= 0x20000100
 initrd_phys-y		:= 0x21000000
+
+# override for HTC Leo
+  zreladdr-$(CONFIG_MACH_HTCLEO)		:= 0x11808000
+params_phys-$(CONFIG_MACH_HTCLEO)		:= 0x11800100
+initrd_phys-$(CONFIG_MACH_HTCLEO)		:= 0x12200000
+
 endif
 
 ifeq ($(CONFIG_ARCH_MSM7201A),y)
