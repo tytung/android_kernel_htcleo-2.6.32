@@ -22,6 +22,7 @@
 
 #include <mach/msm_rpcrouter.h>
 #include <mach/msm_rpc_version.h>
+#include <mach/amss_para.h>
 
 #define PM_LIBPROG	  0x30000061
 #define PMIC_VIBRATOR_LEVEL	(3000)
@@ -40,7 +41,7 @@ static void set_pmic_vibrator(int on)
 	} req;
 
 	if (!vib_endpoint) {
-		vib_endpoint = msm_rpc_connect(PM_LIBPROG, PM_LIBVERS, 0);
+		vib_endpoint = msm_rpc_connect(PM_LIBPROG, amss_get_num_value(PM_LIBVERS), 0);
 		if (IS_ERR(vib_endpoint)) {
 			printk(KERN_ERR "init vib rpc failed!\n");
 			vib_endpoint = 0;
@@ -53,7 +54,7 @@ static void set_pmic_vibrator(int on)
 	else
 		req.data = cpu_to_be32(0);
 
-	msm_rpc_call(vib_endpoint, HTC_PROCEDURE_SET_VIB_ON_OFF, &req,
+	msm_rpc_call(vib_endpoint, amss_get_num_value(HTC_PROCEDURE_SET_VIB_ON_OFF), &req,
 		sizeof(req), 5 * HZ);
 }
 
