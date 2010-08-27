@@ -3,6 +3,7 @@ obj-$(CONFIG_ARCH_QSD8X50) += sirc.o
 obj-y += devices.o pwrtest.o
 obj-y += proc_comm.o
 obj-y += dex_comm.o
+obj-y += amss_para.o
 obj-y += vreg.o
 obj-y += pmic.o
 obj-y += remote_spinlock.o
