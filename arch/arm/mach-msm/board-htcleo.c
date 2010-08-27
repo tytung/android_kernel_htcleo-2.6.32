@@ -146,7 +146,7 @@ MACHINE_START(HTCLEO, "htcleo")
 	.phys_io        = MSM_DEBUG_UART_PHYS,
 	.io_pg_offst    = ((MSM_DEBUG_UART_BASE) >> 18) & 0xfffc,
 #endif
-	.boot_params	= 0x11800100,
+	.boot_params	= (CONFIG_PHYS_OFFSET + 0x00000100),
 	.fixup		= htcleo_fixup,
 	.map_io		= htcleo_map_io,
 	.init_irq	= msm_init_irq,

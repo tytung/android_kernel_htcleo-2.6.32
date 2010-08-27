@@ -1043,3 +1043,8 @@ config MSM_SSBI
 	help
 	  Enable support for SSBI bus. This is required for communicatinig with
 	  Qualcomm PMICs and Audio codecs.
+
+config PHYS_OFFSET
+       hex
+       depends on MACH_HTCLEO
+       default "0x11800000" if MACH_HTCLEO
