@@ -163,3 +163,12 @@
 #define MSM_TCSR_PHYS  0xA8700000
 #define MSM_TCSR_SIZE  SZ_4K
 #endif
+
+// Originally this does not need to be defined,
+// but is required to make early_ramconsole work.
+// These values must match the values used in
+// the defconfig.
+#define MSM_RAM_CONSOLE_BASE	IOMEM(0xF9100000)
+#define MSM_RAM_CONSOLE_PHYS	0x2FFC0000
+#define MSM_RAM_CONSOLE_SIZE	0x00040000
+

@@ -97,7 +97,7 @@ obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-rfkill.o board-bravoc-audio.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-wifi.o htc_awb_cal.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-microp.o
 
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o 
 
 # MSM7x30 boards
 obj-$(CONFIG_ARCH_MSM7X30) += panel-samsungwvga-tl2796a.o panel-samsungwvga-s6e63m0.o panel-sonywvga-s6d16a0x21-7x30.o
@@ -219,3 +219,7 @@ obj-$(CONFIG_HTC_HEADSET_PMIC) += htc_headset_pmic.o
 obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi-tpa2018d1.o
 obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi-smb329.o
 obj-$(CONFIG_MSM_SSBI) += ssbi.o
+
+obj-$(CONFIG_HTC_FB_CONSOLE) += htc_fb_console.o
+
+

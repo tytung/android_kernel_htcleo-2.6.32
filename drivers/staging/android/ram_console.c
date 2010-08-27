@@ -22,6 +22,14 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 
+#if defined(CONFIG_VERY_EARLY_CONSOLE)
+#include <asm/mach/map.h>
+
+/* Defined in /arch/arm/mm/mmu.c, helps us map physical memory to virtual memory.
+ * It should work pretty early in the boot process, that why we use it */
+extern void create_mapping(struct map_desc *md);
+#endif
+
 #ifdef CONFIG_ANDROID_RAM_CONSOLE_ERROR_CORRECTION
 #include <linux/rslib.h>
 #endif
@@ -308,8 +316,21 @@ static int __init ram_console_init(struct ram_console_buffer *buffer,
 }
 
 #ifdef CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT
+
+#if defined(CONFIG_VERY_EARLY_CONSOLE)
+static bool ram_console_early_init_done = false;
+int __init ram_console_early_init(void)
+{
+	if (ram_console_early_init_done)
+	{
+		printk(KERN_INFO "ram_console_early_init: already initialized, bailing out\n");
+		return 0;
+	}
+	ram_console_early_init_done = true;
+#else
 static int __init ram_console_early_init(void)
 {
+#endif
 	return ram_console_init((struct ram_console_buffer *)
 		CONFIG_ANDROID_RAM_CONSOLE_EARLY_ADDR,
 		CONFIG_ANDROID_RAM_CONSOLE_EARLY_SIZE,

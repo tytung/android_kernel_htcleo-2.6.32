@@ -1048,3 +1048,27 @@ config PHYS_OFFSET
        hex
        depends on MACH_HTCLEO
        default "0x11800000" if MACH_HTCLEO
+
+config HTC_FB_CONSOLE
+	bool "Boot console for HTC phones (needs a font which has width <= 8)"
+	default n
+
+config HTC_FB_CONSOLE_DELAY
+	bool "Wait some time after each message is printed"
+	default n
+	depends on HTC_FB_CONSOLE
+
+config HTC_FB_CONSOLE_BOOT
+	bool "Use console only during boot"
+	default n
+	depends on HTC_FB_CONSOLE
+
+config VERY_EARLY_CONSOLE
+	bool "Support for very early consoles"
+	default n
+	help
+		Add support to initialize consoles very early. For this to have
+		effect, the driver must support this and the consoles should
+		be initialized in the board file as soon as possible.
+
+

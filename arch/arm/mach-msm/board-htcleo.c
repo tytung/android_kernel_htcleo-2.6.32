@@ -133,10 +133,30 @@ static void __init htcleo_fixup(struct machine_desc *desc, struct tag *tags,
 	mi->bank[0].size = MSM_EBI1_BANK0_SIZE;
 }
 
+#if defined(CONFIG_VERY_EARLY_CONSOLE)
+#if defined(CONFIG_HTC_FB_CONSOLE)
+int __init htc_fb_console_init(void);
+#endif
+#if defined(CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT)
+int __init ram_console_early_init(void);
+#endif
+#endif
+
 static void __init htcleo_map_io(void)
 {
 	msm_map_common_io();
 	msm_clock_init();
+	
+#if defined(CONFIG_VERY_EARLY_CONSOLE)
+// Init our consoles _really_ early
+#if defined(CONFIG_HTC_FB_CONSOLE)
+	htc_fb_console_init();
+#endif
+#if defined(CONFIG_ANDROID_RAM_CONSOLE_EARLY_INIT)
+	ram_console_early_init();
+#endif
+#endif
+
 }
 
 extern struct sys_timer msm_timer;
