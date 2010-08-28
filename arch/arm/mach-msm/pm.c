@@ -41,6 +41,7 @@
 #include "smd_rpcrouter.h"
 #include "acpuclock.h"
 #include "proc_comm.h"
+#include "pmic_global.h"
 #include "clock.h"
 #include "spm.h"
 #ifdef CONFIG_HAS_WAKELOCK
@@ -674,7 +675,7 @@ static void msm_pm_power_off(void)
 	if (msm_wakeup_after)
 		msm_proc_comm(PCOM_SET_RTC_ALARM, &msm_wakeup_after, 0);
 
-	msm_proc_comm(PCOM_POWER_DOWN, 0, 0);
+	pmic_glb_power_down();
 
 #if CONFIG_MSM_RMT_STORAGE_SERVER
 		printk(KERN_INFO "from %s\r\n", __func__);

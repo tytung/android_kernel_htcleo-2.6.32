@@ -167,9 +167,6 @@ int pmic_glb_set_vreg(int enable, enum vreg_id id)
 				return dex_comm(DEX_PMIC_REG_OFF, &id, 0);
 			}
 		break;
-		case 1550:
-			return pm_rpc_set_only(enable, id, 1, 3, PM_RPC_PROC_SET_VREG);
-		break;
 		default:
 			return msm_proc_comm(PCOM_VREG_SWITCH, &id, &enable);
 		break;
@@ -184,9 +181,6 @@ int pmic_glb_vreg_set_level(enum vreg_id id, unsigned millivolt)
 		case 6150:
 			id = 1U << id;
 			return dex_comm(DEX_PMIC_REG_VOLTAGE, &id, &millivolt);
-		break;
-		case 1550:
-			return pmic_vreg_set_level(id, millivolt);
 		break;
 		default:
 			return msm_proc_comm(PCOM_VREG_SET_LEVEL, &id, &millivolt);
