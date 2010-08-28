@@ -45,6 +45,8 @@
 #include "proc_comm.h"
 #include "dex_comm.h"
 
+extern int __init htcleo_init_mmc(unsigned debug_uart);
+
 ///////////////////////////////////////////////////////////////////////
 // SPI
 ///////////////////////////////////////////////////////////////////////
@@ -332,6 +334,7 @@ static void __init htcleo_init(void)
 
 	i2c_register_board_info(0, base_i2c_devices, ARRAY_SIZE(base_i2c_devices));
 
+	htcleo_init_mmc(0);
 	platform_device_register(&htcleo_timed_gpios);
 
 	/* Blink the camera LED shortly to show that we're alive! */
