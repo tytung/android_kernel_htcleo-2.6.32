@@ -26,6 +26,7 @@
 #include <linux/platform_device.h>
 #include <linux/android_pmem.h>
 #include <linux/regulator/machine.h>
+#include <linux/akm8973.h>
 #include <../../../drivers/staging/android/timed_gpio.h>
 
 #include <asm/mach-types.h>
@@ -41,6 +42,7 @@
 #include <mach/perflock.h>
 #include <mach/htc_usb.h>
 #include <mach/msm_flashlight.h>
+
 
 #include "board-htcleo.h"
 #include "board-htcleo-ts.h"
@@ -115,28 +117,14 @@ static struct regulator_init_data tps65023_data[5] =
     },
 };
 
-/* Vibrator */
-static struct timed_gpio timed_gpios[] = {
-	{
-		.name = "vibrator",
-		.gpio = HTCLEO_GPIO_VIBRATOR_ON,
-		.max_timeout = 15000,
-	},
+// Compass
+static struct akm8973_platform_data compass_platform_data =
+{
+	.layouts = HTCLEO_LAYOUTS,
+	.project_name = HTCLEO_PROJECT_NAME,
+	.reset = HTCLEO_GPIO_COMPASS_RST_N,
+	.intr = HTCLEO_GPIO_COMPASS_INT_N,
 };
-
-static struct timed_gpio_platform_data timed_gpio_data = {
-	.num_gpios	= ARRAY_SIZE(timed_gpios),
-	.gpios		= timed_gpios,
-};
-
-static struct platform_device htcleo_timed_gpios = {
-	.name		= "timed-gpio",
-	.id		= -1,
-	.dev		= {
-		.platform_data = &timed_gpio_data,
-	},
-};
-
 
 static struct i2c_board_info base_i2c_devices[] =
 {
@@ -149,6 +137,11 @@ static struct i2c_board_info base_i2c_devices[] =
 	{
 		I2C_BOARD_INFO("tps65023", 0x48),
 		.platform_data = tps65023_data,
+	},
+	{
+		I2C_BOARD_INFO(AKM8973_I2C_NAME, 0x1C),
+		.platform_data = &compass_platform_data,
+		.irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_COMPASS_INT_N),
 	},
 };
 
@@ -371,6 +364,7 @@ static struct platform_device ram_console_device = {
 	.resource	= ram_console_resources,
 };
 
+
 /* Battery */
 static struct platform_device htcleo_power  =
 {
@@ -402,6 +396,28 @@ static struct platform_device *devices[] __initdata =
 	&htcleo_power,
 	&qsd_device_spi,
 
+};
+
+/* Vibrator */
+static struct timed_gpio timed_gpios[] = {
+	{
+		.name = "vibrator",
+		.gpio = HTCLEO_GPIO_VIBRATOR_ON,
+		.max_timeout = 15000,
+	},
+};
+
+static struct timed_gpio_platform_data timed_gpio_data = {
+	.num_gpios	= ARRAY_SIZE(timed_gpios),
+	.gpios		= timed_gpios,
+};
+
+static struct platform_device htcleo_timed_gpios = {
+	.name		= "timed-gpio",
+	.id		= -1,
+	.dev		= {
+		.platform_data = &timed_gpio_data,
+	},
 };
 
 static struct msm_acpu_clock_platform_data htcleo_clock_data = {
