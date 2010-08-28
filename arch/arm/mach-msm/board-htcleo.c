@@ -40,6 +40,7 @@
 #include <mach/perflock.h>
 
 #include "board-htcleo.h"
+#include "board-htcleo-ts.h"
 #include "devices.h"
 #include "proc_comm.h"
 #include "dex_comm.h"
@@ -134,6 +135,9 @@ static struct platform_device htcleo_timed_gpios = {
 
 static struct i2c_board_info base_i2c_devices[] =
 {
+	{
+		I2C_BOARD_INFO(LEO_TOUCH_DRV_NAME, 0),
+	},
 	{
 		I2C_BOARD_INFO("tps65023", 0x48),
 		.platform_data = tps65023_data,
