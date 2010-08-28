@@ -34,10 +34,12 @@
 #include <asm/setup.h>
 
 #include <mach/board.h>
+#include <mach/board_htc.h>
 #include <mach/hardware.h>
 #include <mach/system.h>
 #include <mach/msm_iomap.h>
 #include <mach/perflock.h>
+#include <mach/htc_usb.h>
 
 #include "board-htcleo.h"
 #include "board-htcleo-ts.h"
@@ -145,6 +147,83 @@ static struct i2c_board_info base_i2c_devices[] =
 		.platform_data = tps65023_data,
 	},
 };
+
+///////////////////////////////////////////////////////////////////////
+// USB 
+
+///////////////////////////////////////////////////////////////////////
+
+static uint32_t usb_phy_3v3_table[] =
+{
+    PCOM_GPIO_CFG(HTCLEO_GPIO_USBPHY_3V3_ENABLE, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_4MA)
+};
+
+static int htcleo_phy_init_seq[] ={0x0C, 0x31, 0x30, 0x32, 0x1D, 0x0D, 0x1D, 0x10, -1};
+
+#ifdef CONFIG_USB_ANDROID
+static struct msm_hsusb_platform_data msm_hsusb_pdata = {
+	.phy_init_seq		= htcleo_phy_init_seq,
+	.phy_reset		= msm_hsusb_8x50_phy_reset,
+	.accessory_detect = 0, /* detect by ID pin gpio */
+};
+
+static struct usb_mass_storage_platform_data mass_storage_pdata = {
+	.nluns		= 1,
+	.vendor		= "HTC",
+	.product	= "Android Phone",
+	.release	= 0x0100,
+};
+
+static struct platform_device usb_mass_storage_device = {
+	.name	= "usb_mass_storage",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &mass_storage_pdata,
+	},
+};
+
+static struct android_usb_platform_data android_usb_pdata = {
+	.vendor_id	= 0x0bb4,
+	.product_id	= 0x0c02,
+	.version	= 0x0100,
+	.product_name		= "Android Phone",
+	.manufacturer_name	= "HTC",
+	.num_products = ARRAY_SIZE(usb_products),
+	.products = usb_products,
+	.num_functions = ARRAY_SIZE(usb_functions_all),
+	.functions = usb_functions_all,
+};
+
+static struct platform_device android_usb_device = {
+	.name	= "android_usb",
+	.id		= -1,
+	.dev		= {
+		.platform_data = &android_usb_pdata,
+	},
+};
+static void htcleo_add_usb_devices(void)
+{
+	android_usb_pdata.products[0].product_id =
+		android_usb_pdata.product_id;
+	android_usb_pdata.serial_number = board_serialno();
+	msm_hsusb_pdata.serial_number = board_serialno();
+	msm_device_hsusb.dev.platform_data = &msm_hsusb_pdata;
+	config_gpio_table(usb_phy_3v3_table, ARRAY_SIZE(usb_phy_3v3_table));
+	gpio_set_value(HTCLEO_GPIO_USBPHY_3V3_ENABLE, 1);
+	platform_device_register(&msm_device_hsusb);
+	platform_device_register(&usb_mass_storage_device);
+	platform_device_register(&android_usb_device);
+}
+
+unsigned htcleo_get_vbus_state(void)
+{
+	if(readl(MSM_SHARED_RAM_BASE+0xef20c))
+		return 1;
+	else
+		return 0;
+}
+
+#endif
 
 ///////////////////////////////////////////////////////////////////////
 // KGSL (HW3D support)#include <linux/android_pmem.h>
@@ -334,8 +413,16 @@ static void __init htcleo_init(void)
 
 	i2c_register_board_info(0, base_i2c_devices, ARRAY_SIZE(base_i2c_devices));
 
+#ifdef CONFIG_USB_ANDROID
+	htcleo_add_usb_devices();
+#endif
+	
 	htcleo_init_mmc(0);
 	platform_device_register(&htcleo_timed_gpios);
+	
+#ifdef CONFIG_USB_ANDROID
+	msm_hsusb_set_vbus_state(htcleo_get_vbus_state());
+#endif
 
 	/* Blink the camera LED shortly to show that we're alive! */
 
