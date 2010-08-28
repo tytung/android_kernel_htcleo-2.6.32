@@ -31,8 +31,7 @@
 
 
 // from board-htcleo-power.c
-//void notify_vbus_change_intr(void);
-void notify_vbus_change_intr(void){};
+void notify_vbus_change_intr(void);
 
 #define MSM_A2M_INT(n) (MSM_CSR_BASE + 0x400 + (n) * 4)
 

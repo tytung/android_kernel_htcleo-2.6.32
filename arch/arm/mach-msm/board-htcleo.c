@@ -139,6 +139,9 @@ static struct platform_device htcleo_timed_gpios = {
 
 static struct i2c_board_info base_i2c_devices[] =
 {
+  	{
+		I2C_BOARD_INFO("htcleo-battery", 0x26),
+	},
 	{
 		I2C_BOARD_INFO(LEO_TOUCH_DRV_NAME, 0),
 	},
@@ -334,6 +337,13 @@ static struct platform_device ram_console_device = {
 	.resource	= ram_console_resources,
 };
 
+/* Battery */
+static struct platform_device htcleo_power  =
+{
+	.name = "htcleo_power",
+	.id = -1,
+};
+
 static struct platform_device *devices[] __initdata =
 {
 	&ram_console_device,
@@ -355,7 +365,7 @@ static struct platform_device *devices[] __initdata =
 //	&capella_cm3602,
 //	&msm_camera_sensor_s5k3e2fx,
 //	&htcleo_flashlight_device,
-//	&htcleo_power,
+	&htcleo_power,
 	&qsd_device_spi,
 
 };
