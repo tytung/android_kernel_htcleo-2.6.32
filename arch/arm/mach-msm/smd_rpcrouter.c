@@ -137,7 +137,13 @@ static int rpcrouter_send_control_msg(union rr_control_msg *msg)
 	unsigned long flags;
 	int need;
 
-	if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO) && !initialized) {
+	RR("send control message cmd=%d srv.cmd=%d prog=%08x:%x id=%d:%08x\n", msg->cmd, msg->srv.cmd, msg->srv.prog, msg->srv.vers,  msg->srv.pid, msg->srv.cid);
+
+	if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO
+#if defined(CONFIG_MACH_HTCLEO)
+	   || msg->cmd == RPCROUTER_CTRL_CMD_BYE
+#endif	   
+	) && !initialized) {
 		printk(KERN_ERR "rpcrouter_send_control_msg(): Warning, "
 		       "router not initialized\n");
 		return -EINVAL;
@@ -394,9 +400,10 @@ static int process_control_msg(union rr_control_msg *msg, int len)
 
 		RR("x HELLO\n");
 		memset(&ctl, 0, sizeof(ctl));
+#if !defined(CONFIG_MACH_HTCLEO)
 		ctl.cmd = RPCROUTER_CTRL_CMD_HELLO;
 		rpcrouter_send_control_msg(&ctl);
-
+#endif
 		initialized = 1;
 
 		/* Send list of servers one at a time */
@@ -1249,7 +1256,9 @@ int msm_rpcrouter_close(void)
 static int msm_rpcrouter_probe(struct platform_device *pdev)
 {
 	int rc;
-
+	union rr_control_msg msg = { 0 };
+	pr_info("RPC Probe\n");
+	
 	/* Initialize what we need to start processing */
 	INIT_LIST_HEAD(&local_endpoints);
 	INIT_LIST_HEAD(&remote_endpoints);
@@ -1266,6 +1275,8 @@ static int msm_rpcrouter_probe(struct platform_device *pdev)
 	if (rc < 0)
 		goto fail_destroy_workqueue;
 
+	pr_info("RPC Init done\n");
+
 	/* Open up SMD channel 2 */
 	initialized = 0;
 	rc = smd_open("SMD_RPCCALL", &smd_channel, NULL, rpcrouter_smdnotify);
@@ -1273,6 +1284,22 @@ static int msm_rpcrouter_probe(struct platform_device *pdev)
 		goto fail_remove_devices;
 
 	queue_work(rpcrouter_workqueue, &work_read_data);
+	
+#if defined(CONFIG_MACH_HTCLEO)
+	msg.cmd = RPCROUTER_CTRL_CMD_BYE;
+	rpcrouter_send_control_msg(&msg);
+	msleep(50);
+
+	/* wince rpc init */
+        msg.cmd = RPCROUTER_CTRL_CMD_HELLO;
+	rpcrouter_send_control_msg(&msg);
+	msleep(50);
+	
+	
+        process_control_msg(&msg, sizeof(msg));
+	msleep(100);
+#endif	
+	
 	return 0;
 
  fail_remove_devices:
