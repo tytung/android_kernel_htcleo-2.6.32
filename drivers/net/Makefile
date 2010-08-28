@@ -284,7 +284,12 @@ obj-$(CONFIG_FS_ENET) += fs_enet/
 
 obj-$(CONFIG_NETXEN_NIC) += netxen/
 
+ifdef CONFIG_MACH_HTCLEO
+obj-$(CONFIG_MSM_RMNET) += msm_rmnet_wince.o
+else
 obj-$(CONFIG_MSM_RMNET) += msm_rmnet.o
+endif
+
 obj-$(CONFIG_NIU) += niu.o
 obj-$(CONFIG_VIRTIO_NET) += virtio_net.o
 obj-$(CONFIG_SFC) += sfc/
