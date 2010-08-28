@@ -31,20 +31,20 @@
 #define DAL_TRACE 0
 
 struct dal_hdr {
-	uint32_t length:16;	/* message length (header inclusive) */
-	uint32_t version:8;	/* DAL protocol version */
+	uint32_t length:16; 	/* message length (header inclusive) */
+	uint32_t version:8; 	/* DAL protocol version */
 	uint32_t priority:7;
 	uint32_t async:1;
 	uint32_t ddi:16;	/* DDI method number */
-	uint32_t prototype:8;	/* DDI serialization format */
-	uint32_t msgid:8;	/* message id (DDI, ATTACH, DETACH, ...) */
+	uint32_t prototype:8;   /* DDI serialization format */
+	uint32_t msgid:8;   	/* message id (DDI, ATTACH, DETACH, ...) */
 	void *from;
 	void *to;
 } __attribute__((packed));
 
-#define TRACE_DATA_MAX	128
-#define TRACE_LOG_MAX	32
-#define TRACE_LOG_MASK	(TRACE_LOG_MAX - 1)
+#define TRACE_DATA_MAX  	128
+#define TRACE_LOG_MAX   	32
+#define TRACE_LOG_MASK  	(TRACE_LOG_MAX - 1)
 
 struct dal_trace {
 	unsigned timestamp;
@@ -129,17 +129,17 @@ void dal_trace(struct dal_client *c)
 	if (c->tr_log)
 		return;
 	c->tr_log = kzalloc(sizeof(struct dal_trace) * TRACE_LOG_MAX,
-			    GFP_KERNEL);
+				GFP_KERNEL);
 }
 
 void dal_trace_print(struct dal_hdr *hdr, unsigned *data, int len, unsigned when)
 {
 	int i;
 	printk("DAL %08x -> %08x L=%03x A=%d D=%04x P=%02x M=%02x T=%d",
-	       (unsigned) hdr->from, (unsigned) hdr->to,
-	       hdr->length, hdr->async,
-	       hdr->ddi, hdr->prototype, hdr->msgid,
-	       when);
+		   (unsigned) hdr->from, (unsigned) hdr->to,
+		   hdr->length, hdr->async,
+		   hdr->ddi, hdr->prototype, hdr->msgid,
+		   when);
 	len /= 4;
 	for (i = 0; i < len; i++) {
 		if (!(i & 7))
@@ -226,7 +226,7 @@ again:
 			}
 		}
 		pr_err("$$$ receiving unknown message len = %d $$$\n",
-		       dch->count);
+			   dch->count);
 		dch->active = 0;
 		dch->ptr = dch->data;
 	}
@@ -262,8 +262,7 @@ check_data:
 			if (client->event)
 				client->event(dch->ptr, len, client->cookie);
 			else
-				pr_err("dal: client %p has no event handler\n",
-				       client);
+				pr_err("dal: client %p has no event handler\n", client);
 			goto again;
 		}
 
@@ -360,20 +359,21 @@ int dal_call_raw(struct dal_client *client,
 	smd_write(dch->sch, data, data_len);
 	spin_unlock_irqrestore(&dch->lock, flags);
 
-	if (!wait_event_timeout(client->wait, (client->status != -EBUSY), 5*HZ)) {
+	if (!wait_event_timeout(client->wait, (client->status != -EBUSY), 5*HZ))	
+	{
 		dal_trace_dump(client);
 		pr_err("dal: call timed out. dsp is probably dead.\n");
 		dal_trace_print(hdr, data, data_len, 0);
-		BUG();
+//		BUG();
 	}
 
 	return client->status;
 }
 
 int dal_call(struct dal_client *client,
-	     unsigned ddi, unsigned prototype,
-	     void *data, int data_len,
-	     void *reply, int reply_max)
+		 unsigned ddi, unsigned prototype,
+		 void *data, int data_len,
+		 void *reply, int reply_max)
 {
 	struct dal_hdr hdr;
 	int r;
@@ -394,11 +394,11 @@ int dal_call(struct dal_client *client,
 	mutex_lock(&client->write_lock);
 	r = dal_call_raw(client, &hdr, data, data_len, reply, reply_max);
 	mutex_unlock(&client->write_lock);
-#if 0
+#if 1
 	if ((r > 3) && (((uint32_t*) reply)[0] == 0)) {
-		pr_info("dal call OK\n");
+	 //   pr_info("dal call OK\n");
 	} else {
-		pr_info("dal call ERROR\n");
+		pr_info("dal call %d %d ERROR\n", ddi, prototype);
 	}
 #endif
 	return r;
@@ -415,8 +415,67 @@ struct dal_reply_attach {
 	char name[64];
 };
 
+
+struct dal_client *dal_attach_ex(uint32_t device_id, const char *aname, const char *name, dal_event_func_t func, void *cookie)
+{
+	struct dal_hdr hdr;
+	struct dal_msg_attach msg;
+	struct dal_reply_attach reply;
+	struct dal_channel *dch;
+	struct dal_client *client;
+	unsigned long flags;
+	int r;
+
+	dch = dal_open_channel(name);
+	if (!dch)
+		return 0;
+
+	client = kzalloc(sizeof(*client), GFP_KERNEL);
+	if (!client)
+		return 0;
+
+	client->dch = dch;
+	client->event = func;
+	client->cookie = cookie;
+	mutex_init(&client->write_lock);
+	spin_lock_init(&client->tr_lock);
+	init_waitqueue_head(&client->wait);
+
+	spin_lock_irqsave(&dch->lock, flags);
+	list_add(&client->list, &dch->clients);
+	spin_unlock_irqrestore(&dch->lock, flags);
+
+	memset(&hdr, 0, sizeof(hdr));
+	memset(&msg, 0, sizeof(msg));
+
+	hdr.length = sizeof(hdr) + sizeof(msg);
+	hdr.version = DAL_VERSION;
+	hdr.msgid = DAL_MSGID_ATTACH;
+	hdr.from = client;
+	msg.device_id = device_id;
+	if (aname)
+		strcpy(msg.attach, aname);
+
+	r = dal_call_raw(client, &hdr, &msg, sizeof(msg),
+			 &reply, sizeof(reply));
+
+	if ((r == sizeof(reply)) && (reply.status == 0)) {
+		reply.name[63] = 0;
+		pr_info("dal_attach: status = %d, name = '%s'\n",
+			reply.status, reply.name);
+		return client;
+	}
+
+	pr_err("dal_attach: failure\n");
+
+	dal_detach(client);
+	return 0;
+}
+
+
+
 struct dal_client *dal_attach(uint32_t device_id, const char *name,
-			      dal_event_func_t func, void *cookie)
+				  dal_event_func_t func, void *cookie)
 {
 	struct dal_hdr hdr;
 	struct dal_msg_attach msg;
@@ -489,7 +548,7 @@ int dal_detach(struct dal_client *client)
 		data = (uint32_t) client;
 
 		dal_call_raw(client, &hdr, &data, sizeof(data),
-			     &data, sizeof(data));
+				 &data, sizeof(data));
 	}
 
 	dch = client->dch;
@@ -543,7 +602,8 @@ int dal_call_f1(struct dal_client *client, uint32_t ddi, uint32_t arg1, uint32_t
 
 int dal_call_f5(struct dal_client *client, uint32_t ddi, void *ibuf, uint32_t ilen)
 {
-	uint32_t tmp[128];
+//	uint32_t tmp[128];
+	uint32_t tmp[DAL_DATA_MAX];
 	int res;
 	int param_idx = 0;
 
@@ -563,23 +623,55 @@ int dal_call_f5(struct dal_client *client, uint32_t ddi, void *ibuf, uint32_t il
 	return res;
 }
 
-int dal_call_f9(struct dal_client *client, uint32_t ddi, void *obuf,
-		uint32_t olen)
+int dal_call_f6(struct dal_client *client, uint32_t ddi, uint32_t cmd, void *ibuf, uint32_t ilen)
+{
+	uint32_t tmp[DAL_DATA_MAX];
+	int res;
+	int param_idx = 0;
+
+	if (ilen + 4 > DAL_DATA_MAX)
+		return -EINVAL;
+
+	tmp[param_idx] = cmd;
+	param_idx++;
+	tmp[param_idx] = ilen;
+	param_idx++;
+
+	memcpy(&tmp[param_idx], ibuf, ilen);
+	param_idx += DIV_ROUND_UP(ilen, 4);
+
+	res = dal_call(client, ddi, 6, tmp, param_idx * 4, tmp, sizeof(tmp));
+
+	if (res >= 4)
+		return (int) tmp[0];
+	return res;
+}
+
+int dal_call_f8(struct dal_client *client, uint32_t ddi, void *ibuf, uint32_t ilen, void *obuf, uint32_t olen)
 {
 	uint32_t tmp[128];
 	int res;
+	int param_idx = 0;
 
-	if (olen > sizeof(tmp) - 8)
+	if (ilen + 8 > DAL_DATA_MAX)
 		return -EINVAL;
-	tmp[0] = olen;
 
-	res = dal_call(client, ddi, 9, tmp, sizeof(uint32_t), tmp,
-		sizeof(tmp));
+	tmp[param_idx] = ilen;
+	param_idx++;
+
+	memcpy(&tmp[param_idx], ibuf, ilen);
+	param_idx += DIV_ROUND_UP(ilen, 4);
+
+	tmp[param_idx++] = olen;
+	res = dal_call(client, ddi, 8, tmp, param_idx * 4, tmp, sizeof(tmp));
 
 	if (res >= 4)
+	{
 		res = (int)tmp[0];
+	}
 
-	if (!res) {
+	if (!res) 
+	{
 		if (tmp[1] > olen)
 			return -EIO;
 		memcpy(obuf, &tmp[2], tmp[1]);
@@ -587,9 +679,37 @@ int dal_call_f9(struct dal_client *client, uint32_t ddi, void *obuf,
 	return res;
 }
 
+int dal_call_f9(struct dal_client *client, uint32_t ddi, void *obuf, uint32_t olen)
+{
+	uint32_t tmp[128];
+	int res;
+	int param_idx = 0;
+
+	if (olen + 8 > DAL_DATA_MAX)
+		return -EINVAL;
+
+	tmp[param_idx++] = olen;
+	res = dal_call(client, ddi, 9, tmp, param_idx * 4, tmp, sizeof(tmp));
+
+	if (res >= 4)
+	{
+		res = (int)tmp[0];
+	}
+
+	if (!res) 
+	{
+		if (tmp[1] > olen)
+			return -EIO;
+		memcpy(obuf, &tmp[2], tmp[1]);
+	}
+	return res;
+}
+
+
+
+
 int dal_call_f13(struct dal_client *client, uint32_t ddi, void *ibuf1,
-		 uint32_t ilen1, void *ibuf2, uint32_t ilen2, void *obuf,
-		 uint32_t olen)
+		 uint32_t ilen1, void *ibuf2, uint32_t ilen2, void *obuf, uint32_t olen)
 {
 	uint32_t tmp[128];
 	int res;
@@ -622,41 +742,5 @@ int dal_call_f13(struct dal_client *client, uint32_t ddi, void *ibuf1,
 	return res;
 }
 
-int dal_call_f14(struct dal_client *client, uint32_t ddi, void *ibuf,
-		 uint32_t ilen, void *obuf1, uint32_t olen1, void *obuf2,
-		 uint32_t olen2, uint32_t *oalen2)
-{
-	uint32_t tmp[128];
-	int res;
-	int param_idx = 0;
 
-	if (olen1 + olen2 + 8 > DAL_DATA_MAX ||
-		ilen + 12 > DAL_DATA_MAX)
-		return -EINVAL;
-
-	tmp[param_idx] = ilen;
-	param_idx++;
-
-	memcpy(&tmp[param_idx], ibuf, ilen);
-	param_idx += DIV_ROUND_UP(ilen, 4);
-
-	tmp[param_idx++] = olen1;
-	tmp[param_idx++] = olen2;
-	res = dal_call(client, ddi, 14, tmp, param_idx * 4, tmp, sizeof(tmp));
-
-	if (res >= 4)
-		res = (int)tmp[0];
-
-	if (!res) {
-		if (tmp[1] > olen1)
-			return -EIO;
-		param_idx = DIV_ROUND_UP(tmp[1], 4) + 2;
-		if (tmp[param_idx] > olen2)
-			return -EIO;
-
-		memcpy(obuf1, &tmp[2], tmp[1]);
-		memcpy(obuf2, &tmp[param_idx+1], tmp[param_idx]);
-		*oalen2 = tmp[param_idx];
-	}
-	return res;
-}
+// END OF FILE

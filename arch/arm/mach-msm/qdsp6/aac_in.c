@@ -1,4 +1,4 @@
-/* arch/arm/mach-msm/qdsp6/pcm_in.c
+/* arch/arm/mach-msm/qdsp6/aac_in.c
  *
  * Copyright (C) 2009 Google, Inc.
  * Copyright (C) 2009 HTC Corporation
@@ -12,7 +12,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- */
+*/
 
 #include <linux/fs.h>
 #include <linux/module.h>
@@ -21,22 +21,25 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/uaccess.h>
-
 #include <linux/msm_audio.h>
-
 #include <mach/msm_qdsp6_audio.h>
 
 #define BUFSZ (4096)
 #define DMASZ (BUFSZ * 2)
 
-static DEFINE_MUTEX(pcm_in_lock);
-static uint32_t sample_rate = 8000;
-static uint32_t channel_count = 1;
-static int pcm_in_opened = 0;
+#if 0
+#define TRACE(x...) pr_info("Q6: "x)
+#else
+#define TRACE(x...) do{}while(0)
+#endif
+
+static DEFINE_MUTEX(aac_in_lock);
+static int aac_in_opened = 0;
+static struct aac_format *af;
 
 void audio_client_dump(struct audio_client *ac);
 
-static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long aac_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int rc = 0;
 
@@ -56,22 +59,22 @@ static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (arg == 0) {
 			acdb_id = 0;
-		} else if (copy_from_user(&acdb_id, (void*) arg, sizeof(acdb_id))) {
+		} else if (copy_from_user(&acdb_id,
+				(void*) arg, sizeof(acdb_id))) {
 			rc = -EFAULT;
 			break;
 		}
 
-		mutex_lock(&pcm_in_lock);
+		mutex_lock(&aac_in_lock);
 		if (file->private_data) {
 			rc = -EBUSY;
 		} else {
-			file->private_data = q6audio_open_pcm(
-				BUFSZ, sample_rate, channel_count,
-				AUDIO_FLAG_READ, acdb_id);
+			file->private_data = q6audio_open_aac(
+				BUFSZ, 48000, AUDIO_FLAG_READ, af, acdb_id);
 			if (!file->private_data)
 				rc = -ENOMEM;
 		}
-		mutex_unlock(&pcm_in_lock);
+		mutex_unlock(&aac_in_lock);
 		break;
 	}
 	case AUDIO_STOP:
@@ -84,16 +87,17 @@ static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			rc = -EFAULT;
 			break;
 		}
-		sample_rate = config.sample_rate;
-		channel_count = config.channel_count;
+		if (config.sample_rate != 48000)
+			pr_info("only 48KHz AAC encode supported\n");
+		af->channel_config = config.channel_count;
 		break;
 	}
 	case AUDIO_GET_CONFIG: {
 		struct msm_audio_config config;
 		config.buffer_size = BUFSZ;
 		config.buffer_count = 2;
-		config.sample_rate = sample_rate;
-		config.channel_count = channel_count;
+		config.sample_rate = 48000;
+		config.channel_count = af->channel_config;
 		config.unused[0] = 0;
 		config.unused[1] = 0;
 		config.unused[2] = 0;
@@ -108,33 +112,40 @@ static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return rc;
 }
 
-static int q6_in_open(struct inode *inode, struct file *file)
+static int aac_in_open(struct inode *inode, struct file *file)
 {
 	int rc;
 
-	pr_info("pcm_in: open\n");
-	mutex_lock(&pcm_in_lock);
-	if (pcm_in_opened) {
-		pr_err("pcm_in: busy\n");
+	pr_info("aac_in: open\n");
+	mutex_lock(&aac_in_lock);
+	if (aac_in_opened) {
+		pr_err("aac_in: busy\n");
 		rc = -EBUSY;
 	} else {
-		pcm_in_opened = 1;
+		af = kzalloc(sizeof(*af), GFP_KERNEL);
+		memset(af, 0, sizeof(struct aac_format));
+		af->sample_rate = 3; /* 48000 */
+		af->channel_config = 1;
+		af->block_formats = AUDIO_AAC_FORMAT_ADTS;
+		af->audio_object_type = 2; /* CAD to ADSP format */
+		af->bit_rate = 192000;
+
+		aac_in_opened = 1;
 		rc = 0;
 	}
-	mutex_unlock(&pcm_in_lock);
+	mutex_unlock(&aac_in_lock);
 	return rc;
 }
 
-static ssize_t q6_in_read(struct file *file, char __user *buf,
-			  size_t count, loff_t *pos)
+static ssize_t aac_in_read(struct file *file, char __user *buf,
+			   size_t count, loff_t *pos)
 {
 	struct audio_client *ac;
 	struct audio_buffer *ab;
 	const char __user *start = buf;
-	int xfer;
-	int res;
+	int xfer, res = 0;
 
-	mutex_lock(&pcm_in_lock);
+	mutex_lock(&aac_in_lock);
 	ac = file->private_data;
 	if (!ac) {
 		res = -ENODEV;
@@ -146,8 +157,8 @@ static ssize_t q6_in_read(struct file *file, char __user *buf,
 		if (ab->used)
 			if (!wait_event_timeout(ac->wait, (ab->used == 0), 5*HZ)) {
 				audio_client_dump(ac);
-				pr_err("pcm_read: timeout. dsp dead?\n");
-//      			BUG();
+				pr_err("aac_read: timeout. dsp dead?\n");
+				BUG();
 			}
 
 		xfer = count;
@@ -168,39 +179,39 @@ static ssize_t q6_in_read(struct file *file, char __user *buf,
 	}
 fail:
 	res = buf - start;
-	mutex_unlock(&pcm_in_lock);
-
+	mutex_unlock(&aac_in_lock);
 	return res;
 }
 
-static int q6_in_release(struct inode *inode, struct file *file)
+static int aac_in_release(struct inode *inode, struct file *file)
 {
 	int rc = 0;
-	mutex_lock(&pcm_in_lock);
+	pr_info("aac_in: release\n");
+	mutex_lock(&aac_in_lock);
 	if (file->private_data)
 		rc = q6audio_close(file->private_data);
-	pcm_in_opened = 0;
-	mutex_unlock(&pcm_in_lock);
-	pr_info("pcm_in: release\n");
+	kfree(af);
+	aac_in_opened = 0;
+	mutex_unlock(&aac_in_lock);
 	return rc;
 }
 
-static struct file_operations q6_in_fops = {
-	.owner		= THIS_MODULE,
-	.open		= q6_in_open,
-	.read		= q6_in_read,
-	.release	= q6_in_release,
-	.unlocked_ioctl	= q6_in_ioctl,
+static struct file_operations aac_in_fops = {
+	.owner	= THIS_MODULE,
+	.open	= aac_in_open,
+	.read	= aac_in_read,
+	.release  = aac_in_release,
+	.unlocked_ioctl	= aac_in_ioctl,
 };
 
-struct miscdevice q6_in_misc = {
-	.minor	= MISC_DYNAMIC_MINOR,
-	.name	= "msm_pcm_in",
-	.fops	= &q6_in_fops,
+struct miscdevice aac_in_misc = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "msm_aac_in",
+	.fops = &aac_in_fops,
 };
 
-static int __init q6_in_init(void) {
-	return misc_register(&q6_in_misc);
+static int __init aac_in_init(void) {
+	return misc_register(&aac_in_misc);
 }
 
-device_initcall(q6_in_init);
+device_initcall(aac_in_init);
