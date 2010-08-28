@@ -15,7 +15,6 @@ obj-$(CONFIG_ARCH_MSM7X30) += clock-7x30.o arch-init-7x30.o socinfo.o
 obj-$(CONFIG_ARCH_MSM7X30) += rpc_pmapp.o smd_rpcrouter_clients.o spm.o
 obj-$(CONFIG_ARCH_MSM7X30) += rpc_hsusb.o
 obj-$(CONFIG_ARCH_MSM_SCORPION) += idle-v7.o
-obj-y += clock.o
 obj-y += gpio.o generic_gpio.o
 obj-y += nand_partitions.o
 obj-y += drv_callback.o
@@ -59,17 +58,17 @@ obj-$(CONFIG_MSM7KV2_AUDIO) += htc_acoustic_7x30.o
 obj-$(CONFIG_SENSORS_AKM8976) += htc_akm_cal.o
 
 obj-$(CONFIG_MACH_HALIBUT) += board-halibut.o board-halibut-panel.o
-obj-$(CONFIG_MACH_HALIBUT) += board-halibut-keypad.o fish_battery.o
-obj-$(CONFIG_MACH_SWORDFISH) += board-swordfish.o
+obj-$(CONFIG_MACH_HALIBUT) += board-halibut-keypad.o fish_battery.o clock.o
+obj-$(CONFIG_MACH_SWORDFISH) += board-swordfish.o clock.o
 obj-$(CONFIG_MACH_SWORDFISH) += board-swordfish-keypad.o fish_battery.o
 obj-$(CONFIG_MACH_SWORDFISH) += board-swordfish-panel.o
 obj-$(CONFIG_MACH_SWORDFISH) += board-swordfish-mmc.o
-obj-$(CONFIG_MACH_TROUT) += board-trout.o board-trout-gpio.o
+obj-$(CONFIG_MACH_TROUT) += board-trout.o board-trout-gpio.o clock.o
 obj-$(CONFIG_MACH_TROUT) += board-trout-keypad.o board-trout-panel.o
 obj-$(CONFIG_MACH_TROUT) += htc_akm_cal.o htc_wifi_nvs.o htc_acoustic.o
 obj-$(CONFIG_MACH_TROUT) += board-trout-mmc.o board-trout-wifi.o
 obj-$(CONFIG_MACH_TROUT) += devices_htc.o
-obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi.o board-mahimahi-panel.o
+obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi.o board-mahimahi-panel.o clock.o
 obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi-keypad.o board-mahimahi-mmc.o
 obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi-rfkill.o htc_wifi_nvs.o
 obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi-wifi.o board-mahimahi-audio.o
@@ -81,26 +80,26 @@ obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi-flashlight.o
 obj-$(CONFIG_MACH_INCREDIBLEC) += board-incrediblec.o panel-samsungwvga-tl2796a.o board-incrediblec-tv.o
 obj-$(CONFIG_MACH_INCREDIBLEC) += board-incrediblec-keypad.o board-incrediblec-mmc.o
 obj-$(CONFIG_MACH_INCREDIBLEC) += board-incrediblec-rfkill.o board-incrediblec-audio.o
-obj-$(CONFIG_MACH_INCREDIBLEC) += board-incrediblec-wifi.o htc_awb_cal.o
+obj-$(CONFIG_MACH_INCREDIBLEC) += board-incrediblec-wifi.o htc_awb_cal.o clock.o
 obj-$(CONFIG_MACH_INCREDIBLEC) += board-incrediblec-microp.o
 obj-$(CONFIG_MACH_INCREDIBLEC) += proc_engineerid.o
 obj-$(CONFIG_MACH_SUPERSONIC) += board-supersonic.o board-supersonic-panel.o
 obj-$(CONFIG_MACH_SUPERSONIC) += board-supersonic-keypad.o board-supersonic-mmc.o
 obj-$(CONFIG_MACH_SUPERSONIC) += board-supersonic-rfkill.o board-supersonic-audio.o
 obj-$(CONFIG_MACH_SUPERSONIC) += board-supersonic-wifi.o htc_awb_cal.o
-obj-$(CONFIG_MACH_SUPERSONIC) += board-supersonic-microp.o
+obj-$(CONFIG_MACH_SUPERSONIC) += board-supersonic-microp.o clock.o
 obj-$(CONFIG_MACH_BRAVO) += board-bravo.o panel-samsungwvga-tl2796a.o panel-sonywvga-s6d16a0x21.o
 obj-$(CONFIG_MACH_BRAVO) += board-bravo-keypad.o board-bravo-mmc.o
 obj-$(CONFIG_MACH_BRAVO) += board-bravo-rfkill.o
 obj-$(CONFIG_MACH_BRAVO) += board-bravo-audio.o board-bravo-wifi.o htc_awb_cal.o
-obj-$(CONFIG_MACH_BRAVO) += board-bravo-microp.o
+obj-$(CONFIG_MACH_BRAVO) += board-bravo-microp.o clock.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc.o panel-samsungwvga-tl2796a.o panel-sonywvga-s6d16a0x21.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-keypad.o board-bravoc-mmc.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-rfkill.o board-bravoc-audio.o
 obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-wifi.o htc_awb_cal.o
-obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-microp.o
+obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-microp.o clock.o
 
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o board-htcleo-panel.o 
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o board-htcleo-panel.o clock-wince.o
 
 # MSM7x30 boards
 obj-$(CONFIG_ARCH_MSM7X30) += panel-samsungwvga-tl2796a.o panel-samsungwvga-s6e63m0.o panel-sonywvga-s6d16a0x21-7x30.o
@@ -110,7 +109,7 @@ obj-$(CONFIG_MACH_VISION)+= board-vision-keypad.o
 obj-$(CONFIG_MACH_VISION)+= board-vision-microp.o
 obj-$(CONFIG_MACH_VISION)+= board-vision-audio.o
 obj-$(CONFIG_MACH_VISION)+= board-vision-mmc.o board-vision-wifi.o
-obj-$(CONFIG_MACH_VISION)+= board-vision-rfkill.o htc_bluetooth.o
+obj-$(CONFIG_MACH_VISION)+= board-vision-rfkill.o htc_bluetooth.o clock.o
 
 obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon.o
 obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon-keypad.o
@@ -118,7 +117,7 @@ obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon-microp.o
 obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon-audio.o
 obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon-mmc.o board-lexikon-wifi.o
 obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon-rfkill.o
-obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon-panel.o htc_bluetooth.o
+obj-$(CONFIG_MACH_LEXIKON)+= board-lexikon-panel.o htc_bluetooth.o clock.o
 
 obj-$(CONFIG_MACH_SPEEDY)+= board-speedy.o
 obj-$(CONFIG_MACH_SPEEDY)+= board-speedy-keypad.o
@@ -126,7 +125,7 @@ obj-$(CONFIG_MACH_SPEEDY)+= board-speedy-microp.o
 obj-$(CONFIG_MACH_SPEEDY)+= board-speedy-audio.o
 obj-$(CONFIG_MACH_SPEEDY)+= board-speedy-mmc.o board-speedy-wifi.o
 obj-$(CONFIG_MACH_SPEEDY)+= board-speedy-rfkill.o
-obj-$(CONFIG_MACH_SPEEDY)+= board-speedy-panel.o htc_bluetooth.o
+obj-$(CONFIG_MACH_SPEEDY)+= board-speedy-panel.o htc_bluetooth.o clock.o
 
 obj-$(CONFIG_MACH_BLITZC)+= board-blitzc.o
 obj-$(CONFIG_MACH_BLITZC)+= board-blitzc-keypad.o
@@ -134,7 +133,7 @@ obj-$(CONFIG_MACH_BLITZC)+= board-blitzc-microp.o
 obj-$(CONFIG_MACH_BLITZC)+= board-blitzc-audio.o
 obj-$(CONFIG_MACH_BLITZC)+= board-blitzc-mmc.o
 obj-$(CONFIG_MACH_BLITZC)+= board-blitzc-rfkill.o
-obj-$(CONFIG_MACH_BLITZC)+= board-blitzc-panel.o
+obj-$(CONFIG_MACH_BLITZC)+= board-blitzc-panel.o clock.o
 
 obj-$(CONFIG_MACH_MECHA)+= board-mecha.o
 obj-$(CONFIG_MACH_MECHA)+= board-mecha-keypad.o
@@ -142,7 +141,7 @@ obj-$(CONFIG_MACH_MECHA)+= board-mecha-microp.o
 obj-$(CONFIG_MACH_MECHA)+= board-mecha-audio.o
 obj-$(CONFIG_MACH_MECHA)+= board-mecha-mmc.o board-mecha-wifi.o
 obj-$(CONFIG_MACH_MECHA)+= board-mecha-rfkill.o
-obj-$(CONFIG_MACH_MECHA)+= board-mecha-panel.o htc_bluetooth.o
+obj-$(CONFIG_MACH_MECHA)+= board-mecha-panel.o htc_bluetooth.o clock.o
 
 obj-$(CONFIG_MACH_GLACIER)+= board-glacier.o
 obj-$(CONFIG_MACH_GLACIER)+= board-glacier-keypad.o
@@ -151,36 +150,36 @@ obj-$(CONFIG_MACH_GLACIER)+= board-glacier-audio.o
 obj-$(CONFIG_MACH_GLACIER)+= board-glacier-mmc.o board-glacier-wifi.o
 obj-$(CONFIG_MACH_GLACIER)+= board-glacier-rfkill.o
 obj-$(CONFIG_MACH_GLACIER)+= htc_fmtx_rfkill.o
-obj-$(CONFIG_MACH_GLACIER)+= board-glacier-panel.o htc_bluetooth.o
+obj-$(CONFIG_MACH_GLACIER)+= board-glacier-panel.o htc_bluetooth.o clock.o
 
 obj-$(CONFIG_MACH_SPADE)+= board-spade.o
 obj-$(CONFIG_MACH_SPADE)+= board-spade-keypad.o
 obj-$(CONFIG_MACH_SPADE)+= board-spade-microp.o
 obj-$(CONFIG_MACH_SPADE)+= board-spade-audio.o
 obj-$(CONFIG_MACH_SPADE)+= board-spade-mmc.o board-spade-wifi.o htc_awb_cal.o
-obj-$(CONFIG_MACH_SPADE)+= board-spade-rfkill.o htc_bluetooth.o board-spade-panel.o
+obj-$(CONFIG_MACH_SPADE)+= board-spade-rfkill.o htc_bluetooth.o board-spade-panel.o clock.o
 
 # MSM7200A boards
 obj-$(CONFIG_MACH_HERO) += board-hero.o board-hero-panel.o board-hero-keypad.o
-obj-$(CONFIG_MACH_HERO) += board-hero-rfkill.o
+obj-$(CONFIG_MACH_HERO) += board-hero-rfkill.o clock.o
 obj-$(CONFIG_MACH_HERO) += board-hero-mmc.o board-hero-wifi.o htc_wifi_nvs.o htc_awb_cal.o
 
 # MSM7225 boards
 obj-$(CONFIG_MACH_BUZZ) += board-buzz.o board-buzz-panel.o board-buzz-keypad.o board-buzz-microp.o
-obj-$(CONFIG_MACH_BUZZ) += board-buzz-rfkill.o board-buzz-mmc.o board-buzz-wifi.o
+obj-$(CONFIG_MACH_BUZZ) += board-buzz-rfkill.o board-buzz-mmc.o board-buzz-wifi.o clock.o
 obj-$(CONFIG_MACH_BEE) += board-bee.o board-bee-panel.o board-bee-keypad.o board-bee-microp.o
-obj-$(CONFIG_MACH_BEE) += board-bee-rfkill.o board-bee-mmc.o board-bee-wifi.o
+obj-$(CONFIG_MACH_BEE) += board-bee-rfkill.o board-bee-mmc.o board-bee-wifi.o clock.o
 
 # MSM7227 boards
 obj-$(CONFIG_MACH_LEGEND) += board-legend-rfkill.o
 obj-$(CONFIG_MACH_LEGEND) += board-legend.o board-legend-keypad.o board-legend-panel.o
-obj-$(CONFIG_MACH_LEGEND) += board-legend-mmc.o board-legend-wifi.o board-legend-microp.o
+obj-$(CONFIG_MACH_LEGEND) += board-legend-mmc.o board-legend-wifi.o board-legend-microp.o clock.o
 obj-$(CONFIG_MACH_LATTE) += board-latte-rfkill.o
 obj-$(CONFIG_MACH_LATTE) += board-latte.o board-latte-keypad.o board-latte-panel.o
 obj-$(CONFIG_MACH_LATTE) += board-latte-mmc.o board-latte-wifi.o board-latte-microp.o
-obj-$(CONFIG_MACH_LIBERTY) += board-liberty-rfkill.o htc_bluetooth.o
+obj-$(CONFIG_MACH_LIBERTY) += board-liberty-rfkill.o htc_bluetooth.o clock.o
 obj-$(CONFIG_MACH_LIBERTY) += board-liberty.o board-liberty-keypad.o board-liberty-panel.o
-obj-$(CONFIG_MACH_LIBERTY) += board-liberty-mmc.o board-liberty-wifi.o board-liberty-microp.o
+obj-$(CONFIG_MACH_LIBERTY) += board-liberty-mmc.o board-liberty-wifi.o board-liberty-microp.o clock.o
 
 # MSM7600 boards
 obj-$(CONFIG_MACH_DESIREC) += board-desirec.o board-desirec-panel.o board-desirec-keypad.o
@@ -188,7 +187,7 @@ obj-$(CONFIG_MACH_DESIREC) += board-desirec-rfkill.o
 obj-$(CONFIG_MACH_DESIREC) += board-desirec-mmc.o board-desirec-wifi.o htc_wifi_nvs.o
 obj-$(CONFIG_MACH_HEROC) += board-heroc.o board-heroc-panel.o board-heroc-keypad.o
 obj-$(CONFIG_MACH_HEROC) += board-heroc-rfkill.o
-obj-$(CONFIG_MACH_HEROC) += board-heroc-mmc.o board-heroc-wifi.o htc_wifi_nvs.o
+obj-$(CONFIG_MACH_HEROC) += board-heroc-mmc.o board-heroc-wifi.o htc_wifi_nvs.o clock.o
 
 obj-$(CONFIG_ARCH_MSM7X00A) += msm_vibrator.o devices_htc.o
 obj-$(CONFIG_ARCH_MSM7225) += msm_vibrator.o devices_htc.o htc_wifi_nvs.o htc_awb_cal.o htc_bluetooth.o
