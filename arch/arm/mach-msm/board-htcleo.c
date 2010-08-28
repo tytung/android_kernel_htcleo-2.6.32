@@ -18,6 +18,7 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
+#include <linux/i2c-msm.h>
 #include <linux/init.h>
 #include <linux/input.h>
 #include <linux/io.h>
@@ -467,6 +468,18 @@ static struct platform_device htcleo_timed_gpios = {
 	},
 };
 
+static struct msm_i2c_device_platform_data msm_i2c_pdata = {
+	.i2c_clock = 100000,
+	.clock_strength = GPIO_8MA,
+	.data_strength = GPIO_8MA,
+};
+
+static void __init msm_device_i2c_init(void)
+{
+	msm_i2c_gpio_init();
+	msm_device_i2c.dev.platform_data = &msm_i2c_pdata;
+}
+
 static struct msm_acpu_clock_platform_data htcleo_clock_data = {
 	.acpu_switch_time_us	= 20,
 	.max_speed_delta_khz	= 256000,
@@ -514,6 +527,8 @@ static void __init htcleo_init(void)
 	mdelay(100);
 	htcleo_kgsl_power(true);
 */	
+	msm_device_i2c_init();
+
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 
 #ifdef CONFIG_SERIAL_MSM_HS
