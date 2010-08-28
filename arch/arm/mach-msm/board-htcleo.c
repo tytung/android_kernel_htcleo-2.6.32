@@ -345,16 +345,13 @@ static struct platform_device *devices[] __initdata =
 	&msm_device_smd,
 //	&htcleo_rfkill,
 //	&msm_audio_device,
-//	&msm_device_hsusb,
-//	&usb_mass_storage_device,
-//	&android_usb_device,
 	&android_pmem_device,
 	&android_pmem_adsp_device,
 	&android_pmem_camera_device,
 	&msm_device_i2c,
 //	&htcleo_backlight,
 //	&htcleo_headset,
-	&msm_kgsl_device,
+//	&msm_kgsl_device,
 //	&capella_cm3602,
 //	&msm_camera_sensor_s5k3e2fx,
 //	&htcleo_flashlight_device,
@@ -404,11 +401,12 @@ static void __init htcleo_init(void)
 	
 	/* set the gpu power rail to manual mode so clk en/dis will not
 	* turn off gpu power, and hang it on resume */
-        htcleo_kgsl_power_rail_mode(0);
-        htcleo_kgsl_power(false);
-        mdelay(100);
-        htcleo_kgsl_power(true);
-	
+/*
+	htcleo_kgsl_power_rail_mode(0);
+	htcleo_kgsl_power(false);
+	mdelay(100);
+	htcleo_kgsl_power(true);
+*/	
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 
 	i2c_register_board_info(0, base_i2c_devices, ARRAY_SIZE(base_i2c_devices));
