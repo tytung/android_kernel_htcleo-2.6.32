@@ -26,6 +26,7 @@
 #include <linux/tty_flip.h>
 
 #include <mach/msm_smd.h>
+#include <mach/amss_para.h>
 
 #define MAX_SMD_TTYS 32
 
@@ -118,7 +119,10 @@ static int smd_tty_open(struct tty_struct *tty, struct file *f)
 	if (n == 0) {
 		name = "SMD_DS";
 	} else if (n == 1) {
-		name = "SMD_DIAG";
+		 if(__amss_version==1550)
+			name = "SMD_DATA1";
+		 else
+			name = "SMD_DIAG";
 	} else if (n == 9) {
 #if defined(CONFIG_MACH_DESIREC) || defined(CONFIG_ARCH_MSM7X30)
 		name = "SMD_DATA4";
