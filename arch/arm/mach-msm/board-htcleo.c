@@ -54,6 +54,61 @@ static struct platform_device qsd_device_spi =
     .id             = 0,
 };
 
+///////////////////////////////////////////////////////////////////////
+// Regulator
+///////////////////////////////////////////////////////////////////////
+
+static struct regulator_consumer_supply tps65023_dcdc1_supplies[] =
+{
+    {
+        .supply = "acpu_vcore",
+    },
+};
+
+static struct regulator_init_data tps65023_data[5] =
+{
+    {
+        .constraints =
+		{
+            .name = "dcdc1", /* VREG_MSMC2_1V29 */
+            .min_uV = 1000000,
+            .max_uV = 1300000,
+            .valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+        },
+        .consumer_supplies = tps65023_dcdc1_supplies,
+        .num_consumer_supplies = ARRAY_SIZE(tps65023_dcdc1_supplies),
+    },
+    /* dummy values for unused regulators to not crash driver: */
+    {
+        .constraints = {
+            .name = "dcdc2", /* VREG_MSMC1_1V26 */
+            .min_uV = 1260000,
+            .max_uV = 1260000,
+        },
+    },
+    {
+        .constraints = {
+            .name = "dcdc3", /* unused */
+            .min_uV = 800000,
+            .max_uV = 3300000,
+        },
+    },
+    {
+        .constraints = {
+            .name = "ldo1", /* unused */
+            .min_uV = 1000000,
+            .max_uV = 3150000,
+        },
+    },
+    {
+        .constraints = {
+            .name = "ldo2", /* V_USBPHY_3V3 */
+            .min_uV = 3300000,
+            .max_uV = 3300000,
+        },
+    },
+};
+
 /* Vibrator */
 static struct timed_gpio timed_gpios[] = {
 	{
@@ -79,6 +134,10 @@ static struct platform_device htcleo_timed_gpios = {
 
 static struct i2c_board_info base_i2c_devices[] =
 {
+	{
+		I2C_BOARD_INFO("tps65023", 0x48),
+		.platform_data = tps65023_data,
+	},
 };
 
 ///////////////////////////////////////////////////////////////////////
@@ -207,7 +266,7 @@ static struct platform_device *devices[] __initdata =
 	&android_pmem_device,
 	&android_pmem_adsp_device,
 	&android_pmem_camera_device,
-//	&msm_device_i2c,
+	&msm_device_i2c,
 //	&htcleo_backlight,
 //	&htcleo_headset,
 	&msm_kgsl_device,
