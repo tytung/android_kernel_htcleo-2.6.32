@@ -44,7 +44,7 @@
 #include <mach/htc_usb.h>
 #include <mach/msm_flashlight.h>
 #include <mach/msm_serial_hs.h>
-
+#include <mach/perflock.h>
 
 #include "board-htcleo.h"
 #include "board-htcleo-ts.h"
@@ -277,15 +277,15 @@ static uint32_t bt_gpio_table[] =
 #ifdef CONFIG_SERIAL_MSM_HS
 static struct msm_serial_hs_platform_data msm_uart_dm1_pdata =
 {
-    /* Chip to Device */
-    .rx_wakeup_irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_BT_HOST_WAKE),
-    .inject_rx_on_wakeup = 0,
-    .cpu_lock_supported = 0,
+	/* Chip to Device */
+	.rx_wakeup_irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_BT_HOST_WAKE),
+	.inject_rx_on_wakeup = 0,
+	.cpu_lock_supported = 0,
 
-    /* for bcm */
-    .bt_wakeup_pin_supported = 1,
-    .bt_wakeup_pin   = HTCLEO_GPIO_BT_CHIP_WAKE,
-    .host_wakeup_pin = HTCLEO_GPIO_BT_HOST_WAKE,
+	/* for bcm */
+	.bt_wakeup_pin_supported = 1,
+	.bt_wakeup_pin   = HTCLEO_GPIO_BT_CHIP_WAKE,
+	.host_wakeup_pin = HTCLEO_GPIO_BT_HOST_WAKE,
 
 };
 #endif
@@ -493,6 +493,17 @@ static struct msm_acpu_clock_platform_data htcleo_clock_data = {
 //	.wait_for_irq_khz	= 19200,   // TCXO
 };
 
+static unsigned htcleo_perf_acpu_table[] = {
+	245000000,
+	576000000,
+	998400000,
+};
+
+static struct perflock_platform_data htcleo_perflock_data = {
+	.perf_acpu_table = htcleo_perf_acpu_table,
+	.table_size = ARRAY_SIZE(htcleo_perf_acpu_table),
+};
+
 static void htcleo_reset(void)
 {
 	// 25 - 16 = 9
@@ -502,8 +513,6 @@ static void htcleo_reset(void)
 		gpio_set_value(HTCLEO_GPIO_PS_HOLD, 0);
 	}
 }
-
-
 
 static void do_grp_reset(void)
 {
@@ -521,6 +530,8 @@ static void __init htcleo_init(void)
 
 	msm_acpu_clock_init(&htcleo_clock_data);
 	
+	perflock_init(&htcleo_perflock_data);
+
 	init_dex_comm();
 	
 	/* set the gpu power rail to manual mode so clk en/dis will not
