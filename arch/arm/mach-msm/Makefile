@@ -18,7 +18,12 @@ obj-$(CONFIG_ARCH_MSM_SCORPION) += idle-v7.o
 obj-y += gpio.o generic_gpio.o
 obj-y += nand_partitions.o
 obj-y += drv_callback.o
-obj-$(CONFIG_ARCH_QSD8X50) += pmic.o htc_wifi_nvs.o htc_bluetooth.o
+obj-$(CONFIG_ARCH_QSD8X50) += pmic.o htc_bluetooth.o
+ifndef CONFIG_MACH_HTCLEO
+obj-$(CONFIG_ARCH_QSD8X50) += htc_wifi_nvs.o 
+else
+obj-$(CONFIG_ARCH_QSD8X50) += board-htcleo-wifi-nvs.o
+endif
 
 obj-$(CONFIG_MSM_FIQ_SUPPORT) += fiq_glue.o
 obj-$(CONFIG_MACH_TROUT) += board-trout-rfkill.o
@@ -108,7 +113,7 @@ obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-microp.o clock.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o board-htcleo-panel.o board-htcleo-keypad.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-ts.o board-htcleo-mmc.o ieee754-df.o board-htcleo-power.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-battery.o board-htcleo-log.o board-htcleo-acoustic.o board-htcleo-audio.o
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-bt.o board-htcleo-microp.o
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-bt.o board-htcleo-microp.o board-htcleo-wifi.o
 obj-$(CONFIG_MACH_HTCLEO) += clock-wince.o
 
 # MSM7x30 boards
