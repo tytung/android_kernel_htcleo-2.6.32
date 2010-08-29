@@ -348,16 +348,12 @@ static struct platform_device msm_kgsl_device =
 
 static struct android_pmem_platform_data android_pmem_pdata = {
 	.name		= "pmem",
-	.start		= MSM_PMEM_MDP_BASE,
-	.size		= MSM_PMEM_MDP_SIZE,
 	.no_allocator	= 0,
 	.cached		= 1,
 };
 
 static struct android_pmem_platform_data android_pmem_adsp_pdata = {
 	.name		= "pmem_adsp",
-	.start		= MSM_PMEM_ADSP_BASE,
-	.size		= MSM_PMEM_ADSP_SIZE,
 	.no_allocator	= 0,
 	.cached		= 1,
 };
@@ -597,9 +593,48 @@ int __init ram_console_early_init(void);
 #endif
 #endif
 
+static unsigned pmem_sf_size = MSM_PMEM_SF_SIZE;
+static void __init pmem_sf_size_setup(char **p)
+{
+	pmem_sf_size = memparse(*p, p);
+}
+__early_param("pmem_sf_size=", pmem_sf_size_setup);
+
+static unsigned pmem_adsp_size = MSM_PMEM_ADSP_SIZE;
+static void __init pmem_adsp_size_setup(char **p)
+{
+	pmem_adsp_size = memparse(*p, p);
+}
+__early_param("pmem_adsp_size=", pmem_adsp_size_setup);
+
+static void __init htcleo_allocate_memory_regions(void)
+{
+	void *addr;
+	unsigned long size;
+
+	size = pmem_sf_size;
+	if (size) {
+		addr = alloc_bootmem(size);
+		android_pmem_pdata.start = __pa(addr);
+		android_pmem_pdata.size = size;
+		pr_info("allocating %lu bytes at %p (%lx physical) for sf "
+			"pmem arena\n", size, addr, __pa(addr));
+	}
+
+	size = pmem_adsp_size;
+	if (size) {
+		addr = alloc_bootmem(size);
+		android_pmem_adsp_pdata.start = __pa(addr);
+		android_pmem_adsp_pdata.size = size;
+		pr_info("allocating %lu bytes at %p (%lx physical) for adsp "
+			"pmem arena\n", size, addr, __pa(addr));
+	}
+}
+
 static void __init htcleo_map_io(void)
 {
 	msm_map_common_io();
+	htcleo_allocate_memory_regions();
 	msm_clock_init();
 	
 #if defined(CONFIG_VERY_EARLY_CONSOLE)
