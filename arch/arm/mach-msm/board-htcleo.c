@@ -125,7 +125,9 @@ static struct regulator_init_data tps65023_data[5] =
     },
 };
 
+///////////////////////////////////////////////////////////////////////
 // Compass
+///////////////////////////////////////////////////////////////////////
 static struct akm8973_platform_data compass_platform_data =
 {
 	.layouts = HTCLEO_LAYOUTS,
@@ -134,8 +136,10 @@ static struct akm8973_platform_data compass_platform_data =
 	.intr = HTCLEO_GPIO_COMPASS_INT_N,
 };
 
-#ifdef CONFIG_MICROP_COMMON
+///////////////////////////////////////////////////////////////////////
 // Microp
+///////////////////////////////////////////////////////////////////////
+#ifdef CONFIG_MICROP_COMMON
 static struct microp_function_config microp_functions[] = {
 	{
 		.name   = "reset-int",
@@ -194,7 +198,6 @@ static struct i2c_board_info base_i2c_devices[] =
 
 ///////////////////////////////////////////////////////////////////////
 // USB 
-
 ///////////////////////////////////////////////////////////////////////
 
 static uint32_t usb_phy_3v3_table[] =
@@ -340,9 +343,14 @@ static void __init htcleo_bt_init(void)
 }
 
 
+static struct platform_device htcleo_rfkill =
+{
+	.name = "htcleo_rfkill",
+	.id = -1,
+};
+
 ///////////////////////////////////////////////////////////////////////
 // KGSL (HW3D support)#include <linux/android_pmem.h>
-
 ///////////////////////////////////////////////////////////////////////
 
 static struct resource msm_kgsl_resources[] =
@@ -390,6 +398,10 @@ static struct platform_device msm_kgsl_device =
 	.num_resources	= ARRAY_SIZE(msm_kgsl_resources),
 };
 
+///////////////////////////////////////////////////////////////////////
+// Memory 
+///////////////////////////////////////////////////////////////////////
+
 static struct android_pmem_platform_data android_pmem_pdata = {
 	.name		= "pmem",
 	.no_allocator	= 0,
@@ -433,6 +445,9 @@ static struct platform_device android_pmem_camera_device = {
 		.platform_data = &android_pmem_camera_pdata,
 	},
 };
+///////////////////////////////////////////////////////////////////////
+// RAM-Console
+///////////////////////////////////////////////////////////////////////
 
 static struct resource ram_console_resources[] = {
 	{
@@ -448,18 +463,13 @@ static struct platform_device ram_console_device = {
 	.num_resources	= ARRAY_SIZE(ram_console_resources),
 	.resource	= ram_console_resources,
 };
+///////////////////////////////////////////////////////////////////////
+// Power/Battery
+///////////////////////////////////////////////////////////////////////
 
-
-/* Battery */
 static struct platform_device htcleo_power  =
 {
 	.name = "htcleo_power",
-	.id = -1,
-};
-
-static struct platform_device htcleo_rfkill =
-{
-	.name = "htcleo_rfkill",
 	.id = -1,
 };
 
@@ -487,10 +497,11 @@ static struct platform_device *devices[] __initdata =
 	&htcleo_flashlight_device,
 	&htcleo_power,
 	&qsd_device_spi,
-
 };
+///////////////////////////////////////////////////////////////////////
+// Vivrator
+///////////////////////////////////////////////////////////////////////
 
-/* Vibrator */
 static struct timed_gpio timed_gpios[] = {
 	{
 		.name = "vibrator",
@@ -511,6 +522,9 @@ static struct platform_device htcleo_timed_gpios = {
 		.platform_data = &timed_gpio_data,
 	},
 };
+///////////////////////////////////////////////////////////////////////
+// I2C
+///////////////////////////////////////////////////////////////////////
 
 static struct msm_i2c_device_platform_data msm_i2c_pdata = {
 	.i2c_clock = 100000,
@@ -523,6 +537,9 @@ static void __init msm_device_i2c_init(void)
 	msm_i2c_gpio_init();
 	msm_device_i2c.dev.platform_data = &msm_i2c_pdata;
 }
+///////////////////////////////////////////////////////////////////////
+// Clocks
+///////////////////////////////////////////////////////////////////////
 
 static struct msm_acpu_clock_platform_data htcleo_clock_data = {
 	.acpu_switch_time_us	= 20,
@@ -543,6 +560,9 @@ static struct perflock_platform_data htcleo_perflock_data = {
 	.perf_acpu_table = htcleo_perf_acpu_table,
 	.table_size = ARRAY_SIZE(htcleo_perf_acpu_table),
 };
+///////////////////////////////////////////////////////////////////////
+// Reset
+///////////////////////////////////////////////////////////////////////
 
 static void htcleo_reset(void)
 {
@@ -558,6 +578,9 @@ static void do_grp_reset(void)
 {
    	writel(0x20000, MSM_CLK_CTL_BASE + 0x214);
 }
+///////////////////////////////////////////////////////////////////////
+// Init
+///////////////////////////////////////////////////////////////////////
 
 static void __init htcleo_init(void)
 {
@@ -621,6 +644,10 @@ static void __init htcleo_init(void)
 	mdelay(200);
 
 }
+
+///////////////////////////////////////////////////////////////////////
+// Bootfunctions
+///////////////////////////////////////////////////////////////////////
 
 static void __init htcleo_fixup(struct machine_desc *desc, struct tag *tags,
 				 char **cmdline, struct meminfo *mi)
