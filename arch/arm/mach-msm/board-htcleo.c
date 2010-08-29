@@ -27,6 +27,7 @@
 #include <linux/platform_device.h>
 #include <linux/android_pmem.h>
 #include <linux/regulator/machine.h>
+#include <linux/bma150.h>
 #include <linux/akm8973.h>
 #include <../../../drivers/staging/android/timed_gpio.h>
 
@@ -51,6 +52,10 @@
 #include "devices.h"
 #include "proc_comm.h"
 #include "dex_comm.h"
+#ifdef CONFIG_MICROP_COMMON
+#include <mach/atmega_microp.h>
+void __init htcleo_microp_init(void);
+#endif
 
 extern int __init htcleo_init_mmc(unsigned debug_uart);
 extern void __init htcleo_audio_init(void);
@@ -129,6 +134,38 @@ static struct akm8973_platform_data compass_platform_data =
 	.intr = HTCLEO_GPIO_COMPASS_INT_N,
 };
 
+#ifdef CONFIG_MICROP_COMMON
+// Microp
+static struct microp_function_config microp_functions[] = {
+	{
+		.name   = "reset-int",
+		.category = MICROP_FUNCTION_RESET_INT,
+		.int_pin = 1 << 8,
+	},
+};
+
+static struct bma150_platform_data htcleo_g_sensor_pdata = {
+	.microp_new_cmd = 1,
+};
+
+static struct platform_device microp_devices[] = {
+	{
+		.name = BMA150_G_SENSOR_NAME,
+		.dev = {
+			.platform_data = &htcleo_g_sensor_pdata,
+		},
+	},
+};
+
+static struct microp_i2c_platform_data microp_data = {
+	.num_functions   = ARRAY_SIZE(microp_functions),
+	.microp_function = microp_functions,
+	.num_devices = ARRAY_SIZE(microp_devices),
+	.microp_devices = microp_devices,
+	.gpio_reset = HTCLEO_GPIO_UP_RESET_N,
+	.spi_devices = SPI_GSENSOR,
+};
+#endif
 static struct i2c_board_info base_i2c_devices[] =
 {
   	{
@@ -141,6 +178,13 @@ static struct i2c_board_info base_i2c_devices[] =
 		I2C_BOARD_INFO("tps65023", 0x48),
 		.platform_data = tps65023_data,
 	},
+#ifdef CONFIG_MICROP_COMMON
+	{
+		I2C_BOARD_INFO(MICROP_I2C_NAME, 0xCC >> 1),
+		.platform_data = &microp_data,
+		.irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_UP_INT_N)
+	},
+#endif
 	{
 		I2C_BOARD_INFO(AKM8973_I2C_NAME, 0x1C),
 		.platform_data = &compass_platform_data,
@@ -538,6 +582,9 @@ static void __init htcleo_init(void)
 	mdelay(100);
 	htcleo_kgsl_power(true);
 	
+#ifdef CONFIG_MICROP_COMMON
+	htcleo_microp_init();
+#endif
 	msm_device_i2c_init();
 
 	platform_add_devices(devices, ARRAY_SIZE(devices));
