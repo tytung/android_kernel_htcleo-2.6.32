@@ -230,10 +230,33 @@ static void lcdc_request_vsync(struct msm_panel_data *fb_panel,
 
 	/* the vsync callback will start the dma */
 	vsync_cb->func(vsync_cb);
-	lcdc->got_vsync = 0;
-	mdp_out_if_req_irq(mdp_dev, MSM_LCDC_INTERFACE, MDP_LCDC_FRAME_START,
-			   &lcdc->frame_start_cb);
-	lcdc_wait_vsync(fb_panel);
+// CotullaFIX start
+// FUCK, who make calls from console with disabled interrupts, FUCK THEM!
+	if (irqs_disabled())
+	{
+	    	struct mdp_lcdc_info *lcdc = panel_to_lcdc(fb_panel);
+		uint32_t status;
+		uint32_t i;
+		// do it via polling
+		for (i = 0; i < 20; i++) 
+		{
+        		status = mdp_readl(lcdc->mdp, MDP_INTR_STATUS);
+			if (status & MDP_LCDC_FRAME_START)
+		            	break;
+		        mdelay(1);
+        	}                
+		// clear intr at the end
+		mdp_writel(lcdc->mdp, MDP_LCDC_FRAME_START, MDP_INTR_CLEAR);
+//		vsync_cb->func(vsync_cb);
+	}
+	else
+	{
+		lcdc->got_vsync = 0;
+		mdp_out_if_req_irq(mdp_dev, MSM_LCDC_INTERFACE, MDP_LCDC_FRAME_START,
+			  &lcdc->frame_start_cb);
+		lcdc_wait_vsync(fb_panel);
+	}
+// CotullaFIX end       
 }
 
 static void lcdc_clear_vsync(struct msm_panel_data *fb_panel)

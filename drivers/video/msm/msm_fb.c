@@ -629,22 +629,28 @@ int msmfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 static void msmfb_fillrect(struct fb_info *p, const struct fb_fillrect *rect)
 {
 	cfb_fillrect(p, rect);
+#if !defined(CONFIG_MACH_HTCLEO)	
 	msmfb_update(p, rect->dx, rect->dy, rect->dx + rect->width,
 		     rect->dy + rect->height);
+#endif
 }
 
 static void msmfb_copyarea(struct fb_info *p, const struct fb_copyarea *area)
 {
 	cfb_copyarea(p, area);
+#if !defined(CONFIG_MACH_HTCLEO)	
 	msmfb_update(p, area->dx, area->dy, area->dx + area->width,
 		     area->dy + area->height);
+#endif
 }
 
 static void msmfb_imageblit(struct fb_info *p, const struct fb_image *image)
 {
 	cfb_imageblit(p, image);
+#if !defined(CONFIG_MACH_HTCLEO)	
 	msmfb_update(p, image->dx, image->dy, image->dx + image->width,
 		     image->dy + image->height);
+#endif
 }
 
 
