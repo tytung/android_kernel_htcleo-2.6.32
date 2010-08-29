@@ -261,27 +261,40 @@ static void mdp_dmas_to_mddi(void *priv, uint32_t addr, uint32_t stride,
 	uint32_t video_packet_parameter;
 	uint16_t ld_param = 1;
 
-	dma2_cfg = DMA_PACK_TIGHT |
-		DMA_PACK_ALIGN_LSB |
-		DMA_OUT_SEL_AHB |
-		DMA_IBUF_NONCONTIGUOUS;
 
-	dma2_cfg |= mdp->format;
+	if(machine_is_htcleo()) {
+		dma2_cfg = DMA_PACK_ALIGN_MSB |
+			DMA_PACK_PATTERN_RGB;
 
-#if defined CONFIG_MSM_MDP22 || defined CONFIG_MSM_MDP30
-	if (mdp->format == DMA_IBUF_FORMAT_RGB888_OR_ARGB8888)
-#else
-	if (mdp->format == DMA_IBUF_FORMAT_XRGB8888)
-#endif
-		dma2_cfg |= DMA_PACK_PATTERN_BGR;
-	else
-		dma2_cfg |= DMA_PACK_PATTERN_RGB;
+		dma2_cfg |= mdp->format;
 
-	dma2_cfg |= DMA_OUT_SEL_MDDI;
+		dma2_cfg |= DMA_OUT_SEL_LCDC;
 
-	dma2_cfg |= DMA_MDDI_DMAOUT_LCD_SEL_PRIMARY;
+		dma2_cfg |= DMA_IBUF_FORMAT_RGB565;
+		
+	} else {
+		dma2_cfg = DMA_PACK_TIGHT |
+			DMA_PACK_ALIGN_LSB |
+			DMA_OUT_SEL_AHB |
+			DMA_IBUF_NONCONTIGUOUS;
 
-	dma2_cfg |= DMA_DITHER_EN;
+		dma2_cfg |= mdp->format;
+
+	#if defined CONFIG_MSM_MDP22 || defined CONFIG_MSM_MDP30
+		if (mdp->format == DMA_IBUF_FORMAT_RGB888_OR_ARGB8888)
+	#else
+		if (mdp->format == DMA_IBUF_FORMAT_XRGB8888)
+	#endif
+			dma2_cfg |= DMA_PACK_PATTERN_BGR;
+		else
+			dma2_cfg |= DMA_PACK_PATTERN_RGB;
+
+			dma2_cfg |= DMA_OUT_SEL_MDDI;
+
+			dma2_cfg |= DMA_MDDI_DMAOUT_LCD_SEL_PRIMARY;
+
+			dma2_cfg |= DMA_DITHER_EN;
+	}
 
 	if (mdp->mdp_dev.color_format == MSM_MDP_OUT_IF_FMT_RGB565) {
 		dma2_cfg |= DMA_DSTC0G_6BITS | DMA_DSTC1B_5BITS | DMA_DSTC2R_5BITS;
