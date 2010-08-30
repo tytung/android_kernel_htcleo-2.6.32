@@ -251,6 +251,24 @@ static void __init bootmem_init_node(int node, struct meminfo *mi,
 	for_each_nodebank(i, mi, node) {
 		struct membank *bank = &mi->bank[i];
 
+#if defined(CONFIG_FLATMEM) && !defined(CONFIG_HOLES_IN_ZONE)
+		/*
+		 * The VM code assumes that hole end addresses are aligned if
+		 * CONFIG_HOLES_IN_ZONE is not enabled. This results in
+		 * panics since we free unused memmap entries on ARM.
+		 * This check shouldn't be necessary for the last bank's end
+		 * address, since the VM code accounts for the total zone size.
+		 */
+		if ((i < (mi->nr_banks - 1)) &&
+		    (bank_pfn_end(bank) & (MAX_ORDER_NR_PAGES - 1))) {
+			pr_err("Memory bank[%d] not aligned to 0x%x bytes.\n"
+			       "\tMake bank end address align with MAX_ORDER\n"
+			       "\tor enable option CONFIG_HOLES_IN_ZONE.\n",
+			       i, __pfn_to_phys(MAX_ORDER_NR_PAGES));
+			BUG();
+		}
+#endif
+
 		if (!bank->highmem)
 			map_memory_bank(bank);
 	}
@@ -528,9 +546,8 @@ static void __init free_unused_memmap_node(int node, struct meminfo *mi)
 	unsigned int i;
 
 	/*
-	 * [FIXME] This relies on each bank being in address order.  This
-	 * may not be the case, especially if the user has provided the
-	 * information on the command line.
+	 * This relies on each bank being in address order. The banks
+	 * are sorted previously in bootmem_init().
 	 */
 	for_each_nodebank(i, mi, node) {
 		struct membank *bank = &mi->bank[i];

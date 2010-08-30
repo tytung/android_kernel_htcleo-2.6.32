@@ -1,7 +1,6 @@
 /* drivers/android/pmem.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2009, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -32,8 +31,7 @@
 #define PMEM_MAX_ORDER 128
 #define PMEM_MIN_ALLOC PAGE_SIZE
 
-#define PMEM_DEBUG 0
-//#define PMEM_LOG
+#define PMEM_DEBUG 1
 
 /* indicates that a refernce to this file has been taken via get_pmem_file,
  * the file should not be released until put_pmem_file is called */
@@ -252,8 +250,7 @@ static int pmem_free(int id, int index)
 	 */
 	do {
 		buddy = PMEM_BUDDY_INDEX(id, curr);
-		if (buddy < pmem[id].num_entries &&
-			PMEM_IS_FREE(id, buddy) &&
+		if (PMEM_IS_FREE(id, buddy) &&
 				PMEM_ORDER(id, buddy) == PMEM_ORDER(id, curr)) {
 			PMEM_ORDER(id, buddy)++;
 			PMEM_ORDER(id, curr)++;
@@ -263,15 +260,6 @@ static int pmem_free(int id, int index)
 		}
 	} while (curr < pmem[id].num_entries);
 
-#ifdef PMEM_LOG
-	int i;
-	for(i=0;i<pmem[id].num_entries;i++)
-	if(pmem[id].bitmap[i].order>0 || i>=pmem[id].num_entries ) {
-		printk("free==>index=%d , order=%d , allocated=%d\n",
-			i,pmem[id].bitmap[i].order,
-			pmem[id].bitmap[i].allocated);
-	}
-#endif
 	return 0;
 }
 
@@ -432,7 +420,7 @@ static int pmem_allocate(int id, unsigned long len)
 	 * return an error
 	 */
 	if (best_fit < 0) {
-		printk("pmem: no space left to allocate! %s, pid=%d\n", pmem[id].dev.name, current->pid);
+		printk("pmem: no space left to allocate!\n");
 		return -1;
 	}
 
@@ -623,25 +611,6 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 		up_write(&pmem[id].bitmap_sem);
 		data->index = index;
 	}
-
-#ifdef PMEM_LOG
-	int i;
-	int allc_cnt = 0;
-	int order_cnt = 0;
-	for(i=0;i<pmem[id].num_entries;i++)
-		if(pmem[id].bitmap[i].order>0 ||  i>=pmem[id].num_entries) {
-			order_cnt++;
-			if (pmem[id].bitmap[i].allocated > 0) {
-			printk("mmap==>index=%d , order=%d,"
-				"allocated=%d, vbase=0x%8X \n",
-				i,pmem[id].bitmap[i].order,
-				pmem[id].bitmap[i].allocated,
-				vma->vm_start);
-		allc_cnt++;
-		}
-	}
-	printk("allocated/total = %d/%d\n", allc_cnt,order_cnt);
-#endif
 	/* either no space was available or an error occured */
 	if (!has_allocation(file)) {
 		ret = -EINVAL;
@@ -766,7 +735,7 @@ int get_pmem_addr(struct file *file, unsigned long *start,
 	return 0;
 }
 
-int get_pmem_file(unsigned int fd, unsigned long *start, unsigned long *vstart,
+int get_pmem_file(int fd, unsigned long *start, unsigned long *vstart,
 		  unsigned long *len, struct file **filp)
 {
 	struct file *file;
@@ -819,9 +788,6 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 	struct pmem_region_node *region_node;
 	struct list_head *elt;
 	void *flush_start, *flush_end;
-#ifdef CONFIG_OUTER_CACHE
-	unsigned long phy_start, phy_end;
-#endif
 
 	if (!is_pmem_file(file) || !has_allocation(file)) {
 		return;
@@ -837,14 +803,6 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 	/* if this isn't a submmapped file, flush the whole thing */
 	if (unlikely(!(data->flags & PMEM_FLAGS_CONNECTED))) {
 		dmac_flush_range(vaddr, vaddr + pmem_len(id, data));
-#ifdef CONFIG_OUTER_CACHE
-		phy_start = (unsigned long)vaddr -
-				(unsigned long)pmem[id].vbase + pmem[id].base;
-
-		phy_end  =  phy_start + pmem_len(id, data);
-
-		outer_flush_range(phy_start, phy_end);
-#endif
 		goto end;
 	}
 	/* otherwise, flush the region of the file we are drawing */
@@ -856,15 +814,6 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 			flush_start = vaddr + region_node->region.offset;
 			flush_end = flush_start + region_node->region.len;
 			dmac_flush_range(flush_start, flush_end);
-#ifdef CONFIG_OUTER_CACHE
-
-			phy_start = (unsigned long)flush_start -
-				(unsigned long)pmem[id].vbase + pmem[id].base;
-
-			phy_end  =  phy_start + region_node->region.len;
-
-			outer_flush_range(phy_start, phy_end);
-#endif
 			break;
 		}
 	}
@@ -1199,45 +1148,16 @@ static long pmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		DLOG("connect\n");
 		return pmem_connect(arg, file);
 		break;
-
-	case PMEM_CLEAN_INV_CACHES:
-	case PMEM_CLEAN_CACHES:
-	case PMEM_INV_CACHES:
+	case PMEM_CACHE_FLUSH:
 		{
-			struct pmem_addr pmem_addr;
-			unsigned long vaddr;
-			unsigned long paddr;
-			unsigned long length;
-			unsigned long offset;
-
-			id = get_id(file);
-			if (!pmem[id].cached)
-				return 0;
-			if (!has_allocation(file))
-				return -EINVAL;
-			if (copy_from_user(&pmem_addr, (void __user *)arg,
-						sizeof(struct pmem_addr)))
+			struct pmem_region region;
+			DLOG("flush\n");
+			if (copy_from_user(&region, (void __user *)arg,
+					   sizeof(struct pmem_region)))
 				return -EFAULT;
-
-			data = (struct pmem_data *)file->private_data;
-			offset = pmem_addr.offset;
-			length = pmem_addr.length;
-			if (offset + length > pmem_len(id, data))
-				return -EINVAL;
-			vaddr = pmem_addr.vaddr;
-			paddr = pmem_start_addr(id, data) + offset;
-
-			if (cmd == PMEM_CLEAN_INV_CACHES)
-				clean_and_invalidate_caches(vaddr,
-				length, paddr);
-			else if (cmd == PMEM_CLEAN_CACHES)
-				clean_caches(vaddr, length, paddr);
-			else if (cmd == PMEM_INV_CACHES)
-				invalidate_caches(vaddr, length, paddr);
-
+			flush_pmem_file(file, region.offset, region.len);
 			break;
 		}
-
 	default:
 		if (pmem[id].ioctl)
 			return pmem[id].ioctl(file, cmd, arg);

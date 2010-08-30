@@ -185,7 +185,7 @@ cpu_v7_name:
  *	- cache type register is implemented
  */
 __v7_setup:
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) && !defined(CONFIG_ARCH_MSM_SCORPIONMP)
 	mrc	p15, 0, r0, c1, c0, 1
 	tst	r0, #(1 << 6)			@ SMP/nAMP mode enabled?
 	orreq	r0, r0, #(1 << 6) | (1 << 0)	@ Enable SMP/nAMP mode and
@@ -235,6 +235,21 @@ __v7_setup:
 	mcr	p15, 0, r10, c2, c0, 2		@ TTB control register
 	orr	r4, r4, #TTB_FLAGS
 	mcr	p15, 0, r4, c2, c0, 1		@ load TTB1
+#ifdef CONFIG_ARCH_MSM_SCORPION
+#ifdef CONFIG_ARCH_QSD8X50
+	mov     r0, #0x77
+#else
+	mov     r0, #0x33
+#endif
+	mcr     p15, 3, r0, c15, c0, 3          @ set L2CR1
+	mrc     p15, 0, r0, c1, c0, 1           @ read ACTLR
+#ifdef CONFIG_CPU_CACHE_ERR_REPORT
+	orr     r0, r0, #0x37                   @ turn on L1/L2 error reporting
+#else
+	bic     r0, r0, #0x37
+#endif
+	mcr     p15, 0, r0, c1, c0, 1           @ write ACTLR
+#endif
 	/*
 	 * Memory region attributes with SCTLR.TRE=1
 	 *
