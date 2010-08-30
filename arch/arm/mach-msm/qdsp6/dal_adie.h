@@ -32,11 +32,7 @@
 #include "dal.h"
 
 #define ADIE_DAL_DEVICE		0x02000029
-#if defined(CONFIG_MACH_HTCLEO)
-	#define ADIE_DAL_PORT		"SMD_DAL00"
-#else
-	#define ADIE_DAL_PORT		"SMD_DAL_AM_AUD"
-#endif
+#define ADIE_DAL_PORT		"SMD_DAL_AM_AUD"
 
 enum {
 	ADIE_OP_GET_NUM_PATHS = DAL_OP_FIRST_DEVICE_API,

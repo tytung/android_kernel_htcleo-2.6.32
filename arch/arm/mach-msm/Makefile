@@ -112,7 +112,8 @@ obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-microp.o clock.o
 
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o board-htcleo-panel.o board-htcleo-keypad.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-ts.o board-htcleo-mmc.o ieee754-df.o board-htcleo-power.o
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-battery.o board-htcleo-log.o board-htcleo-acoustic.o board-htcleo-audio.o
+
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-battery.o board-htcleo-log.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-bt.o board-htcleo-microp.o board-htcleo-wifi.o
 obj-$(CONFIG_MACH_HTCLEO) += clock-wince.o
 

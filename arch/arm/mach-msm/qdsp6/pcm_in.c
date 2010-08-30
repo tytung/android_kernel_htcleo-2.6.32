@@ -26,12 +26,12 @@
 
 #include <mach/msm_qdsp6_audio.h>
 
-#define BUFSZ (4096)
-#define DMASZ (BUFSZ * 2)
+#define BUFSZ (256)
 
 static DEFINE_MUTEX(pcm_in_lock);
 static uint32_t sample_rate = 8000;
 static uint32_t channel_count = 1;
+static uint32_t buffer_size = BUFSZ;
 static int pcm_in_opened = 0;
 
 void audio_client_dump(struct audio_client *ac);
@@ -66,7 +66,7 @@ static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			rc = -EBUSY;
 		} else {
 			file->private_data = q6audio_open_pcm(
-				BUFSZ, sample_rate, channel_count,
+				buffer_size, sample_rate, channel_count,
 				AUDIO_FLAG_READ, acdb_id);
 			if (!file->private_data)
 				rc = -ENOMEM;
@@ -84,13 +84,26 @@ static long q6_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			rc = -EFAULT;
 			break;
 		}
+		if (!config.channel_count || config.channel_count > 2) {
+			rc = -EINVAL;
+			break;
+		}
+		if (config.sample_rate < 8000 || config.sample_rate > 48000) {
+			rc = -EINVAL;
+			break;
+		}
+		if (config.buffer_size < 128 || config.buffer_size > 8192) {
+			rc = -EINVAL;
+			break;
+		}
 		sample_rate = config.sample_rate;
 		channel_count = config.channel_count;
+		buffer_size = config.buffer_size;
 		break;
 	}
 	case AUDIO_GET_CONFIG: {
 		struct msm_audio_config config;
-		config.buffer_size = BUFSZ;
+		config.buffer_size = buffer_size;
 		config.buffer_count = 2;
 		config.sample_rate = sample_rate;
 		config.channel_count = channel_count;
@@ -147,7 +160,7 @@ static ssize_t q6_in_read(struct file *file, char __user *buf,
 			if (!wait_event_timeout(ac->wait, (ab->used == 0), 5*HZ)) {
 				audio_client_dump(ac);
 				pr_err("pcm_read: timeout. dsp dead?\n");
-//      			BUG();
+				BUG();
 			}
 
 		xfer = count;
