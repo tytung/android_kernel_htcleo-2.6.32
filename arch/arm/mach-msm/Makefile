@@ -58,7 +58,11 @@ obj-$(CONFIG_ARCH_MSM7X30) += dal_axi.o
 obj-$(CONFIG_MSM_ADSP) += qdsp5/
 obj-$(CONFIG_MSM_ADSP_COMP) += qdsp5_comp/
 obj-$(CONFIG_MSM7KV2_AUDIO) += qdsp5v2/
+ifdef CONFIG_MSM_AMSS_VERSION_1550
+obj-$(CONFIG_QSD_AUDIO) += qdsp6_1550/
+else
 obj-$(CONFIG_QSD_AUDIO) += qdsp6/
+endif
 obj-$(CONFIG_MSM_HW3D) += hw3d.o
 obj-$(CONFIG_PM) += pm.o
 obj-$(CONFIG_CPU_FREQ) += cpufreq.o
@@ -113,7 +117,7 @@ obj-$(CONFIG_MACH_BRAVOC) += board-bravoc-microp.o clock.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o board-htcleo-panel.o board-htcleo-keypad.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-ts.o board-htcleo-mmc.o ieee754-df.o board-htcleo-power.o
 
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-battery.o board-htcleo-log.o
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-battery.o board-htcleo-log.o board-htcleo-audio.o board-htcleo-acoustic.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-bt.o board-htcleo-microp.o board-htcleo-wifi.o
 obj-$(CONFIG_MACH_HTCLEO) += clock-wince.o
 

@@ -894,7 +894,7 @@ config VIRTUAL_KPANIC_PARTITION
 
 config QSD_AUDIO
 	bool "QSD audio"
-	depends on (ARCH_QSD8X50 && MSM_DALRPC)
+	depends on (ARCH_QSD8X50)
 	default y
 	help
 	  Provides PCM, MP3, and AAC audio playback.

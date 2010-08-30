@@ -58,6 +58,7 @@ void __init htcleo_microp_init(void);
 #endif
 
 extern int __init htcleo_init_mmc(unsigned debug_uart);
+extern void __init htcleo_audio_init(void);
 
 ///////////////////////////////////////////////////////////////////////
 // SPI
@@ -740,6 +741,7 @@ static void __init htcleo_init(void)
 	platform_device_register(&htcleo_timed_gpios);
 
 	htcleo_bt_init();
+	htcleo_audio_init();
 	
 #ifdef CONFIG_USB_ANDROID
 	msm_hsusb_set_vbus_state(htcleo_get_vbus_state());
