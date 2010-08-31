@@ -234,6 +234,47 @@ int microp_write_interrupt(struct i2c_client *client,
 	return ret;
 }
 
+int microp_set_adc_req(uint8_t value)
+{
+	struct i2c_client *client;
+	int ret;
+	uint8_t cmd[1];
+
+	client = private_microp_client;	
+	cmd[0] = value;
+	ret = i2c_write_block(client, MICROP_I2C_WCMD_ADC_REQ, cmd, 1);
+	if (ret < 0) 
+	{
+		dev_err(&client->dev, "%s: request adc fail\n", __func__);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int microp_get_remote_adc(uint32_t *val)
+{
+	struct i2c_client *client;
+	int ret;
+	uint8_t data[4];
+
+	if (!val)
+		return -EIO; 
+
+	client = private_microp_client;	
+	ret = i2c_read_block(client, MICROP_I2C_RCMD_ADC_VALUE, data, 2);
+	if (ret < 0) 
+	{
+		dev_err(&client->dev, "%s: request adc fail\n", __func__);
+		return -EIO;
+	}
+
+//	printk("%x %x\n", data[0], data[1]);
+	*val = data[1] | (data[0] << 8);
+	printk("remote adc %d\n", *val);
+	return 0;
+}
+
 int microp_read_adc(uint8_t *data)
 {
 	struct i2c_client *client;

@@ -91,6 +91,7 @@
 #define MICROP_I2C_WCMD_READ_ADC_VALUE_REQ	0x60
 #define MICROP_I2C_RCMD_ADC_VALUE		0x62
 #define MICROP_I2C_WCMD_REMOTEKEY_TABLE		0x63
+#define MICROP_I2C_WCMD_ADC_REQ			0x64
 #define MICROP_I2C_WCMD_LCM_BURST		0x6A
 #define MICROP_I2C_WCMD_LCM_BURST_EN		0x6B
 #define MICROP_I2C_WCMD_LCM_REGISTER		0x70
@@ -259,6 +260,8 @@ void microp_get_als_kvalue(int i);
 int microp_spi_vote_enable(int spi_device, uint8_t enable);
 void microp_register_ops(struct microp_ops *ops);
 
+int microp_set_adc_req(uint8_t value);
+int microp_get_remote_adc(uint32_t *val);
 int microp_read_adc(uint8_t *data);
 void microp_mobeam_enable(int enable);
 

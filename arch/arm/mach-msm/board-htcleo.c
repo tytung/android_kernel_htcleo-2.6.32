@@ -46,16 +46,20 @@
 #include <mach/msm_flashlight.h>
 #include <mach/msm_serial_hs.h>
 #include <mach/perflock.h>
+#include <mach/htc_headset_mgr.h>
+#include <mach/htc_headset_gpio.h>
+
+#ifdef CONFIG_MICROP_COMMON
+#include <mach/atmega_microp.h>
+void __init htcleo_microp_init(void);
+#endif
+
 
 #include "board-htcleo.h"
 #include "board-htcleo-ts.h"
 #include "devices.h"
 #include "proc_comm.h"
 #include "dex_comm.h"
-#ifdef CONFIG_MICROP_COMMON
-#include <mach/atmega_microp.h>
-void __init htcleo_microp_init(void);
-#endif
 
 extern int __init htcleo_init_mmc(unsigned debug_uart);
 extern void __init htcleo_audio_init(void);
@@ -124,6 +128,38 @@ static struct regulator_init_data tps65023_data[5] =
         },
     },
 };
+///////////////////////////////////////////////////////////////////////
+// Headset
+///////////////////////////////////////////////////////////////////////
+
+static struct htc_headset_mgr_platform_data htc_headset_mgr_data = {
+};
+
+static struct platform_device htc_headset_mgr = {
+	.name	= "HTC_HEADSET_MGR",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &htc_headset_mgr_data,
+	},
+};
+
+static struct htc_headset_gpio_platform_data htc_headset_gpio_data = {
+	.hpin_gpio		= HTCLEO_GPIO_HDS_DET,
+	.mic_detect_gpio	= HTCLEO_GPIO_HDS_MIC,
+	.microp_channel		= 1,
+	.key_enable_gpio	= NULL,
+	.mic_select_gpio	= NULL,
+};
+
+static struct platform_device htc_headset_gpio = {
+	.name	= "HTC_HEADSET_GPIO",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &htc_headset_gpio_data,
+	},
+};
+
+
 
 ///////////////////////////////////////////////////////////////////////
 // Compass
@@ -610,6 +646,8 @@ static struct platform_device *devices[] __initdata =
 	&htcleo_flashlight_device,
 	&htcleo_power,
 	&qsd_device_spi,
+	&htc_headset_mgr,
+	&htc_headset_gpio,
 };
 ///////////////////////////////////////////////////////////////////////
 // Vibrator

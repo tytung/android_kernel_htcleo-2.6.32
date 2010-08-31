@@ -38,24 +38,6 @@ static int htcleo_microp_function_init(struct i2c_client *client)
 	pdata = client->dev.platform_data;
 	cdata = i2c_get_clientdata(client);
 
-	/* Headset remote key */
-	ret = microp_function_check(client, MICROP_FUNCTION_REMOTEKEY);
-	if (ret >= 0) {
-		i = ret;
-		pdata->function_node[MICROP_FUNCTION_REMOTEKEY] = i;
-		cdata->int_pin.int_remotekey =
-			pdata->microp_function[i].int_pin;
-
-		for (j = 0; j < 6; j++) {
-			data[j] = (uint8_t)(pdata->microp_function[i].levels[j] >> 8);
-			data[j + 6] = (uint8_t)(pdata->microp_function[i].levels[j]);
-		}
-		ret = microp_i2c_write(MICROP_I2C_WCMD_REMOTEKEY_TABLE,
-				data, 12);
-		if (ret)
-			goto exit;
-	}
-
 	/* Reset button interrupt */
 	ret = microp_write_interrupt(client, (1<<8), 1);
 	if (ret)

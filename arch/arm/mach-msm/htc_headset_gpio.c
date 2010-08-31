@@ -33,6 +33,7 @@
 #include <linux/delay.h>
 #include <linux/gpio.h>
 
+#include <mach/atmega_microp.h>
 #include <mach/htc_headset_mgr.h>
 #include <mach/htc_headset_gpio.h>
 
@@ -49,22 +50,45 @@
 
 struct audio_jack_info {
 	unsigned int irq_jack;
+	unsigned int irq_mic;
 	int audio_jack_detect;
 	int key_enable_gpio;
 	int mic_select_gpio;
 	int audio_jack_flag;
+	int mic_detect;
+	int last_pressed_key;
+	int microp_channel;
 
 	struct hrtimer detection_timer;
 	ktime_t debounce_time;
 
 	struct work_struct work;
-
+	struct work_struct mic_work;
 	spinlock_t spin_lock;
 
 	struct wake_lock audiojack_wake_lock;
 };
 
 static struct audio_jack_info *pjack_info;
+
+static int hs_gpio_get_mic(void)
+{
+	int value;
+	value = !gpio_get_value(pjack_info->mic_detect);
+	
+	printk("hs_gpio_get_mic: %d\n", value);
+	return value;
+}
+
+static int hs_enable_key_irq(int status)
+{
+	printk("hs_enable_key_irq: %d\n", status);
+	if(status)
+		enable_irq(pjack_info->irq_mic);
+	else 
+		disable_irq(pjack_info->irq_mic);
+	return 0;
+}
 
 void hs_gpio_key_enable(int enable)
 {
@@ -82,8 +106,72 @@ void hs_gpio_mic_select(int enable)
 		gpio_set_value(pjack_info->mic_select_gpio, enable);
 }
 
+static int get_remote_keycode(int *keycode)
+{
+	uint32_t val;
+	uint32_t btn = 0;
+
+	microp_set_adc_req(pjack_info->microp_channel);
+	if (microp_get_remote_adc(&val))
+	{
+		// failed. who know why? ignore
+		*keycode = 0;
+		return 1;
+	}
+
+	if((val >= 0) && (val <= 33))
+	{
+		btn = 1;
+	}
+	else if((val >= 38) && (val <= 82))
+	{
+		btn = 2;
+	}
+	else if((val >= 95) && (val <= 200))
+	{
+		btn = 3;
+	}
+	else if(val > 200)
+	{   
+		// check previous key
+		if (pjack_info->last_pressed_key)
+		{
+			*keycode = pjack_info->last_pressed_key | 0x80;
+			pjack_info->last_pressed_key = 0;
+			return 0;
+		}
+		*keycode = 0;
+		return 1;
+	}
+
+	pjack_info->last_pressed_key = btn;
+	*keycode = btn;
+	return 0;
+}
+
+static irqreturn_t mic_irq_handler(int irq, void *dev_id)
+{
+	pr_info("MIC IRQ Handler\n");
+	int value1, value2;
+	int retry_limit = 10;
+
+	AJ_DBG("");
+
+	do {
+		value1 = gpio_get_value(pjack_info->mic_detect);
+		set_irq_type(pjack_info->irq_mic, value1 ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
+		value2 = gpio_get_value(pjack_info->mic_detect);
+	} while (value1 != value2 && retry_limit-- > 0);
+
+	AJ_DBG("value2 = %d (%d retries)", value2, (10-retry_limit));
+
+	schedule_work(&pjack_info->mic_work);
+	return IRQ_HANDLED;
+}
+
 static irqreturn_t detect_irq_handler(int irq, void *dev_id)
 {
+	pr_info("DET IRQ Handler\n");
 	int value1, value2;
 	int retry_limit = 10;
 
@@ -125,9 +213,26 @@ static enum hrtimer_restart detect_35mm_event_timer_func(struct hrtimer *data)
 	return HRTIMER_NORESTART;
 }
 
+static void mic_work_func(struct work_struct *work)
+{
+	pr_info("MIC Schedule Work\n");
+	int keycode = 0;
+
+	printk("mic_intr_work_func\n");
+	if (get_remote_keycode(&keycode) == 0) 
+	{
+		printk("keycode %d\n", keycode);
+		htc_35mm_remote_notify_button_status(keycode);
+	}
+	else
+		printk("mic error keycode\n");
+	  
+}
+
 static void audiojack_work_func(struct work_struct *work)
 {
 	int is_insert;
+	pr_info("DET Schedule Work\n");
 	unsigned long flags = 0;
 
 	spin_lock_irqsave(&pjack_info->spin_lock, flags);
@@ -157,6 +262,16 @@ static void hs_gpio_register(void)
 		notifier.func = hs_gpio_key_enable;
 		headset_notifier_register(&notifier);
 	}
+	
+	if (pjack_info->mic_detect) {
+		notifier.id = HEADSET_REG_MIC_STATUS;
+		notifier.func = hs_gpio_get_mic;
+		headset_notifier_register(&notifier);
+
+		notifier.id = HEADSET_REG_KEY_INT_ENABLE;
+		notifier.func = hs_enable_key_irq;
+		headset_notifier_register(&notifier);
+	}
 }
 
 static int audiojack_probe(struct platform_device *pdev)
@@ -173,7 +288,10 @@ static int audiojack_probe(struct platform_device *pdev)
 	pjack_info->audio_jack_detect = pdata->hpin_gpio;
 	pjack_info->key_enable_gpio = pdata->key_enable_gpio;
 	pjack_info->mic_select_gpio = pdata->mic_select_gpio;
+	pjack_info->mic_detect = pdata->mic_detect_gpio;
+	pjack_info->microp_channel = pdata->microp_channel;
 	pjack_info->audio_jack_flag = 0;
+	pjack_info->last_pressed_key = 0;
 
 	pjack_info->debounce_time = ktime_set(0, 500000000);
 	hrtimer_init(&pjack_info->detection_timer,
@@ -181,6 +299,7 @@ static int audiojack_probe(struct platform_device *pdev)
 	pjack_info->detection_timer.function = detect_35mm_event_timer_func;
 
 	INIT_WORK(&pjack_info->work, audiojack_work_func);
+	INIT_WORK(&pjack_info->mic_work, mic_work_func);
 
 	spin_lock_init(&pjack_info->spin_lock);
 	wake_lock_init(&pjack_info->audiojack_wake_lock,
@@ -212,8 +331,35 @@ static int audiojack_probe(struct platform_device *pdev)
 		ret = set_irq_wake(pjack_info->irq_jack, 1);
 		if (ret < 0)
 			goto err_set_irq_wake;
+		pr_info("DET IRQ Registered!");
 	}
 
+
+	if (pjack_info->mic_detect) {
+		ret = gpio_request(pjack_info->mic_detect,
+				   "mic_detect");
+		if (ret < 0)
+			goto err_request_detect_gpio;
+
+		ret = gpio_direction_input(pjack_info->mic_detect);
+		if (ret < 0)
+			goto err_set_detect_gpio;
+
+		pjack_info->irq_mic =
+			gpio_to_irq(pjack_info->mic_detect);
+		if (pjack_info->irq_mic < 0) {
+			ret = pjack_info->irq_mic;
+			goto err_request_detect_irq;
+		}
+
+		ret = request_irq(pjack_info->irq_mic,
+				  mic_irq_handler, IRQF_DISABLED | IRQF_TRIGGER_FALLING | IRQF_TRIGGER_LOW, "mic_headset", NULL);
+		if (ret < 0)
+			goto err_request_detect_irq;
+
+		disable_irq(pjack_info->irq_mic);
+		pr_info("MIC IRQ Registered!");
+	}
 	hs_gpio_register();
 
 	SYS_MSG("--------------------");
@@ -239,7 +385,13 @@ static int audiojack_remove(struct platform_device *pdev)
 		free_irq(pjack_info->irq_jack, 0);
 
 	if (pjack_info->audio_jack_detect)
+		free_irq(pjack_info->irq_mic, 0);
+
+	if (pjack_info->audio_jack_detect)
 		gpio_free(pjack_info->audio_jack_detect);
+
+	if (pjack_info->audio_jack_detect)
+		gpio_free(pjack_info->mic_detect);
 
 	return 0;
 }
