@@ -149,10 +149,10 @@ static int smd_tty_open(struct tty_struct *tty, struct file *f)
 	info = smd_tty + n;
 
 	mutex_lock(&smd_tty_lock);
-	wake_lock_init(&info->wake_lock, WAKE_LOCK_SUSPEND, name);
 	tty->driver_data = info;
 
 	if (info->open_count++ == 0) {
+	        wake_lock_init(&info->wake_lock, WAKE_LOCK_SUSPEND, name);
 		info->tty = tty;
 		if (info->ch) {
 			smd_kick(info->ch);
@@ -204,13 +204,16 @@ static int smd_tty_write(struct tty_struct *tty,
 	** never be able to write more data than there
 	** is currently space for
 	*/
+#ifndef CONFIG_MACH_HTCLEO
 	mutex_lock(&smd_tty_lock);
+#endif
 	avail = smd_write_avail(info->ch);
 	if (len > avail)
 		len = avail;
 	ret = smd_write(info->ch, buf, len);
+#ifndef CONFIG_MACH_HTCLEO
 	mutex_unlock(&smd_tty_lock);
-
+#endif
 	return ret;
 }
 

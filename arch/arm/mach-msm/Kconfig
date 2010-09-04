@@ -1075,4 +1075,9 @@ config VERY_EARLY_CONSOLE
 		effect, the driver must support this and the consoles should
 		be initialized in the board file as soon as possible.
 
-
+config HTCLEO_ENABLE_MULTI_TOUCH
+	bool "Support for multitouch"
+	default y
+	depends on MACH_HTCLEO
+	help
+		Add multitouch support for touchscreen
