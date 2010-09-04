@@ -204,13 +204,16 @@ static int smd_tty_write(struct tty_struct *tty,
 	** never be able to write more data than there
 	** is currently space for
 	*/
+#ifndef CONFIG_MACH_HTCLEO
 	mutex_lock(&smd_tty_lock);
+#endif
 	avail = smd_write_avail(info->ch);
 	if (len > avail)
 		len = avail;
 	ret = smd_write(info->ch, buf, len);
+#ifndef CONFIG_MACH_HTCLEO
 	mutex_unlock(&smd_tty_lock);
-
+#endif
 	return ret;
 }
 
