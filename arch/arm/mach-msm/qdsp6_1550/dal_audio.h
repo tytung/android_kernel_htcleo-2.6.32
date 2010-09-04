@@ -36,22 +36,16 @@
 #define AUDIO_DAL_DEVICE 0x02000028
 #define AUDIO_DAL_PORT "DSP_DAL_AQ_AUD"
 
+
 enum 
 {
-#if defined(CONFIG_MACH_HTCLEO)
-	AUDIO_OP_OPEN = DAL_OP_FIRST_DEVICE_API,
-	AUDIO_OP_WRITE,
-	AUDIO_OP_READ,
-	AUDIO_OP_IOCTL,
-	AUDIO_OP_INIT,
-	AUDIO_OP_CLOSE,
-	AUDIO_OP_FLUSH
-#else
-	AUDIO_OP_CONTROL = DAL_OP_FIRST_DEVICE_API,
-	AUDIO_OP_DATA,
-	AUDIO_OP_INIT,
-
-#endif
+    AUDIO_OP_OPEN = DAL_OP_FIRST_DEVICE_API,
+    AUDIO_OP_WRITE,
+    AUDIO_OP_READ,
+    AUDIO_OP_IOCTL,
+    AUDIO_OP_INIT,
+    AUDIO_OP_CLOSE,
+    AUDIO_OP_FLUSH
 };  
 
 /* ---- common audio structures ---- */
@@ -84,14 +78,14 @@ enum
 #define ADSP_AUDIO_BUFFER_FLAG_CONTINUATION      0x40
 
 struct adsp_audio_buffer {
-	u32 addr;       /* Physical Address of buffer */
-	u32 max_size;       /* Maximum size of buffer */
-	u32 actual_size;    /* Actual size of valid data in the buffer */
-	u32 offset;     /* Offset to the first valid byte */
-	u32 flags;      /* ADSP_AUDIO_BUFFER_FLAGs that has been set */
-	s64 start;      /* Start timestamp, if any */
-	s64 stop;       /* Stop timestamp, if any */
-	s64 preroll;        /* Preroll timestamp, if any */
+    u32 addr;       /* Physical Address of buffer */
+    u32 max_size;       /* Maximum size of buffer */
+    u32 actual_size;    /* Actual size of valid data in the buffer */
+    u32 offset;     /* Offset to the first valid byte */
+    u32 flags;      /* ADSP_AUDIO_BUFFER_FLAGs that has been set */
+    s64 start;      /* Start timestamp, if any */
+    s64 stop;       /* Stop timestamp, if any */
+    s64 preroll;        /* Preroll timestamp, if any */
 } __attribute__ ((packed));
 
 
@@ -102,31 +96,31 @@ struct adsp_audio_buffer {
 #define ADSP_AUDIO_RESPONSE_COMMAND   0
 #define ADSP_AUDIO_RESPONSE_ASYNC     1
 
-#if !defined(CONFIG_MACH_HTCLEO)
+#if 0
 struct adsp_command_hdr {
-	u32 size;       /* sizeof(cmd) - sizeof(u32) */
+    u32 size;       /* sizeof(cmd) - sizeof(u32) */
 
-	u32 dst;
-	u32 src;
+    u32 dst;
+    u32 src;
 
-	u32 opcode;
-	u32 response_type;
-	u32 seq_number;
+    u32 opcode;
+    u32 response_type;
+    u32 seq_number;
 
-	u32 context;        /* opaque to DSP */
-	u32 data;
+    u32 context;        /* opaque to DSP */
+    u32 data;
 
-	u32 padding;
+    u32 padding;
 } __attribute__ ((packed));
+#endif
 
-#else
 
 struct adsp_command_hdr 
 {
-	u32 context; 
-	u32 data;    
+    u32 context; 
+    u32 data;    
 } __attribute__ ((packed));
-#endif
+
 
 #define AUDIO_DOMAIN_APP    0
 #define AUDIO_DOMAIN_MODEM  1
@@ -147,8 +141,8 @@ struct adsp_command_hdr
 #define ADSP_AUDIO_ENC_ENHANCED_AAC_PLUS_MODE   2
 
 struct adsp_audio_aac_enc_cfg {
-	u32 bit_rate;       /* bits per second */
-	u32 encoder_mode;   /* ADSP_AUDIO_ENC_* */
+    u32 bit_rate;       /* bits per second */
+    u32 encoder_mode;   /* ADSP_AUDIO_ENC_* */
 } __attribute__ ((packed));
 
 #define ADSP_AUDIO_ENC_SBC_ALLOCATION_METHOD_LOUNDNESS     0
@@ -160,11 +154,11 @@ struct adsp_audio_aac_enc_cfg {
 #define ADSP_AUDIO_ENC_SBC_CHANNEL_MODE_JOINT_STEREO        9
 
 struct adsp_audio_sbc_encoder_cfg {
-	u32 num_subbands;
-	u32 block_len;
-	u32 channel_mode;
-	u32 allocation_method;
-	u32 bit_rate;
+    u32 num_subbands;
+    u32 block_len;
+    u32 channel_mode;
+    u32 allocation_method;
+    u32 bit_rate;
 } __attribute__ ((packed));
 
 /* AMR NB encoder modes */
@@ -185,27 +179,27 @@ struct adsp_audio_sbc_encoder_cfg {
 
 /* AMR Encoder configuration */
 struct adsp_audio_amr_enc_cfg {
-	u32 mode;       /* ADSP_AUDIO_AMR_MR* */
-	u32 dtx_mode;   /* ADSP_AUDIO_AMR_DTX_MODE* */
-	u32 enable;     /* 1 = enable, 0 = disable */
+    u32 mode;       /* ADSP_AUDIO_AMR_MR* */
+    u32 dtx_mode;   /* ADSP_AUDIO_AMR_DTX_MODE* */
+    u32 enable;     /* 1 = enable, 0 = disable */
 } __attribute__ ((packed));
 
 struct adsp_audio_qcelp13k_enc_cfg {
-	u16 min_rate;
-	u16 max_rate;
+    u16 min_rate;
+    u16 max_rate;
 } __attribute__ ((packed));
 
 struct adsp_audio_evrc_enc_cfg {
-	u16 min_rate;
-	u16 max_rate;
+    u16 min_rate;
+    u16 max_rate;
 } __attribute__ ((packed));
 
 union adsp_audio_codec_config {
-	struct adsp_audio_amr_enc_cfg amr;
-	struct adsp_audio_aac_enc_cfg aac;
-	struct adsp_audio_qcelp13k_enc_cfg qcelp13k;
-	struct adsp_audio_evrc_enc_cfg evrc;
-	struct adsp_audio_sbc_encoder_cfg sbc;
+    struct adsp_audio_amr_enc_cfg amr;
+    struct adsp_audio_aac_enc_cfg aac;
+    struct adsp_audio_qcelp13k_enc_cfg qcelp13k;
+    struct adsp_audio_evrc_enc_cfg evrc;
+    struct adsp_audio_sbc_encoder_cfg sbc;
 } __attribute__ ((packed));
 
 
@@ -222,68 +216,61 @@ union adsp_audio_codec_config {
 /* This bit, if set, indicates that the sync clock is enabled */
 #define  ADSP_AUDIO_OPEN_STREAM_MODE_ENABLE_SYNC_CLOCK  0x0004
 
-#if !defined(CONFIG_MACH_HTCLEO)
+#if 0
 struct adsp_open_command {
-	struct adsp_command_hdr hdr;
+    struct adsp_command_hdr hdr;
 
-	u32 device;
-	u32 endpoint; /* address */
+    u32 device;
+    u32 endpoint; /* address */
 
-	u32 stream_context;
-	u32 mode;
+    u32 stream_context;
+    u32 mode;
 
-	u32 buf_max_size;
+    u32 buf_max_size;
 
-	union adsp_audio_format format;
-	union adsp_audio_codec_config config;
+    union adsp_audio_format format;
+    union adsp_audio_codec_config config;
 } __attribute__ ((packed));
-
-/* Opcode to open a device stream session to capture audio */
-#define ADSP_AUDIO_IOCTL_CMD_OPEN_READ          0x0108dd79
-
-/* Opcode to open a device stream session to render audio */
-#define ADSP_AUDIO_IOCTL_CMD_OPEN_WRITE         0x0108dd7a
-
-/* Opcode to open a device session, must open a device */
-#define ADSP_AUDIO_IOCTL_CMD_OPEN_DEVICE        0x0108dd7b
-
-/* Close an existing stream or device */
-#define ADSP_AUDIO_IOCTL_CMD_CLOSE          0x0108d8bc
-
-#else
+#endif
 
 struct adsp_open_command 
 {
-	struct adsp_command_hdr hdr;
-	    
-	u32 opcode;
-	u32 numdev;
-	u32 dev[4];
-	u32 stream_context;
+    struct adsp_command_hdr hdr;
+        
+    u32 opcode;
+    u32 numdev;
+    u32 dev[4];
+    u32 stream_context;
 
-	u32 format;    
-	u32 pblock;
-	u32 blocklen;
+    u32 format;    
+    u32 pblock;
+    u32 blocklen;
+    
+    u32 buf_max_size;
+    u32 priority;
 
-	u32 buf_max_size;
-	u32 priority;
-
-	union adsp_audio_codec_config config;
-	u32 mode;
+    union adsp_audio_codec_config config;
+    u32 mode;
 } __attribute__ ((packed));
 
 /* --- audio control and stream session ioctls ---- */
 
 /* Opcode to open a device stream session to capture audio */
 #define ADSP_AUDIO_OPCODE_OPEN_READ          0x01
+//#define ADSP_AUDIO_IOCTL_CMD_OPEN_READ          0x0108dd79
 
 /* Opcode to open a device stream session to render audio */
 #define ADSP_AUDIO_OPCODE_OPEN_WRITE          0x02
+//#define ADSP_AUDIO_IOCTL_CMD_OPEN_WRITE         0x0108dd7a
 
 /* Opcode to open a device session, must open a device */
 #define ADSP_AUDIO_OPCODE_OPEN_DEV          0x04
+//#define ADSP_AUDIO_IOCTL_CMD_OPEN_DEVICE        0x0108dd7b
 
-#endif
+/* Close an existing stream or device */
+//#define ADSP_AUDIO_IOCTL_CMD_CLOSE          0x0108d8bc
+
+
 
 /* A device switch requires three IOCTL */
 /* commands in the following sequence: PREPARE, STANDBY, COMMIT */
@@ -307,11 +294,11 @@ struct adsp_open_command
 #define ADSP_AUDIO_IOCTL_CMD_DEVICE_SWITCH_COMMIT   0x01075ee7
 
 struct adsp_device_switch_command {
-	struct adsp_command_hdr hdr;
-	u32 old_device;
-	u32 new_device;
-	u8 device_class; /* 0 = i.rx, 1 = i.tx, 2 = e.rx, 3 = e.tx */
-	u8 device_type; /* 0 = rx, 1 = tx, 2 = both */
+    struct adsp_command_hdr hdr;
+    u32 old_device;
+    u32 new_device;
+    u8 device_class; /* 0 = i.rx, 1 = i.tx, 2 = e.rx, 3 = e.tx */
+    u8 device_type; /* 0 = rx, 1 = tx, 2 = both */
 } __attribute__ ((packed));
 
 
@@ -330,10 +317,10 @@ struct adsp_device_switch_command {
 #define ADSP_AUDIO_IOCTL_CMD_SET_DEVICE_VOL     0x0107605c
 
 struct adsp_set_dev_volume_command {
-	struct adsp_command_hdr hdr;
-	u32 device_id;
-	u32 path; /* 0 = rx, 1 = tx, 2 = both */
-	s32 volume;
+    struct adsp_command_hdr hdr;
+    u32 device_id;
+    u32 path; /* 0 = rx, 1 = tx, 2 = both */
+    s32 volume;
 } __attribute__ ((packed));
 
 /* Set Device stereo volume. This command has data payload, */
@@ -348,10 +335,10 @@ struct adsp_set_dev_volume_command {
 #define ADSP_AUDIO_IOCTL_CMD_SET_DEVICE_MUTE        0x0107605f
 
 struct adsp_set_dev_mute_command {
-	struct adsp_command_hdr hdr;
-	u32 device_id;
-	u32 path; /* 0 = rx, 1 = tx, 2 = both */
-	u32 mute; /* 1 = mute */
+    struct adsp_command_hdr hdr;
+    u32 device_id;
+    u32 path; /* 0 = rx, 1 = tx, 2 = both */
+    u32 mute; /* 1 = mute */
 } __attribute__ ((packed));
 
 /* Configure Equalizer for a device. */
@@ -363,24 +350,24 @@ struct adsp_set_dev_mute_command {
 #define ADSP_AUDIO_IOCTL_SET_DEVICE_CONFIG      0x0108b6cb
 
 struct adsp_set_dev_cfg_command {
-	struct adsp_command_hdr hdr;
-	u32 device_id;
-	u32 block_id;
-	u32 interface_id;
-	u32 phys_addr;
-	u32 phys_size;
-	u32 phys_used;
+    struct adsp_command_hdr hdr;
+    u32 device_id;
+    u32 block_id;
+    u32 interface_id;
+    u32 phys_addr;
+    u32 phys_size;
+    u32 phys_used;
 } __attribute__ ((packed));
 
 /* Set configuration data for all interfaces of a device. */
 #define ADSP_AUDIO_IOCTL_SET_DEVICE_CONFIG_TABLE    0x0108b6bf
 
 struct adsp_set_dev_cfg_table_command {
-	struct adsp_command_hdr hdr;
-	u32 device_id;
-	u32 phys_addr;
-	u32 phys_size;
-	u32 phys_used;
+    struct adsp_command_hdr hdr;
+    u32 device_id;
+    u32 phys_addr;
+    u32 phys_size;
+    u32 phys_used;
 } __attribute__ ((packed));
 
 /* ---- audio stream data commands ---- */
@@ -389,8 +376,8 @@ struct adsp_set_dev_cfg_table_command {
 #define ADSP_AUDIO_IOCTL_CMD_DATA_RX            0x0108dd80
 
 struct adsp_buffer_command {
-	struct adsp_command_hdr hdr;
-	struct adsp_audio_buffer buffer;
+    struct adsp_command_hdr hdr;
+    struct adsp_audio_buffer buffer;
 } __attribute__ ((packed));
 
 
@@ -487,18 +474,18 @@ struct adsp_buffer_command {
 
 /* Definition for any one band of Equalizer. */
 struct adsp_audio_eq_band {
-	u16 band_idx;
-	u32 filter_type;
-	u32 center_freq_hz;
-	s32 filter_gain;
-	s32 q_factor;
+    u16 band_idx;
+    u32 filter_type;
+    u32 center_freq_hz;
+    s32 filter_gain;
+    s32 q_factor;
 } __attribute__ ((packed));
 
 struct adsp_audio_set_equalizer_command {
-	struct adsp_command_hdr hdr;
-	u32 enable;
-	u32 num_bands;
-	struct adsp_audio_eq_band eq_bands[ADSP_AUDIO_MAX_EQ_BANDS];
+    struct adsp_command_hdr hdr;
+    u32 enable;
+    u32 num_bands;
+    struct adsp_audio_eq_band eq_bands[ADSP_AUDIO_MAX_EQ_BANDS];
 } __attribute__ ((packed));
 
 
@@ -514,13 +501,13 @@ struct adsp_audio_set_equalizer_command {
 /* these command structures are used for both STREAM and SESSION ioctls */
 
 struct adsp_set_volume_command {
-	struct adsp_command_hdr hdr;
-	s32 volume;
+    struct adsp_command_hdr hdr;
+    s32 volume;
 } __attribute__ ((packed));
     
 struct adsp_set_mute_command {
-	struct adsp_command_hdr hdr;
-	u32 mute; /* 1 == mute */
+    struct adsp_command_hdr hdr;
+    u32 mute; /* 1 == mute */
 } __attribute__ ((packed));
 
 
@@ -558,58 +545,58 @@ struct adsp_set_mute_command {
 
 struct adsp_event_hdr
 {
-	u32 evt_handle;     /* DAL common header */
-	u32 evt_cookie;
-	u32 evt_length;
+    u32 evt_handle;     /* DAL common header */
+    u32 evt_cookie;
+    u32 evt_length;
 
-	u32 src;        /* "source" audio address */
-	u32 dst;        /* "destination" audio address */
+    u32 src;        /* "source" audio address */
+    u32 dst;        /* "destination" audio address */
 
-	u32 event_id;
-	u32 response_type;
-	u32 seq_number;
+    u32 event_id;
+    u32 response_type;
+    u32 seq_number;
 
-	u32 context;        /* opaque to DSP */
-	u32 data;
+    u32 context;        /* opaque to DSP */
+    u32 data;
 
-	u32 status;
+    u32 status;
 } __attribute__ ((packed));
 
-#if defined(CONFIG_MACH_HTCLEO)
+
 union adsp_event_data
 {
-	u32 val32;
-	uint8_t data[32];
+    u32 val32;
+    uint8_t data[32];
 } __attribute__ ((packed));
 
 
 struct adsp_audio_event
 {
-	struct adsp_command_hdr hdr;
-	u32 session;
-	u32 event_id;
-	u32 status;
-	u32 datalen;
-	union adsp_event_data data;
+    struct adsp_command_hdr hdr;
+    u32 session;
+    u32 event_id;
+    u32 status;
+    u32 datalen;
+    union adsp_event_data data;
 } __attribute__ ((packed));
 
 
 struct adsp_audio_dal_event
 {
-	u32     cb_evt;
-	u32     loc_evt;
-	u32     size;
-	struct adsp_audio_event ae;
+    u32     cb_evt;
+    u32     loc_evt;
+    u32     size;
+    struct adsp_audio_event ae;
 }  __attribute__ ((packed));
 
-#else
+/*
 struct adsp_buffer_event 
 {
-	struct adsp_event_hdr hdr;
-	struct adsp_audio_buffer buffer;
+    struct adsp_event_hdr hdr;
+    struct adsp_audio_buffer buffer;
 } __attribute__ ((packed));
 
-#endif
+*/
 
 
 /* ---- audio device IDs ---- */
@@ -680,9 +667,9 @@ struct adsp_buffer_event
 #define ADSP_AUDIO_EQUALIZER_BAND_CUT       6
 
 struct cad_audio_eq_cfg {
-	u32 enable;
-	u32 num_bands;
-	struct adsp_audio_eq_band eq_bands[ADSP_AUDIO_MAX_EQ_BANDS];
+    u32 enable;
+    u32 num_bands;
+    struct adsp_audio_eq_band eq_bands[ADSP_AUDIO_MAX_EQ_BANDS];
 } __attribute__ ((packed));
 
 int q6audio_set_stream_eq(struct audio_client *ac, struct cad_audio_eq_cfg *eq_cfg);

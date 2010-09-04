@@ -60,34 +60,34 @@
 #if 1
 
 // LEO
-static struct q6_hw_info q6_audio_hw[Q6_HW_COUNT] =
+static struct q6_hw_info q6_audio_hw[Q6_HW_COUNT] = 
 {
-    [Q6_HW_HANDSET] =
+    [Q6_HW_HANDSET] = 
 	{
         .min_gain = -2000,
         .max_gain = 0,
     },
-    [Q6_HW_HEADSET] =
+    [Q6_HW_HEADSET] = 
 	{
         .min_gain = -2000,
         .max_gain = 0,
     },
-    [Q6_HW_SPEAKER] =
+    [Q6_HW_SPEAKER] = 
 	{
         .min_gain = -1000,
         .max_gain = 500,
     },
-    [Q6_HW_TTY] =
+    [Q6_HW_TTY] = 
 	{
         .min_gain = 0,
         .max_gain = 0,
     },
-    [Q6_HW_BT_SCO] =
+    [Q6_HW_BT_SCO] = 
 	{
         .min_gain = -1100,
         .max_gain = 400,
     },
-    [Q6_HW_BT_A2DP] =
+    [Q6_HW_BT_A2DP] = 
 	{
         .min_gain = -1100,
         .max_gain = 400,
@@ -97,7 +97,7 @@ static struct q6_hw_info q6_audio_hw[Q6_HW_COUNT] =
 #else
 
 // Old one (from Desire)
-static struct q6_hw_info q6_audio_hw[Q6_HW_COUNT] =
+static struct q6_hw_info q6_audio_hw[Q6_HW_COUNT] = 
 {
     [Q6_HW_HANDSET] = {
         .min_gain = -2000,
@@ -493,7 +493,7 @@ static int audio_out_open(struct audio_client *ac, uint32_t bufsz,
     struct adsp_open_command rpc;
     union adsp_audio_format *ptr;
 
-    printk("audio_out_open: %x %d %d\n", bufsz, rate, channels);
+    TRACE("audio_out_open: %x %d %d\n", bufsz, rate, channels);
     mutex_lock(&open_mem_lock);
 
     memset(&rpc, 0, sizeof(rpc));
@@ -543,7 +543,7 @@ static int audio_in_open(struct audio_client *ac, uint32_t bufsz,
     struct adsp_open_command rpc;
     union adsp_audio_format *ptr;
 
-    printk("audio_in_open: %x %d %d\n", bufsz, rate, channels);
+    TRACE("audio_in_open: %x %d %d\n", bufsz, rate, channels);
     mutex_lock(&open_mem_lock);
     memset(&rpc, 0, sizeof(rpc));
     ptr = (union adsp_audio_format*)params_data;
@@ -587,7 +587,7 @@ static int audio_mp3_open(struct audio_client *ac, uint32_t bufsz,
     struct adsp_open_command rpc;
     union adsp_audio_format *ptr;
 
-    printk("audio_mp3_open: %x %d %d\n", bufsz, rate, channels);
+    TRACE("audio_mp3_open: %x %d %d\n", bufsz, rate, channels);
     mutex_lock(&open_mem_lock);
     memset(&rpc, 0, sizeof(rpc));
     ptr = (union adsp_audio_format*)params_data;
@@ -613,7 +613,7 @@ static int audio_mp3_open(struct audio_client *ac, uint32_t bufsz,
 // wait for async event
     if (!wait_event_timeout(ac->wait, (ac->open_done == 1), 3 * HZ))
     {
-    mutex_unlock(&open_mem_lock);
+        mutex_unlock(&open_mem_lock);
         pr_err("wait for open async event failed (MP3)!\n");
         return -1;
     }
@@ -1218,7 +1218,7 @@ static int q6audio_init(void)
     sdac_clk = clk_get(0, "sdac_clk");
     audio_data = dma_alloc_coherent(NULL, 4096, &audio_phys, GFP_KERNEL);
     params_data = dma_alloc_coherent(NULL, 4096, &params_phys, GFP_KERNEL);
-//    printk("allocated: %p %x\n", params_data, params_phys);
+//    printk("allocated: %p %x\n", params_data, params_phys); 
 
 //    pr_info("audio: init: INIT\n");
 
@@ -1290,7 +1290,7 @@ done:
     if ((res < 0) && ac)
     {
         audio_client_free(ac);
-        printk("   init failed!\n");
+        pr_err("   init failed!\n");
     }
     mutex_unlock(&audio_lock);
     return res;
@@ -1303,7 +1303,7 @@ static int map_cad_dev_to_virtual(int cd)
     {
         return cd;
     }
-
+    
     switch (cd)
     {
     case 1:  return 507;
@@ -1313,8 +1313,8 @@ static int map_cad_dev_to_virtual(int cd)
     case 6:  return 507;
     case 7:  return 607;
     case 17: return 408;
-    default: return cd;
-    }
+    default: return cd;    
+    }    
     return 0;
 }
 
@@ -1350,7 +1350,7 @@ static int acdb_get_config_table(uint32_t device_id, uint32_t sample_rate)
         r = dal_call(acdb, ACDB_OP_IOCTL, 8, &rpc, sizeof(rpc), &res, sizeof(res));
 //	r = dal_call_f8(acdb, ACDB_OP_IOCTL, &rpc, sizeof(rpc), &res, sizeof(res));
 
-	pr_info("acdb ret: %d %X %X %X %d\n", res. dal_status, res.size, res.unmapped_buf, res.used_bytes, res.result);
+    	pr_info("acdb ret: %d %X %X %X %d\n", res. dal_status, res.size, res.unmapped_buf, res.used_bytes, res.result);
         if ((r == sizeof(res)) && (res.result == 0)) 
 	{
             pr_info("acdb: %d bytes for device %d, rate %d.\n", res.used_bytes, device_id, sample_rate);
@@ -1518,17 +1518,17 @@ static int audio_update_acdb(uint32_t adev, uint32_t acdb_id)
     {
         sz = acdb_get_config_table(acdb_id, sample_rate);
     }
-    printk("res1 = %d\n", sz);
+    TRACE("res1 = %d\n", sz);
     if (sz <= 0) 
     {
         acdb_id = q6_device_to_cad_id(adev);
         printk("  new acdb = %d\n", acdb_id);
         sz = acdb_get_config_table(acdb_id, sample_rate);
     }
-    printk("res2 = %d\n", sz);
+    TRACE("res2 = %d\n", sz);
     if (sz > 0)
     {
-        printk("call audio_set_table\n");
+        TRACE("call audio_set_table\n");
         audio_set_table(ac_control, adev, sz);
     }
     return 0;
@@ -1951,7 +1951,7 @@ int q6audio_set_rx_dev_volume(int level)
     mutex_lock(&audio_path_lock);
 
     vol = q6_device_volume(audio_rx_device_id, level);
-    printk("$$ DEV=%08X: vol is %d\n", audio_rx_device_id, vol);
+    TRACE("$$ DEV=%08X: vol is %d\n", audio_rx_device_id, vol);
     audio_rx_volume(ac_control, audio_rx_device_id, vol);
 
     mutex_unlock(&audio_path_lock);
@@ -1994,14 +1994,14 @@ static int q6audio_init_rx_volumes()
 
     mutex_lock(&audio_path_lock);
 
-    printk("$$$ q6audio_init_rx_volumes\n");
+    TRACE("$$$ q6audio_init_rx_volumes\n");
     while (1)
     {
         if (di->id == 0) break;
 
         vol = q6_device_volume(di->id, 100);
         audio_rx_volume(ac_control, di->id, vol);
-        printk("$$ DEV=%08X: vol is %d\n", di->id, vol);
+        TRACE("$$ DEV=%08X: vol is %d\n", di->id, vol);
 
         di++;
     }
@@ -2149,7 +2149,7 @@ struct audio_client *q6audio_open_pcm(uint32_t bufsz, uint32_t rate,
     ac = audio_client_alloc(bufsz);
     if (!ac)
     {
-        printk("audio_client_alloc failed\n");
+        pr_err("audio_client_alloc failed\n");
         return 0;
     }
 //    printk("after alloc);\n");
@@ -2301,9 +2301,20 @@ struct audio_client *q6voice_open(uint32_t flags, uint32_t acdb_id)
     if (ac->flags & AUDIO_FLAG_WRITE) {
         audio_rx_path_enable(1, acdb_id);
         audio_rx_mute(ac_control, ADSP_AUDIO_DEVICE_ID_VOICE, 0);
+// fix for non update acdb at start of call, if other stream is active
+        audio_update_acdb(audio_rx_device_id, rx_acdb);
+        qdsp6_devchg_notify(ac_control, ADSP_AUDIO_RX_DEVICE, audio_rx_device_id);
+        qdsp6_standby(ac_control);
+        qdsp6_start(ac_control);
+
     } else {
         tx_clk_freq = 8000;
         audio_tx_path_enable(1, acdb_id);
+// fix for non update acdb at start of call, if other stream is active
+        audio_update_acdb(audio_tx_device_id, tx_acdb);
+        qdsp6_devchg_notify(ac_control, ADSP_AUDIO_TX_DEVICE, audio_tx_device_id);
+        qdsp6_standby(ac_control);
+        qdsp6_start(ac_control);
     }
 
     return ac;
@@ -2327,7 +2338,7 @@ struct audio_client *q6audio_open_mp3(uint32_t bufsz, uint32_t rate,
 {
     struct audio_client *ac;
 
-    printk("q6audio_open_mp3()\n");
+    TRACE("q6audio_open_mp3()\n");
 
     if (q6audio_init())
         return 0;
@@ -2531,7 +2542,7 @@ static struct audio_client * audio_test(void)
     sdac_clk = clk_get(0, "sdac_clk");
     audio_data = dma_alloc_coherent(NULL, 4096, &audio_phys, GFP_KERNEL);
     params_data = dma_alloc_coherent(NULL, 4096, &params_phys, GFP_KERNEL);
-    printk("allocated: %p %08X\n", params_data, params_phys); 
+    TRACE("allocated: %p %08X\n", params_data, params_phys); 
 
             clk_set_rate(icodec_rx_clk, 12288000);
             clk_enable(icodec_rx_clk);

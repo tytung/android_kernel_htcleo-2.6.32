@@ -25,7 +25,7 @@
 
 #define BUFSZ (0)
 
-#if 1
+#if 0
 #define AUDIO_INFO(x...) pr_info("Audio: "x)
 #else
 #define AUDIO_INFO(x...) do{}while(0)
@@ -48,7 +48,7 @@ static int q6_voice_start(uint32_t rx_acdb_id, uint32_t tx_acdb_id)
 {
 	int rc = 0;
 
-	printk("VOICE START (%d %d)\n", rx_acdb_id, tx_acdb_id);
+	AUDIO_INFO("VOICE START (%d %d)\n", rx_acdb_id, tx_acdb_id);
 	mutex_lock(&voice_lock);
 
 	if (voice_started) {
@@ -82,12 +82,12 @@ static int q6_voice_stop(void)
 {
 	mutex_lock(&voice_lock);
 	global_now_phone_call = 0;
-	if (voice_started)
+	if (voice_started) 
 	{
 		q6voice_close(voc_tx_clnt);
 		q6voice_close(voc_rx_clnt);
-		voice_started = 0;
-	}
+		voice_started = 0;		
+	}	
 	mutex_unlock(&voice_lock);
 	return 0;
 }
