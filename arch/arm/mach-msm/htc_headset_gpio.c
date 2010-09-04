@@ -32,8 +32,8 @@
 #include <linux/wakelock.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
-
 #include <mach/atmega_microp.h>
+
 #include <mach/htc_headset_mgr.h>
 #include <mach/htc_headset_gpio.h>
 
@@ -47,6 +47,9 @@
 #else
 #define AJ_DBG(fmt, arg...) do {} while (0)
 #endif
+
+int microp_get_remote_adc(uint32_t *val);
+int microp_set_adc_req(uint8_t channel);
 
 struct audio_jack_info {
 	unsigned int irq_jack;
@@ -70,6 +73,43 @@ struct audio_jack_info {
 };
 
 static struct audio_jack_info *pjack_info;
+
+int microp_set_adc_req(uint8_t value)
+{
+	int ret;
+	uint8_t cmd[1];
+
+	cmd[0] = value; //value; TODO finish code... now only keys ADC
+	ret = microp_i2c_write(MICROP_I2C_WCMD_ADC_REQ, cmd, 1);
+	if (ret < 0) 
+	{
+		pr_err("%s: request adc fail\n", __func__);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int microp_get_remote_adc(uint32_t *val)
+{
+	int ret;
+	uint8_t data[4];
+
+	if (!val)
+		return -EIO; 
+
+	ret = microp_i2c_write(MICROP_I2C_RCMD_ADC_VALUE, data, 2);
+	if (ret < 0) 
+	{
+		pr_err("%s: request adc fail\n", __func__);
+		return -EIO;
+	}
+
+//	printk("%x %x\n", data[0], data[1]);
+	*val = data[1] | (data[0] << 8);
+	printk("remote adc %d\n", *val);
+	return 0;
+}
 
 static int hs_gpio_get_mic(void)
 {

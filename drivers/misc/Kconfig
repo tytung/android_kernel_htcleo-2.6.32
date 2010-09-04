@@ -296,7 +296,6 @@ config PMIC8058_PWM
 
 config SENSORS_BMA150_SPI
         tristate "BMA150 G-sensor Driver"
-	depends on MICROP_COMMON
         default y
         help
          BMA150 G-sensor Driver implemented by HTC.

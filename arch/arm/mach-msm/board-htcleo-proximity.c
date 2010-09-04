@@ -72,7 +72,6 @@ static int report_psensor_data(void)
 static int capella_cm3602_enable(struct capella_cm3602_data *data)
 {
 	int rc;
-	pr_info("%s\n", __func__);
 	if (data->enabled) {
 		pr_info("%s: already enabled\n", __func__);
 		return 0;
@@ -95,7 +94,6 @@ static int capella_cm3602_enable(struct capella_cm3602_data *data)
 static int capella_cm3602_disable(struct capella_cm3602_data *data)
 {
 	int rc = -EIO;
-	pr_info("%s\n", __func__);
 	if (!data->enabled) {
 		pr_info("%s: already disabled\n", __func__);
 		return 0;
@@ -147,7 +145,6 @@ static DEVICE_ATTR(proximity, 0644, capella_cm3602_show, capella_cm3602_store);
 
 static int capella_cm3602_open(struct inode *inode, struct file *file)
 {
-	pr_info("%s\n", __func__);
 	if (misc_opened)
 		return -EBUSY;
 	misc_opened = 1;
@@ -156,7 +153,6 @@ static int capella_cm3602_open(struct inode *inode, struct file *file)
 
 static int capella_cm3602_release(struct inode *inode, struct file *file)
 {
-	pr_info("%s\n", __func__);
 	misc_opened = 0;
 	return capella_cm3602_disable(&the_data);
 }
@@ -191,7 +187,6 @@ static void p_sensor_do_work(struct work_struct *w)
 
 void p_sensor_irq_handler(void)
 {
-	pr_info("%s\n", __func__);
 	queue_work(the_data.p_sensor_wq, &p_sensor_work);
 }
 
@@ -317,3 +312,6 @@ static int __init htcleo_capella_cm3602_init(void)
 }
 
 device_initcall(htcleo_capella_cm3602_init);
+
+MODULE_DESCRIPTION("HTC LEO Touchscreen Support Driver");
+MODULE_LICENSE("GPL");

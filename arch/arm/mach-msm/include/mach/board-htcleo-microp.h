@@ -29,17 +29,6 @@ struct microp_int_pin {
 	uint16_t int_remotekey;
 };
 
-struct microp_led_data {
-	int type;
-	struct led_classdev ldev;
-	struct mutex led_data_mutex;
-	struct work_struct brightness_work;
-	spinlock_t brightness_lock;
-	enum led_brightness brightness;
-	uint8_t mode;
-	uint8_t blink;
-};
-
 struct microp_i2c_work {
 	struct work_struct work;
 	struct i2c_client *client;
@@ -47,16 +36,8 @@ struct microp_i2c_work {
 	void (*intr_function)(uint8_t *pin_status);
 };
 
-enum led_type {
-	GREEN_LED,
-	AMBER_LED,
-	NUM_LEDS,
-};
-
 struct microp_i2c_client_data {
 	struct mutex microp_i2c_rw_mutex;
-	struct mutex proximity_api_lock;
-	struct microp_led_data leds[NUM_LEDS];
 	uint8_t gpio_reset;
 	uint16_t version;
 	struct microp_i2c_work work;
@@ -65,13 +46,6 @@ struct microp_i2c_client_data {
 	uint8_t enable_early_suspend;
 	uint8_t enable_reset_button;
 	int microp_is_suspend;
-	int auto_backlight_enabled;
-	uint8_t proximity_sensor_enabled;
-	uint8_t button_led_value;
-	int headset_is_in;
-	int is_hpin_pin_stable;
-	struct input_dev *pr_input_dev;
-	struct input_dev *ls_input_dev;
 	uint32_t microp_als_kadc;
 };
 

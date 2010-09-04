@@ -27,7 +27,10 @@
 #include <linux/platform_device.h>
 #include <linux/android_pmem.h>
 #include <linux/regulator/machine.h>
+#include <linux/leds.h>
+#ifdef CONFIG_SENSORS_BMA150_SPI
 #include <linux/bma150.h>
+#endif
 #include <linux/akm8973.h>
 #include <../../../drivers/staging/android/timed_gpio.h>
 
@@ -49,11 +52,7 @@
 #include <mach/htc_headset_mgr.h>
 #include <mach/htc_headset_gpio.h>
 
-#ifdef CONFIG_MICROP_COMMON
-#include <mach/atmega_microp.h>
-void __init htcleo_microp_init(void);
-#endif
-
+#include <mach/board-htcleo-microp.h>
 
 #include "board-htcleo.h"
 #include "board-htcleo-ts.h"
@@ -175,17 +174,9 @@ static struct akm8973_platform_data compass_platform_data =
 ///////////////////////////////////////////////////////////////////////
 // Microp
 ///////////////////////////////////////////////////////////////////////
-#ifdef CONFIG_MICROP_COMMON
-static struct microp_function_config microp_functions[] = {
-	{
-		.name   = "reset-int",
-		.category = MICROP_FUNCTION_RESET_INT,
-		.int_pin = 1 << 8,
-	},
-};
 
 static struct bma150_platform_data htcleo_g_sensor_pdata = {
-	.microp_new_cmd = 1,
+	.microp_new_cmd = 0,
 };
 
 static struct platform_device microp_devices[] = {
@@ -195,17 +186,25 @@ static struct platform_device microp_devices[] = {
 			.platform_data = &htcleo_g_sensor_pdata,
 		},
 	},
+	{
+		.name = "htcleo-backlight",
+	},
+	{
+		.name = "htcleo-proximity",
+		.id = -1,
+	},
+	{
+		.name = "htcleo-leds",
+		.id = -1,
+	},
 };
 
 static struct microp_i2c_platform_data microp_data = {
-	.num_functions   = ARRAY_SIZE(microp_functions),
-	.microp_function = microp_functions,
 	.num_devices = ARRAY_SIZE(microp_devices),
 	.microp_devices = microp_devices,
 	.gpio_reset = HTCLEO_GPIO_UP_RESET_N,
-	.spi_devices = SPI_GSENSOR,
 };
-#endif
+
 static struct i2c_board_info base_i2c_devices[] =
 {
   	{
@@ -218,13 +217,11 @@ static struct i2c_board_info base_i2c_devices[] =
 		I2C_BOARD_INFO("tps65023", 0x48),
 		.platform_data = tps65023_data,
 	},
-#ifdef CONFIG_MICROP_COMMON
 	{
 		I2C_BOARD_INFO(MICROP_I2C_NAME, 0xCC >> 1),
 		.platform_data = &microp_data,
 		.irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_UP_INT_N)
 	},
-#endif
 	{
 		I2C_BOARD_INFO(AKM8973_I2C_NAME, 0x1C),
 		.platform_data = &compass_platform_data,
@@ -621,6 +618,18 @@ static struct platform_device htcleo_power  =
 	.name = "htcleo_power",
 	.id = -1,
 };
+///////////////////////////////////////////////////////////////////////
+// Real Time Clock
+///////////////////////////////////////////////////////////////////////
+
+struct platform_device msm_device_rtc = {
+	.name = "msm_rtc",
+	.id = -1,
+};
+///////////////////////////////////////////////////////////////////////
+// Platform Devices
+///////////////////////////////////////////////////////////////////////
+
 
 static struct platform_device *devices[] __initdata =
 {
@@ -633,15 +642,12 @@ static struct platform_device *devices[] __initdata =
 #endif
 	&msm_device_smd,
 	&htcleo_rfkill,
-//	&msm_audio_device,
+	&msm_device_rtc,
 	&android_pmem_device,
 	&android_pmem_adsp_device,
 	&android_pmem_camera_device,
 	&msm_device_i2c,
-//	&htcleo_backlight,
-//	&htcleo_headset,
 	&msm_kgsl_device,
-//	&capella_cm3602,
 	&msm_camera_sensor_s5k3e2fx,
 	&htcleo_flashlight_device,
 	&htcleo_power,
