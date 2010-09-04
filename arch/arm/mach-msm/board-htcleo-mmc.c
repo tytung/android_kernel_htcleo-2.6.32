@@ -34,6 +34,8 @@
 #include "board-htcleo.h"
 #include "devices.h"
 #include "proc_comm.h"
+#include "pmic_global.h"
+#include "pmic.h"
 
 #undef HTCLEO_DEBUG_MMC
 
@@ -66,6 +68,7 @@ static uint32_t  sdcard_off_gpio_table[] =
 	PCOM_GPIO_CFG(67, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_4MA), /* DAT0 */
 };
 
+static enum vreg_id	sdslot_vreg;
 static uint32_t		sdslot_vdd = 0xffffffff;
 static uint32_t		sdslot_vreg_enabled;
 
@@ -97,25 +100,29 @@ static uint32_t htcleo_sdslot_switchvdd(struct device *dev, unsigned int vdd)
 
 	sdslot_vdd = vdd;
 
-	if (vdd == 0) {
-		config_gpio_table(sdcard_off_gpio_table,
-				  ARRAY_SIZE(sdcard_off_gpio_table));
-		//htcleo_pm_set_vreg(0, 0x17);
+	printk("@@@ SD power %d @@@\n", vdd);
+
+	if (vdd == 0) 
+	{
+		config_gpio_table(sdcard_off_gpio_table,ARRAY_SIZE(sdcard_off_gpio_table));             
+		pmic_glb_set_vreg(0, sdslot_vreg);
 		sdslot_vreg_enabled = 0;
 		return 0;
 	}
 
-	if (!sdslot_vreg_enabled) {
-		// htcleo_pm_set_vreg(1, 0x17);
-		config_gpio_table(sdcard_on_gpio_table,
-				  ARRAY_SIZE(sdcard_on_gpio_table));
+	if (!sdslot_vreg_enabled) 
+	{
+		pmic_glb_set_vreg(1, sdslot_vreg);
+		if (ret)
+			pr_err("%s: Error enabling vreg (%d)\n", __func__, ret);
+		config_gpio_table(sdcard_on_gpio_table, ARRAY_SIZE(sdcard_on_gpio_table));
 		sdslot_vreg_enabled = 1;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(mmc_vdd_table); i++) {
 		if (mmc_vdd_table[i].mask != (1 << vdd))
 			continue;
-//		ret = vreg_set_level(sdslot_vreg, mmc_vdd_table[i].level);
+		ret = pmic_glb_vreg_set_level(sdslot_vreg, mmc_vdd_table[i].level);
 		if (ret)
 			pr_err("%s: Error setting level (%d)\n", __func__, ret);
 		return 0;
@@ -125,9 +132,9 @@ static uint32_t htcleo_sdslot_switchvdd(struct device *dev, unsigned int vdd)
 	return 0;
 }
 
-static unsigned int htcleo_sdslot_status_rev0(struct device *dev)
+static unsigned int htcleo_sdslot_status(struct device *dev)
 {
-	return !gpio_get_value(HTCLEO_GPIO_SDMC_CD_REV0_N);
+	return !gpio_get_value(HTCLEO_GPIO_SD_STATUS);
 }
 
 #define HTCLEO_MMC_VDD	(MMC_VDD_165_195 | MMC_VDD_20_21 | \
@@ -140,7 +147,7 @@ static unsigned int htcleo_sdslot_status_rev0(struct device *dev)
 static struct mmc_platform_data htcleo_sdslot_data =
 {
 	.ocr_mask		= HTCLEO_MMC_VDD,
-	.status			= htcleo_sdslot_status_rev0,
+	.status			= htcleo_sdslot_status,
 	.register_status_notify	= NULL,
 	.translate_vdd		= htcleo_sdslot_switchvdd,
 };
@@ -260,7 +267,7 @@ int __init htcleo_init_mmc(unsigned debug_uart)
 
 	/* initial WIFI_SHUTDOWN# */	
 	id = PCOM_GPIO_CFG(HTCLEO_GPIO_WIFI_SHUTDOWN_N, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_2MA),
-//	msm_gpio_set_function(id);
+
 	msm_proc_comm(PCOM_RPC_GPIO_TLMM_CONFIG_EX, &id, 0);
 
 	msm_add_sdcc(1, &htcleo_wifi_data, 0, 0);
@@ -276,9 +283,11 @@ int __init htcleo_init_mmc(unsigned debug_uart)
 
 	sdslot_vreg_enabled = 0;
 
-	set_irq_wake(MSM_GPIO_TO_INT(HTCLEO_GPIO_SDMC_CD_REV0_N), 1);
+	sdslot_vreg = PM_VREG_GP6_ID;
+
+	set_irq_wake(MSM_GPIO_TO_INT(HTCLEO_GPIO_SD_STATUS), 1);
 	msm_add_sdcc(2, &htcleo_sdslot_data,
-		      MSM_GPIO_TO_INT(HTCLEO_GPIO_SDMC_CD_REV0_N),
+		      MSM_GPIO_TO_INT(HTCLEO_GPIO_SD_STATUS),
 		      IORESOURCE_IRQ_LOWEDGE | IORESOURCE_IRQ_HIGHEDGE);
 
 done:
