@@ -264,6 +264,7 @@ static struct platform_driver msmrtc_driver = {
 
 static int __init msmrtc_init(void)
 {
+	pr_info("RTC: Init MSM RTC Clock");
 	rtcalarm_time = 0;
 	switch(__amss_version) {
 	  case 6210:
@@ -274,7 +275,7 @@ static int __init msmrtc_init(void)
 	    msmrtc_driver.driver.name="rs30000048:0da5b528";
 	    break;
 	  case 1550:
-	    msmrtc_driver.driver.name="rs30000048:00010002";
+	    msmrtc_driver.driver.name="rs30000048:00010000";
 	    break;
 	  default:
 	    msmrtc_driver.driver.name="rs30000048:00010001";
