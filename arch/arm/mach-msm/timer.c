@@ -682,7 +682,13 @@ static void __init msm_timer_init(void)
 {
 	int i;
 	int res;
-
+	
+#ifdef CONFIG_MACH_HTCLEO
+	printk("$$$ msm_timer_init $$$\n");
+	printk(" 1DIV = %08X\n", readl(MSM_GPT_BASE + 0x20));
+	writel(3, MSM_GPT_BASE + 0x20);
+	printk(" 2DIV = %08X\n", readl(MSM_GPT_BASE + 0x20));
+#endif
 	for (i = 0; i < ARRAY_SIZE(msm_clocks); i++) {
 		struct msm_clock *clock = &msm_clocks[i];
 		struct clock_event_device *ce = &clock->clockevent;
