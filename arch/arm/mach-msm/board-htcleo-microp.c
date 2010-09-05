@@ -64,9 +64,7 @@ static char *hex2string(uint8_t *data, int len)
 	return buf;
 }
 
-#define I2C_READ_RETRY_TIMES  10/*
- * SD slot card-detect support
- */
+#define I2C_READ_RETRY_TIMES  10
 #define I2C_WRITE_RETRY_TIMES 10
 
 static int i2c_read_block(struct i2c_client *client, uint8_t addr,
@@ -355,36 +353,6 @@ EXPORT_SYMBOL(microp_gpo_disable);
 
 
 /*
- * SD slot card-detect support
- */
-static unsigned int sdslot_cd = 0;
-static void (*sdslot_status_cb)(int card_present, void *dev_id);
-static void *sdslot_mmc_dev;
-
-int htcleo_microp_sdslot_status_register(
-		void (*cb)(int card_present, void *dev_id),
-		void *dev_id)
-{
-	if (sdslot_status_cb)
-		return -EBUSY;
-	sdslot_status_cb = cb;
-	sdslot_mmc_dev = dev_id;
-	return 0;
-}
-
-unsigned int htcleo_microp_sdslot_status(struct device *dev)
-{
-	return sdslot_cd;
-}
-
-static void htcleo_microp_sdslot_update_status(int status)
-{
-	sdslot_cd = !(status & READ_GPI_STATE_SDCARD);
-	if (sdslot_status_cb)
-		sdslot_status_cb(sdslot_cd, sdslot_mmc_dev);
-}
-
-/*
  * Interrupt
  */
 static irqreturn_t microp_i2c_intr_irq_handler(int irq, void *dev_id)
@@ -429,10 +397,6 @@ static void microp_i2c_intr_work_func(struct work_struct *work)
 	}
 	pr_debug("intr_status=0x%02x\n", intr_status);
 
-	if (intr_status & IRQ_SDCARD) {
-		microp_read_gpi_status(client, &gpi_status);
-		htcleo_microp_sdslot_update_status(gpi_status);
-	}
 	if (intr_status & IRQ_PROXIMITY) {
 		p_sensor_irq_handler();
 	}
@@ -449,8 +413,6 @@ static int microp_function_initialize(struct i2c_client *client)
 
 	cdata = i2c_get_clientdata(client);
 
-	/* SD Card */
-	interrupts |= IRQ_SDCARD;
 	interrupts |= IRQ_PROXIMITY;
 
 	/* enable the interrupts */
@@ -462,7 +424,6 @@ static int microp_function_initialize(struct i2c_client *client)
 	}
 
 	microp_read_gpi_status(client, &stat);
-	htcleo_microp_sdslot_update_status(stat);
 
 	return 0;
 
