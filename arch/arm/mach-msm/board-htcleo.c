@@ -188,6 +188,7 @@ static struct platform_device microp_devices[] = {
 	},
 	{
 		.name = "htcleo-backlight",
+		.id = -1,
 	},
 	{
 		.name = "htcleo-proximity",
@@ -195,6 +196,10 @@ static struct platform_device microp_devices[] = {
 	},
 	{
 		.name = "htcleo-leds",
+		.id = -1,
+	},
+	{
+		.name = "htcleo-lsensor",
 		.id = -1,
 	},
 };
