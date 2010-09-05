@@ -63,9 +63,7 @@ int htcleo_brightness_set_bkl(uint8_t value)
 		value = 9;
 	}
 	// disable autobrigtness
-// CotullaTEST: Lsensor test, add 0x100
-//	data[0] = 0;
-	data[0] = 1;
+	data[0] = 0;
 	data[1] = 0;
 	ret = microp_i2c_write(MICROP_I2C_WCMD_AUTO_BL_CTL, data, 2); // 23
 	if (ret != 0)
