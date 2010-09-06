@@ -689,7 +689,7 @@ static struct platform_device htcleo_timed_gpios = {
 ///////////////////////////////////////////////////////////////////////
 
 static struct msm_i2c_device_platform_data msm_i2c_pdata = {
-	.i2c_clock = 100000,
+	.i2c_clock = 400000,
 	.clock_strength = GPIO_8MA,
 	.data_strength = GPIO_8MA,
 };
