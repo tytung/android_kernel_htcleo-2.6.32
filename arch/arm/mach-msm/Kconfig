@@ -842,13 +842,6 @@ config MSM7KV2_AUDIO
           Enables QDSP5V2-based audio drivers for audio playbacks and
           voice call.
 
-config MSM_QDSP6
-	tristate "QDSP6 support"
-	depends on ARCH_QSD8X50
-	default n
-	help
-	  Enable support for qdsp6. This provides audio and video functionality.
-
 config MSM_CLOCK_CTRL_DEBUG
 	bool "Enable debugfs interface for clock control"
 	default n
