@@ -117,27 +117,19 @@ static struct platform_device htcleo_input_device = {
 	},
 };
 
-/*
-static int htcleo_reset_keys_up[] = {
-	KEY_VOLUMEUP,
-	0,
-};
-
 static struct keyreset_platform_data htcleo_reset_keys_pdata = {
-	.keys_up 	= htcleo_reset_keys_up,
-	.keys_down	= {
-		KEY_MENU,
+	.keys_down = {
+		KEY_END,
+		KEY_VOLUMEUP,
+		KEY_VOLUMEDOWN,
 		0
 	},
 };
 
-struct platform_device htcleo_reset_keys_device = {
-	.name	= KEYRESET_NAME,
-	.dev	= {
-		.platform_data = &htcleo_reset_keys_pdata
-	},
+static struct platform_device htcleo_reset_keys_device = {
+	.name = KEYRESET_NAME,
+	.dev.platform_data = &htcleo_reset_keys_pdata,
 };
-*/
 
 static void keypad_led_brightness_set_work(struct work_struct *work)
 {
@@ -189,19 +181,22 @@ static int __init htcleo_init_keypad(void)
 	if (!machine_is_htcleo())
 		return 0;
 
-	// ret = platform_device_register(&htcleo_reset_keys_device);
-	// if (ret != 0)
-	//	return ret;
+	ret = platform_device_register(&htcleo_reset_keys_device);
+	if (ret != 0) {
+		pr_err("%s: register reset key fail\n", __func__);
+		goto exit;
+	}
 
 	ret = platform_device_register(&htcleo_input_device);
 	if (ret != 0)
-		return ret;
+		goto exit;
 
 	ret = gpio_request(HTCLEO_GPIO_KP_LED, "keypad_led");
 	if (ret < 0) {
 		pr_err("failed on request gpio keypad backlight on\n");
 		goto exit;
 	}
+
 	ret = gpio_direction_output(HTCLEO_GPIO_KP_LED, 0);
 	if (ret < 0) {
 		pr_err("failed on gpio_direction_output keypad backlight on\n");
