@@ -144,12 +144,15 @@ static unsigned int htcleo_sdslot_status(struct device *dev)
 				 MMC_VDD_27_28 | MMC_VDD_28_29 | \
 				 MMC_VDD_29_30)
 
+static unsigned int htcleo_sdslot_type = MMC_TYPE_SD;
+
 static struct mmc_platform_data htcleo_sdslot_data =
 {
 	.ocr_mask		= HTCLEO_MMC_VDD,
 	.status			= htcleo_sdslot_status,
 	.register_status_notify	= NULL,
 	.translate_vdd		= htcleo_sdslot_switchvdd,
+	.slot_type		= &htcleo_sdslot_type,
 };
 
 static uint32_t wifi_on_gpio_table[] =

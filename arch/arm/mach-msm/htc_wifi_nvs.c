@@ -23,7 +23,7 @@
 #include <linux/proc_fs.h>
 
 #include <asm/setup.h>
-
+#define ATAG_MSM_WIFI_DEBUG 1
 /* configuration tags specific to msm */
 #define ATAG_MSM_WIFI	0x57494649 /* MSM WiFi */
 
@@ -37,12 +37,14 @@ static struct proc_dir_entry *wifi_data;
 
 unsigned char *get_wifi_nvs_ram( void )
 {
+	pr_info("NVS: get_wifi_nvs_ram\n");
 	return wifi_nvs_ram;
 }
 EXPORT_SYMBOL(get_wifi_nvs_ram);
 
 static int __init parse_tag_msm_wifi(const struct tag *tag)
 {
+	pr_info("NVS: parse_tag_msm_wifi\n");
 	unsigned char *dptr = (unsigned char *)(&tag->u);
 	unsigned size;
 #ifdef ATAG_MSM_WIFI_DEBUG
@@ -64,6 +66,7 @@ __tagtable(ATAG_MSM_WIFI, parse_tag_msm_wifi);
 
 static unsigned wifi_get_nvs_size( void )
 {
+	pr_info("NVS: wifi_get_nvs_size\n");
 	unsigned char *ptr;
 	unsigned len;
 
@@ -71,6 +74,7 @@ static unsigned wifi_get_nvs_size( void )
 	/* Size in format LE assumed */
 	memcpy(&len, ptr + NVS_LEN_OFFSET, sizeof(len));
 	len = min(len, (NVS_MAX_SIZE - NVS_DATA_OFFSET));
+	pr_info("NVS: wifi_get_nvs_size %d\n", len);
 	return len;
 }
 
@@ -85,6 +89,7 @@ int wifi_calibration_size_set(void)
 static int wifi_calibration_read_proc(char *page, char **start, off_t off,
 					int count, int *eof, void *data)
 {
+	pr_info("NVS: wifi_calibration_read_proc\n");
 	unsigned char *ptr;
 	unsigned len;
 
@@ -107,9 +112,11 @@ static int wifi_data_read_proc(char *page, char **start, off_t off,
 
 static int __init wifi_nvs_init(void)
 {
+	pr_info("NVS: wifi_nvs_init\n");
 #ifdef CONFIG_WIFI_NVS_PROC_CREATE
 	wifi_calibration = create_proc_entry("calibration", 0444, NULL);
 	if (wifi_calibration != NULL) {
+	pr_info("NVS: wifi_calibration\n");
 		wifi_calibration->size = wifi_get_nvs_size();
 		wifi_calibration->read_proc = wifi_calibration_read_proc;
 		wifi_calibration->write_proc = NULL;
