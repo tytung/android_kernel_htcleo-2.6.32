@@ -212,7 +212,7 @@ static struct microp_i2c_platform_data microp_data = {
 
 static struct i2c_board_info base_i2c_devices[] =
 {
-  	{
+	{
 		I2C_BOARD_INFO("htcleo-battery", 0x26),
 	},
 	{
@@ -713,16 +713,6 @@ static struct msm_acpu_clock_platform_data htcleo_clock_data = {
 //	.wait_for_irq_khz	= 19200,   // TCXO
 };
 
-static unsigned htcleo_perf_acpu_table[] = {
-	245000000,
-	576000000,
-	998400000,
-};
-
-static struct perflock_platform_data htcleo_perflock_data = {
-	.perf_acpu_table = htcleo_perf_acpu_table,
-	.table_size = ARRAY_SIZE(htcleo_perf_acpu_table),
-};
 ///////////////////////////////////////////////////////////////////////
 // Reset
 ///////////////////////////////////////////////////////////////////////
@@ -756,8 +746,6 @@ static void __init htcleo_init(void)
 
 	msm_acpu_clock_init(&htcleo_clock_data);
 	
-	perflock_init(&htcleo_perflock_data);
-
 	init_dex_comm();
 	
 	/* set the gpu power rail to manual mode so clk en/dis will not
