@@ -282,6 +282,13 @@ config MACH_HTCLEO
 	help
 	  Select this to support the HTC Leo device
 
+config HTCLEO_BLINK_AT_BOOT
+       depends on MACH_HTCLEO
+       default n
+       bool "Blink flash at boot"
+       help
+         Blink flash led during hardware init
+
 config MACH_PASSIONC
 	depends on ARCH_QSD8X50
 	default n

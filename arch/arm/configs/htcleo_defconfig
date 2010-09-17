@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.15
-# Fri Sep 17 12:02:54 2010
+# Fri Sep 17 14:11:22 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -231,6 +231,7 @@ CONFIG_MSM_DEBUG_UART_NONE=y
 # CONFIG_MACH_MAHIMAHI is not set
 # CONFIG_MACH_BRAVO is not set
 CONFIG_MACH_HTCLEO=y
+# CONFIG_HTCLEO_BLINK_AT_BOOT is not set
 # CONFIG_MACH_PASSIONC is not set
 # CONFIG_MACH_BRAVOC is not set
 # CONFIG_MACH_INCREDIBLE is not set

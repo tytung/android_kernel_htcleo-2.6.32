@@ -747,7 +747,9 @@ static void do_grp_reset(void)
 
 static void __init htcleo_init(void)
 {
+#ifdef CONFIG_HTCLEO_BLINK_AT_BOOT
 	volatile unsigned *bank6_in, *bank6_out;
+#endif
 	printk("htcleo_init()\n");
 
 	msm_hw_reset_hook = htcleo_reset;
@@ -798,13 +800,14 @@ static void __init htcleo_init(void)
 #endif
 
 	/* Blink the camera LED shortly to show that we're alive! */
-
+#ifdef CONFIG_HTCLEO_BLINK_AT_BOOT
 	bank6_in = (unsigned int*)(MSM_GPIO1_BASE + 0x0864);
 	bank6_out = (unsigned int*)(MSM_GPIO1_BASE + 0x0814);
 	*bank6_out = *bank6_in ^ 0x200000;
 	mdelay(50);
 	*bank6_out = *bank6_in | 0x200000;
 	mdelay(200);
+#endif
 
 }
 
