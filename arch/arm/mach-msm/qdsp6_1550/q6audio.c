@@ -863,7 +863,7 @@ int q6audio_write(struct audio_client *ac, struct audio_buffer *ab)
 
     AUDIO_INFO("%s: %X %X %X\n", __func__, ab->phys , ab->size, ab->used);
     memset(&rpc, 0, sizeof(rpc));
-//    rpc.hdr.context = ac->session;
+    rpc.hdr.context = ac->session;
     rpc.hdr.data = (uint32_t)ab->data;
     rpc.buffer.addr = ab->phys;
     rpc.buffer.max_size = ab->size;
@@ -1150,7 +1150,7 @@ static int acdb_init(char *filename)
     const struct firmware *fw;
     int n;
 
-    return -ENODEV;
+    //    return -ENODEV;
 
     pr_info("acdb: load '%s'\n", filename);
     if (request_firmware(&fw, filename, q6_control_device.this_device) < 0) {
@@ -1544,7 +1544,7 @@ static void _audio_rx_path_enable(int reconf, uint32_t acdb_id)
     adie_proceed_to_stage(adie, ADIE_PATH_RX, ADIE_STAGE_DIGITAL_READY);
     adie_proceed_to_stage(adie, ADIE_PATH_RX, ADIE_STAGE_DIGITAL_ANALOG_READY);
 
-//    audio_update_acdb(audio_rx_device_id, acdb_id);
+    audio_update_acdb(audio_rx_device_id, acdb_id);
     if (!reconf)
         qdsp6_devchg_notify(ac_control, ADSP_AUDIO_RX_DEVICE, audio_rx_device_id);
     qdsp6_standby(ac_control);
