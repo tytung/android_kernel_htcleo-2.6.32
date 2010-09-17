@@ -1086,12 +1086,12 @@ static int msmfb_probe(struct platform_device *pdev)
 #ifdef CONFIG_FB_MSM_LOGO
 	if (!load_565rle_image(INIT_IMAGE_FILE)) {
 		/* Flip buffer */
-		msmfb->update_info.left = 0;
+	        msmfb->update_info.left = 0;
 		msmfb->update_info.top = 0;
-		msmfb->update_info.eright = info->var.xres;
-		msmfb->update_info.ebottom = info->var.yres;
-		msmfb_pan_update(info, 0, 0, fb->var.xres,
-				 fb->var.yres, 0, 1);
+		msmfb->update_info.eright = msmfb->xres;
+	        msmfb->update_info.ebottom = msmfb->yres;
+		msmfb_pan_update(msmfb->fb, 0, 0, msmfb->xres,
+				 msmfb->yres, 0, 1);
 	}
 #endif
 	/* Jay, 29/12/08' */
