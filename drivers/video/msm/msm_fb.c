@@ -465,7 +465,7 @@ static int display_notifier_callback(struct notifier_block *nfb,
 	switch (action) {
 	case NOTIFY_MSM_FB:
 		printk(KERN_DEBUG "NOTIFY_MSM_FB\n");
-		//msmfb_resume(&msm_fb->early_suspend);
+		msmfb_resume(&msm_fb->early_suspend);
 		break;
 	case NOTIFY_POWER:
 		/* nothing to do */
