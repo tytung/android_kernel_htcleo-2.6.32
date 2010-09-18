@@ -62,6 +62,7 @@
 
 extern int __init htcleo_init_mmc(unsigned debug_uart);
 extern void __init htcleo_audio_init(void);
+extern unsigned char *get_bt_bd_ram(void);
 
 ///////////////////////////////////////////////////////////////////////
 // SPI
@@ -459,6 +460,18 @@ static struct platform_device msm_camera_sensor_s5k3e2fx =
 ///////////////////////////////////////////////////////////////////////
 // bluetooth
 ///////////////////////////////////////////////////////////////////////
+static char bdaddress[20];
+static void bt_export_bd_address(void)
+ {
+	unsigned char cTemp[6];
+
+	memcpy(cTemp, get_bt_bd_ram(), 6);
+	sprintf(bdaddress, "%02x:%02x:%02x:%02x:%02x:%02x", cTemp[0], cTemp[1], cTemp[2], cTemp[3], cTemp[4], cTemp[5]);
+	pr_info("BD_ADDRESS=%s\n", bdaddress);
+}
+
+module_param_string(bdaddress, bdaddress, sizeof(bdaddress), S_IWUSR | S_IRUGO);
+MODULE_PARM_DESC(bdaddress, "BT MAC ADDRESS");
 
 static uint32_t bt_gpio_table[] =
 {
@@ -794,6 +807,7 @@ static void __init htcleo_init(void)
 	htcleo_init_mmc(0);
 	platform_device_register(&htcleo_timed_gpios);
 
+	bt_export_bd_address();
 	htcleo_bt_init();
 	htcleo_audio_init();
 	

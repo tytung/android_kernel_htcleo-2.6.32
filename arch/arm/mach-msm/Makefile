@@ -18,9 +18,9 @@ obj-$(CONFIG_ARCH_MSM_SCORPION) += idle-v7.o
 obj-y += gpio.o generic_gpio.o
 obj-y += nand_partitions.o
 obj-y += drv_callback.o
-obj-$(CONFIG_ARCH_QSD8X50) += pmic.o htc_bluetooth.o
+obj-$(CONFIG_ARCH_QSD8X50) += pmic.o 
 ifndef CONFIG_MACH_HTCLEO
-obj-$(CONFIG_ARCH_QSD8X50) += htc_wifi_nvs.o 
+obj-$(CONFIG_ARCH_QSD8X50) += htc_wifi_nvs.o htc_bluetooth.o
 else
 obj-$(CONFIG_ARCH_QSD8X50) += board-htcleo-wifi-nvs.o
 endif

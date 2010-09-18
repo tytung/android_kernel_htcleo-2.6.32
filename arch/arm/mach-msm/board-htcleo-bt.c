@@ -38,8 +38,8 @@
 #include "dex_comm.h"
 #include "gpio_chip.h"
 
-
-
+#define MAX_BT_SIZE 0x6U
+static unsigned char bt_bd_ram[MAX_BT_SIZE] = {0x50,0xC3,0x00,0x00,0x00,0x00};
 
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +47,10 @@
 static struct rfkill *bt_rfk;
 static const char bt_name[] = "bcm4329";
 
+unsigned char *get_bt_bd_ram(void)
+{
+	return (bt_bd_ram);
+}
 
 static int bluetooth_set_power(void *data, bool blocked)
 {
