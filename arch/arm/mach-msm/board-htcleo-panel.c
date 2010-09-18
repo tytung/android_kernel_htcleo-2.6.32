@@ -972,4 +972,3 @@ int __init htcleo_init_panel(void)
 	return 0;
 }
 
-device_initcall(htcleo_init_panel);

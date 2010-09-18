@@ -773,6 +773,8 @@ static void __init htcleo_init(void)
 #ifdef CONFIG_MICROP_COMMON
 	htcleo_microp_init();
 #endif
+	htcleo_init_panel();
+
 	msm_device_i2c_init();
 
 	platform_add_devices(devices, ARRAY_SIZE(devices));

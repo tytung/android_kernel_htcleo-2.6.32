@@ -167,5 +167,6 @@
 #define HTCLEO_GPIO_LED_3V3_EN	85
 
 int htcleo_pm_set_vreg(int enable, unsigned id);
+int __init htcleo_init_panel(void);
 
 #endif /* __ARCH_ARM_MACH_MSM_BOARD_HTCLEO_H */
