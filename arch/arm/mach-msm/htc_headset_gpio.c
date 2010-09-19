@@ -98,7 +98,7 @@ int microp_get_remote_adc(uint32_t *val)
 	if (!val)
 		return -EIO; 
 
-	ret = microp_i2c_write(MICROP_I2C_RCMD_ADC_VALUE, data, 2);
+	ret = microp_i2c_read(MICROP_I2C_RCMD_ADC_VALUE, data, 2);
 	if (ret < 0) 
 	{
 		pr_err("%s: request adc fail\n", __func__);
