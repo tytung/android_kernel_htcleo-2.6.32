@@ -62,13 +62,14 @@ static unsigned int suspended;
  * The minimum amount of time to spend at a frequency before we can ramp down,
  * default is 45ms.
  */
-#define DEFAULT_RAMP_DOWN_RATE_NS 45000;
-static unsigned long ramp_down_rate_ns;
+#define DEFAULT_DOWN_RATE_US 99000;
+static unsigned long down_rate_us;
 
 /*
- * When ramping up frequency jump to at least this frequency.
+ * When ramping up frequency with no idle cycles jump to at least this frequency.
+ * Zero disables. Set a very high value to jump to policy max freqeuncy.
  */
-#define DEFAULT_UP_MIN_FREQ CONFIG_MSM_CPU_FREQ_ONDEMAND_MAX
+#define DEFAULT_UP_MIN_FREQ 999999
 static unsigned int up_min_freq;
 
 /*
@@ -87,10 +88,17 @@ static unsigned int sleep_max_freq;
 static unsigned int sample_rate_jiffies;
 
 /*
- * Max freqeuncy delta when ramping up.
+ * Freqeuncy delta when ramping up.
+ * zero disables causes to always jump straight to max frequency.
  */
-#define DEFAULT_MAX_RAMP_UP 176000
-static unsigned int max_ramp_up;
+#define DEFAULT_RAMP_UP_STEP 352000
+static unsigned int ramp_up_step;
+
+/*
+ * Max freqeuncy delta when ramping down. zero disables.
+ */
+#define DEFAULT_MAX_RAMP_DOWN 352000
+static unsigned int max_ramp_down;
 
 /*
  * CPU freq will be increased if measured load > max_cpu_load;
@@ -168,7 +176,7 @@ static void cpufreq_smartass_timer(unsigned long data)
 	 * Do not scale down unless we have been at this frequency for the
 	 * minimum sample time.
 	 */
-	if (cputime64_sub(update_time, freq_change_time) < ramp_down_rate_ns)
+	if (cputime64_sub(update_time, freq_change_time) < down_rate_us)
 		return;
 
 	cpumask_set_cpu(data, &work_cpumask);
@@ -214,16 +222,18 @@ static unsigned int cpufreq_smartass_calc_freq(unsigned int cpu, struct cpufreq_
 	cpu_load = 100 * (delta_time - idle_time) / delta_time;
 	//printk(KERN_INFO "Smartass calc_freq: delta_time=%u cpu_load=%u\n",delta_time,cpu_load);
 	if (cpu_load < min_cpu_load) {
-	  cpu_load += 100 - max_cpu_load; // dummy load.
-	  new_freq = policy->cur * cpu_load / 100;
-	  //if (new_freq < policy->cur - max_ramp_up) new_freq = policy->cur - max_ramp_up;
-	  //printk(KERN_INFO "Smartass calc_freq: %u => %u\n",policy->cur,new_freq);
-	  return new_freq;
+		cpu_load += 100 - max_cpu_load; // dummy load.
+		new_freq = policy->cur * cpu_load / 100;
+		if (max_ramp_down && new_freq < policy->cur - max_ramp_down)
+			new_freq = policy->cur - max_ramp_down;
+		//printk(KERN_INFO "Smartass calc_freq: %u => %u\n",policy->cur,new_freq);
+		return new_freq;
 	} if (cpu_load > max_cpu_load) {
-	  new_freq = policy->cur / max_cpu_load;
-	  if (new_freq > policy->cur + max_ramp_up)
-	  	new_freq = policy->cur + max_ramp_up;
-	  return new_freq;
+		if (ramp_up_step)
+			new_freq = policy->cur + ramp_up_step;
+		else
+			new_freq = policy->max;
+		return new_freq;
 	}
 	return policy->cur;
 }
@@ -251,7 +261,10 @@ static void cpufreq_smartass_freq_change_time_work(struct work_struct *work)
 			if (policy->cur == policy->max)
 				return;
 
-			new_freq = policy->cur + max_ramp_up;
+			if (ramp_up_step)
+				new_freq = policy->cur + ramp_up_step;
+			else
+				new_freq = policy->max;
 
 			if (suspended && sleep_max_freq) {
 				if (new_freq > sleep_max_freq)
@@ -289,23 +302,23 @@ static void cpufreq_smartass_freq_change_time_work(struct work_struct *work)
 
 }
 
-static ssize_t show_ramp_down_rate_ns(struct cpufreq_policy *policy, char *buf)
+static ssize_t show_down_rate_us(struct cpufreq_policy *policy, char *buf)
 {
-	return sprintf(buf, "%lu\n", ramp_down_rate_ns);
+	return sprintf(buf, "%lu\n", down_rate_us);
 }
 
-static ssize_t store_ramp_down_rate_ns(struct cpufreq_policy *policy, const char *buf, size_t count)
+static ssize_t store_down_rate_us(struct cpufreq_policy *policy, const char *buf, size_t count)
 {
         ssize_t res;
 	unsigned long input;
 	res = strict_strtoul(buf, 0, &input);
 	if (res >= 0 && input >= 1000 && input <= 100000000)
-	  ramp_down_rate_ns = input;
+	  down_rate_us = input;
 	return res;
 }
 
-static struct freq_attr ramp_down_rate_ns_attr = __ATTR(ramp_down_rate_ns, 0644,
-		show_ramp_down_rate_ns, store_ramp_down_rate_ns);
+static struct freq_attr down_rate_us_attr = __ATTR(down_rate_us, 0644,
+		show_down_rate_us, store_down_rate_us);
 
 static ssize_t show_up_min_freq(struct cpufreq_policy *policy, char *buf)
 {
@@ -361,23 +374,41 @@ static ssize_t store_sample_rate_jiffies(struct cpufreq_policy *policy, const ch
 static struct freq_attr sample_rate_jiffies_attr = __ATTR(sample_rate_jiffies, 0644,
 		show_sample_rate_jiffies, store_sample_rate_jiffies);
 
-static ssize_t show_max_ramp_up(struct cpufreq_policy *policy, char *buf)
+static ssize_t show_ramp_up_step(struct cpufreq_policy *policy, char *buf)
 {
-	return sprintf(buf, "%u\n", max_ramp_up);
+	return sprintf(buf, "%u\n", ramp_up_step);
 }
 
-static ssize_t store_max_ramp_up(struct cpufreq_policy *policy, const char *buf, size_t count)
+static ssize_t store_ramp_up_step(struct cpufreq_policy *policy, const char *buf, size_t count)
 {
         ssize_t res;
 	unsigned long input;
 	res = strict_strtoul(buf, 0, &input);
-	if (res >= 0 && input > 10000)
-	  max_ramp_up = input;
+	if (res >= 0)
+	  ramp_up_step = input;
 	return res;
 }
 
-static struct freq_attr max_ramp_up_attr = __ATTR(max_ramp_up, 0644,
-		show_max_ramp_up, store_max_ramp_up);
+static struct freq_attr ramp_up_step_attr = __ATTR(ramp_up_step, 0644,
+		show_ramp_up_step, store_ramp_up_step);
+
+static ssize_t show_max_ramp_down(struct cpufreq_policy *policy, char *buf)
+{
+	return sprintf(buf, "%u\n", max_ramp_down);
+}
+
+static ssize_t store_max_ramp_down(struct cpufreq_policy *policy, const char *buf, size_t count)
+{
+        ssize_t res;
+	unsigned long input;
+	res = strict_strtoul(buf, 0, &input);
+	if (res >= 0)
+	  max_ramp_down = input;
+	return res;
+}
+
+static struct freq_attr max_ramp_down_attr = __ATTR(max_ramp_down, 0644,
+		show_max_ramp_down, store_max_ramp_down);
 
 static ssize_t show_max_cpu_load(struct cpufreq_policy *policy, char *buf)
 {
@@ -416,11 +447,12 @@ static struct freq_attr min_cpu_load_attr = __ATTR(min_cpu_load, 0644,
 		show_min_cpu_load, store_min_cpu_load);
 
 static struct attribute * smartass_attributes[] = {
-	&ramp_down_rate_ns_attr.attr,
+	&down_rate_us_attr.attr,
 	&up_min_freq_attr.attr,
 	&sleep_max_freq_attr.attr,
 	&sample_rate_jiffies_attr.attr,
-	&max_ramp_up_attr.attr,
+	&ramp_up_step_attr.attr,
+	&max_ramp_down_attr.attr,
 	&max_cpu_load_attr.attr,
 	&min_cpu_load_attr.attr,
 	NULL,
@@ -535,11 +567,12 @@ static int __init cpufreq_smartass_init(void)
 {	
 	unsigned int i;
 	struct smartass_info_s *this_smartass;
-	ramp_down_rate_ns = DEFAULT_RAMP_DOWN_RATE_NS;
+	down_rate_us = DEFAULT_DOWN_RATE_US;
 	up_min_freq = DEFAULT_UP_MIN_FREQ;
 	sleep_max_freq = DEFAULT_SLEEP_MAX_FREQ;
 	sample_rate_jiffies = DEFAULT_SAMPLE_RATE_JIFFIES;
-	max_ramp_up = DEFAULT_MAX_RAMP_UP;
+	ramp_up_step = DEFAULT_RAMP_UP_STEP;
+	max_ramp_down = DEFAULT_MAX_RAMP_DOWN;
 	max_cpu_load = DEFAULT_MAX_CPU_LOAD;
 	min_cpu_load = DEFAULT_MIN_CPU_LOAD;
 
