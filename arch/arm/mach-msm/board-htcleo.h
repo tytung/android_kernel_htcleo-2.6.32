@@ -168,5 +168,6 @@
 
 int htcleo_pm_set_vreg(int enable, unsigned id);
 int __init htcleo_init_panel(void);
+int htcleo_is_nand_boot(void);
 
 #endif /* __ARCH_ARM_MACH_MSM_BOARD_HTCLEO_H */

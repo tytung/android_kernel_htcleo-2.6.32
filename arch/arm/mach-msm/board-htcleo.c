@@ -63,6 +63,25 @@
 extern int __init htcleo_init_mmc(unsigned debug_uart);
 extern void __init htcleo_audio_init(void);
 extern unsigned char *get_bt_bd_ram(void);
+static unsigned int nand_boot = 1;
+
+
+///////////////////////////////////////////////////////////////////////
+// Nand boot Option
+///////////////////////////////////////////////////////////////////////
+int htcleo_is_nand_boot(void)
+{
+	return nand_boot;	
+}
+
+static int __init board_nandboot_setup(char *bootconfig)
+{
+	if (!strncmp(bootconfig, "0", 1))
+		nand_boot=0;
+	return 1;
+}
+__setup("nand_boot=", board_nandboot_setup);
+
 
 ///////////////////////////////////////////////////////////////////////
 // SPI
