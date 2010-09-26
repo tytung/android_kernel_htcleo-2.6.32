@@ -69,6 +69,9 @@ static uint32_t  sdcard_off_gpio_table[] =
 };
 
 static enum vreg_id	sdslot_vreg;
+static enum vreg_id	wlan_vreg_1;
+static enum vreg_id	wlan_vreg_2;
+static enum vreg_id	wlan_vreg_3;
 static uint32_t		sdslot_vdd = 0xffffffff;
 static uint32_t		sdslot_vreg_enabled;
 
@@ -238,13 +241,20 @@ int htcleo_wifi_power(int on)
 	if (on) {
 		config_gpio_table(wifi_on_gpio_table,ARRAY_SIZE(wifi_on_gpio_table));
 		mdelay(50);
+		pmic_glb_set_vreg(on, wlan_vreg_1);
+		pmic_glb_set_vreg(on, wlan_vreg_2);
+		pmic_glb_set_vreg(on, wlan_vreg_3);
+		mdelay(100);
 	} else {
 		config_gpio_table(wifi_off_gpio_table, ARRAY_SIZE(wifi_off_gpio_table));
+		mdelay(100);
 	}
-
+	
+	printk("%s: VREGS %d\n", __func__, on);
 	mdelay(100);
+	printk("%s: GPIO %d\n", __func__, on);
 	gpio_set_value(HTCLEO_GPIO_WIFI_SHUTDOWN_N, on); /* WIFI_SHUTDOWN */
-	mdelay(200);
+	mdelay(1000);
 
 	htcleo_wifi_power_state = on;
 	return 0;
@@ -270,8 +280,8 @@ int __init htcleo_init_mmc(unsigned debug_uart)
 
 	/* initial WIFI_SHUTDOWN# */	
 	id = PCOM_GPIO_CFG(HTCLEO_GPIO_WIFI_SHUTDOWN_N, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_2MA),
-
 	msm_proc_comm(PCOM_RPC_GPIO_TLMM_CONFIG_EX, &id, 0);
+	gpio_set_value(HTCLEO_GPIO_WIFI_SHUTDOWN_N, 0);
 
 	msm_add_sdcc(1, &htcleo_wifi_data, 0, 0);
 
@@ -287,6 +297,9 @@ int __init htcleo_init_mmc(unsigned debug_uart)
 	sdslot_vreg_enabled = 0;
 
 	sdslot_vreg = PM_VREG_GP6_ID;
+	wlan_vreg_1 = PM_VREG_WLAN_ID;
+	wlan_vreg_2 = PM_VREG_MSME1_ID;
+	wlan_vreg_3 = PM_VREG_RFTX_ID;
 
 	set_irq_wake(MSM_GPIO_TO_INT(HTCLEO_GPIO_SD_STATUS), 1);
 	msm_add_sdcc(2, &htcleo_sdslot_data,
