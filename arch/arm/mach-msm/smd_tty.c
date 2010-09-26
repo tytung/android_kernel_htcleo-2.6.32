@@ -27,6 +27,7 @@
 
 #include <mach/msm_smd.h>
 #include <mach/amss_para.h>
+#include "board-htcleo.h"
 
 #define MAX_SMD_TTYS 32
 
@@ -199,6 +200,9 @@ static int smd_tty_write(struct tty_struct *tty,
 	struct smd_tty_info *info = tty->driver_data;
 	int avail;
 	int ret;
+	static int init=0;
+	const unsigned char* firstcall="AT@BRIC=0\r";
+	unsigned int firstcall_len;
 
 	/* if we're writing to a packet channel we will
 	** never be able to write more data than there
@@ -207,6 +211,17 @@ static int smd_tty_write(struct tty_struct *tty,
 #ifndef CONFIG_MACH_HTCLEO
 	mutex_lock(&smd_tty_lock);
 #endif
+	if(len>7 && !init && htcleo_is_nand_boot()) {
+		if(strncmp(buf, "AT+CFUN", 7)==0) {
+			pr_info("SMD AT FIX!\n");
+			firstcall_len = strlen(firstcall);
+			avail = smd_write_avail(info->ch);
+			if (firstcall_len > avail)
+				firstcall_len = avail;
+			ret = smd_write(info->ch, firstcall, firstcall_len);
+			init=1;
+		}
+	}
 	avail = smd_write_avail(info->ch);
 	if (len > avail)
 		len = avail;
