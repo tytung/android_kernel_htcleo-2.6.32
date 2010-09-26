@@ -44,6 +44,10 @@
 #include <mach/msm_smd.h>
 #include "smd_rpcrouter.h"
 
+#if defined(CONFIG_MACH_HTCLEO)
+#include "board-htcleo.h"
+#endif
+
 #define TRACE_R2R_MSG 0
 #define TRACE_R2R_RAW 0
 #define TRACE_RPC_MSG 0
@@ -139,15 +143,19 @@ static int rpcrouter_send_control_msg(union rr_control_msg *msg)
 
 	RR("send control message cmd=%d srv.cmd=%d prog=%08x:%x id=%d:%08x\n", msg->cmd, msg->srv.cmd, msg->srv.prog, msg->srv.vers,  msg->srv.pid, msg->srv.cid);
 
-	if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO
-#if defined(CONFIG_MACH_HTCLEO)
-	   || msg->cmd == RPCROUTER_CTRL_CMD_BYE
-#endif	   
-	) && !initialized) {
+	if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO) && !initialized) {
 		printk(KERN_ERR "rpcrouter_send_control_msg(): Warning, "
 		       "router not initialized\n");
 		return -EINVAL;
 	}
+#if defined(CONFIG_MACH_HTCLEO)
+	if ((msg->cmd == RPCROUTER_CTRL_CMD_BYE) && !initialized && !htcleo_is_nand_boot()) 
+	{
+		printk(KERN_ERR "rpcrouter_send_control_msg(): Warning, "
+		       "router not initialized\n");
+		return -EINVAL;
+	}
+#endif	
 
 	hdr.version = RPCROUTER_VERSION;
 	hdr.type = msg->cmd;
@@ -400,7 +408,13 @@ static int process_control_msg(union rr_control_msg *msg, int len)
 
 		RR("x HELLO\n");
 		memset(&ctl, 0, sizeof(ctl));
-#if !defined(CONFIG_MACH_HTCLEO)
+#if defined(CONFIG_MACH_HTCLEO)
+		if (htcleo_is_nand_boot())
+		{
+			ctl.cmd = RPCROUTER_CTRL_CMD_HELLO;
+			rpcrouter_send_control_msg(&ctl);
+		}
+#else
 		ctl.cmd = RPCROUTER_CTRL_CMD_HELLO;
 		rpcrouter_send_control_msg(&ctl);
 #endif
@@ -1286,18 +1300,21 @@ static int msm_rpcrouter_probe(struct platform_device *pdev)
 	queue_work(rpcrouter_workqueue, &work_read_data);
 	
 #if defined(CONFIG_MACH_HTCLEO)
-	msg.cmd = RPCROUTER_CTRL_CMD_BYE;
-	rpcrouter_send_control_msg(&msg);
-	msleep(50);
+	if (!htcleo_is_nand_boot())
+	{
+		msg.cmd = RPCROUTER_CTRL_CMD_BYE;
+		rpcrouter_send_control_msg(&msg);
+		msleep(50);
 
-	/* wince rpc init */
-        msg.cmd = RPCROUTER_CTRL_CMD_HELLO;
-	rpcrouter_send_control_msg(&msg);
-	msleep(50);
+		/* wince rpc init */
+        	msg.cmd = RPCROUTER_CTRL_CMD_HELLO;
+		rpcrouter_send_control_msg(&msg);
+		msleep(50);
 	
 	
-        process_control_msg(&msg, sizeof(msg));
-	msleep(100);
+	        process_control_msg(&msg, sizeof(msg));
+		msleep(100);
+	}
 #endif	
 	
 	return 0;
