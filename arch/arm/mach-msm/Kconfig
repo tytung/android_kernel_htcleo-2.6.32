@@ -1053,6 +1053,42 @@ config PHYS_OFFSET
        depends on MACH_HTCLEO
        default "0x11800000" if MACH_HTCLEO
 
+config HTCLEO_CPU_VOLT
+        bool
+        default y if HTCLEO_NO_UNDERVOLT
+
+choice
+	prompt "The minimum amount of voltage feeds into the CPU is"
+
+	default HTCLEO_NO_UNDERVOLT
+
+	config HTCLEO_UNDERVOLT_1000
+		bool "1000 mV"
+
+	config HTCLEO_UNDERVOLT_925
+		bool "925 mV"
+
+	config HTCLEO_UNDERVOLT_800
+		bool "800 mV - does not work on every device"
+
+	config HTCLEO_NO_UNDERVOLT
+		bool "DEFAULT - 1050mV"
+
+endchoice
+		
+config HTCLEO_OVERCLOCK
+  bool "Support overclock to 1.113GHz"
+	default n
+  help
+		add overclock ability to 1.113GHz.
+config HTCLEO_EXOVERCLOCK
+  bool "Support overclock to 1.305GHz"
+	depends on HTCLEO_OVERCLOCK
+	default n
+  help
+		add overclock ability to 1.305GHz.
+
+
 config HTC_FB_CONSOLE
 	bool "Boot console for HTC phones (needs a font which has width <= 8)"
 	default n
