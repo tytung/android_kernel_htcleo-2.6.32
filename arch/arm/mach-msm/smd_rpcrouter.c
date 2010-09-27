@@ -143,7 +143,7 @@ static int rpcrouter_send_control_msg(union rr_control_msg *msg)
 
 	RR("send control message cmd=%d srv.cmd=%d prog=%08x:%x id=%d:%08x\n", msg->cmd, msg->srv.cmd, msg->srv.prog, msg->srv.vers,  msg->srv.pid, msg->srv.cid);
 
-	if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO) && !initialized) {
+/*	if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO) && !initialized) {
 		printk(KERN_ERR "rpcrouter_send_control_msg(): Warning, "
 		       "router not initialized\n");
 		return -EINVAL;
@@ -155,8 +155,31 @@ static int rpcrouter_send_control_msg(union rr_control_msg *msg)
 		       "router not initialized\n");
 		return -EINVAL;
 	}
-#endif	
-
+#endif	*/
+#if defined(CONFIG_MACH_HTCLEO)
+if (!htcleo_is_nand_boot())
+{
+#endif
+if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO
+  	#if defined(CONFIG_MACH_HTCLEO)
+  || msg->cmd == RPCROUTER_CTRL_CMD_BYE
+  #endif
+  ) && !initialized) {
+  printk(KERN_ERR "rpcrouter_send_control_msg(): Warning, "
+		    "router not initialized\n");
+  return -EINVAL;
+}
+#if defined(CONFIG_MACH_HTCLEO)
+}
+else
+{
+  if (!(msg->cmd == RPCROUTER_CTRL_CMD_HELLO) && !initialized) {
+		printk(KERN_ERR "rpcrouter_send_control_msg(): Warning, "
+		       "router not initialized\n");
+		return -EINVAL;
+	}
+}
+#endif
 	hdr.version = RPCROUTER_VERSION;
 	hdr.type = msg->cmd;
 	hdr.src_pid = RPCROUTER_PID_LOCAL;
