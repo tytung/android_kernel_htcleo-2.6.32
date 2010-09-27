@@ -61,7 +61,10 @@ my primary target was to make high quality battery support in Android for HTC LE
 
 
 #define LEO_BATTERY_CAPACITY    1230
+#define LEO_EXTENDED_BATTERY_CAPACITY    2300
 #define LEO_BATTERY_EMPTY       500
+/* This was calculated based on an observed full ACR - FL */
+#define LEO_EXTENDED_BATTERY_EMPTY       3791
 
 
 /* Known commands to the DS2784 chip */
@@ -325,20 +328,32 @@ static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_statu
 {
     short n;
     uint32_t n32;
-    uint32_t FL, ACR, ACR_EMPTY;
+    uint32_t FL, ACR, ACR_EMPTY, PC;
 
     /* Get status reg */
     s->status_reg = raw_status;
 
     /* Get Level */
-    // TODO: FL too wrong (?)
     ACR = ((raw[8] << 8) | raw[9]);
-    FL = (LEO_BATTERY_CAPACITY * 1570) / 625;
-    ACR_EMPTY = (LEO_BATTERY_EMPTY * 1570) / 625;
+    /* ACR is always higher on an extended battery, though ideally we'd have code for various batteries
+       based on their Package IDs (which is what I presume we read via AUX in combination with temp)
+       but supporting the two official batteries is a good start.  */
+    if( ACR > 9000 )
+    {
+	PC = LEO_EXTENDED_BATTERY_CAPACITY;
+    	// FL gives the difference between full and empty ACR values
+	FL = (LEO_EXTENDED_BATTERY_CAPACITY * 1570) / 625; // 5821 
+        ACR_EMPTY = (LEO_EXTENDED_BATTERY_EMPTY * 1570) / 625; // 9523
+    }
+    else
+    {
+	PC = LEO_BATTERY_CAPACITY;
+	FL = (LEO_BATTERY_CAPACITY * 1570) / 625; // 3089
+        ACR_EMPTY = (LEO_BATTERY_EMPTY * 1570) / 625; // 1256
+    }
     s->percentage = (100 * (ACR - ACR_EMPTY)) / FL;
 
     s->charge_uAh = 1000 * (((ACR - ACR_EMPTY) * 625) / 1570);
-    printk("ACR=%d FL=%d RAAC=%d\n", ACR, ACR_EMPTY, s->percentage);
 
     if (s->percentage < 0 ) s->percentage = 0;
     if (s->percentage > 100 ) s->percentage = 100;
@@ -361,19 +376,32 @@ static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_statu
     n /= 16;
 
 //    printk("temp = %x\n", n);
+    double v;
     if (n > 2047 || n == 0)
     {
         s->temp_C = 250;
     }
     else
     {
-        double v = 0.021277 * (300.0 / (2047.0 / n - 1.0));
-        s->temp_C = 10 * (1.0 / ((log(v) * 0.000290698) + 0.003354016) - 273.15);
+	v = 0.021277 * (300.0 / (2047.0 / n - 1.0));
+	/* The following change is presuming the values I modified are based on the packaged id of the battery.
+           Whilst I am confident of my percentage calculation changes above I am not confident of this one though
+           user feedback seems to indicate it is working */
+	if ( ACR > 9000 )
+	{
+		s->temp_C = (1.0 / ((log(v) * 0.000290698) + 0.003354016) - 3.15);
+	}
+	else
+	{
+		s->temp_C = 10 * (1.0 / ((log(v) * 0.000290698) + 0.003354016) - 273.15);
+	}
     }
     if (s->temp_C < -250)
     {
         s->temp_C = -250;
     }
+
+    printk("PC=%d ACR=%d RAAC=%d T=%d, TRAW=%hd\n", PC, ACR, s->percentage, s->temp_C);
 }
 
 static int htcleo_battery_read_status(struct htcleo_device_info *di)
