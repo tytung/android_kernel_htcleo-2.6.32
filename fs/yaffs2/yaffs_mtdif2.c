@@ -27,6 +27,12 @@ const char *yaffs_mtdif2_c_version =
 
 #include "yaffs_packedtags2.h"
 
+#ifdef CONFIG_YAFFS_DOES_ECC
+#define OOB_TAGS_SIZE sizeof(yaffs_PackedTags2)
+#else
+#define OOB_TAGS_SIZE sizeof(yaffs_PackedTags2TagsPart)
+#endif
+
 /* NB For use with inband tags....
  * We assume that the data buffer is of size totalBytersPerChunk so that we can also
  * use it to load the tags.
@@ -68,8 +74,8 @@ int nandmtd2_WriteChunkWithTagsToNAND(yaffs_Device *dev, int chunkInNAND,
 		yaffs_PackTags2(&pt, tags);
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 17))
-	ops.mode = MTD_OOB_AUTO;
-	ops.ooblen = (dev->inbandTags) ? 0 : sizeof(pt);
+	ops.mode = MTD_OOB_AUTO; 
+	ops.ooblen = (dev->inbandTags) ? 0 : OOB_TAGS_SIZE;
 	ops.len = dev->totalBytesPerChunk;
 	ops.ooboffs = 0;
 	ops.datbuf = (__u8 *)data;
@@ -131,8 +137,8 @@ int nandmtd2_ReadChunkWithTagsFromNAND(yaffs_Device *dev, int chunkInNAND,
 				&dummy, data);
 	else if (tags) {
 		ops.mode = MTD_OOB_AUTO;
-		ops.ooblen = sizeof(pt);
-		ops.len = data ? dev->nDataBytesPerChunk : sizeof(pt);
+		ops.ooblen = OOB_TAGS_SIZE;
+		ops.len = data ? dev->nDataBytesPerChunk : OOB_TAGS_SIZE;
 		ops.ooboffs = 0;
 		ops.datbuf = data;
 		ops.oobbuf = dev->spareBuffer;
@@ -165,7 +171,7 @@ int nandmtd2_ReadChunkWithTagsFromNAND(yaffs_Device *dev, int chunkInNAND,
 		}
 	} else {
 		if (tags) {
-			memcpy(&pt, dev->spareBuffer, sizeof(pt));
+			memcpy(&pt, dev->spareBuffer, OOB_TAGS_SIZE);
 			yaffs_UnpackTags2(tags, &pt);
 		}
 	}
