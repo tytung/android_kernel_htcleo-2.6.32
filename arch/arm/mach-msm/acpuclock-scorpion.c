@@ -227,9 +227,9 @@ static void __init acpuclk_init_cpufreq_table(void)
 			continue;
 		}
 
-		/* Take the fastest speed available at the specified VDD level */
-		if (vdd != acpu_freq_tbl[i + 1].vdd)
-			freq_table[i].frequency = acpu_freq_tbl[i].acpu_khz;
+		/* hastarin - Take every frequency.  Just because it has the 
+			same vdd does not mean it has the same current draw */
+		freq_table[i].frequency = acpu_freq_tbl[i].acpu_khz;
 	}
 
 	freq_table[i].index = i;
@@ -505,8 +505,6 @@ static int pll_request(unsigned id, unsigned on)
 #define CT_CSR_PHYS             0xA8700000
 #define TCSR_SPARE2_ADDR        (ct_csr_base + 0x60)
 
-/* hastarin - This appears to remove the extra frequencies from the table
-              so only the highest frequency per VDD is available  */
 void __init acpu_freq_tbl_fixup(void)
 {
 	void __iomem *ct_csr_base;
@@ -531,9 +529,12 @@ void __init acpu_freq_tbl_fixup(void)
 		break;
 	case 0x30:
 	case 0x00:
-		max_acpu_khz = 998400;
 #ifdef	CONFIG_HTCLEO_OVERCLOCK
 		max_acpu_khz = 1113600;
+#elif CONFIG_HTCLEO_OVERCLOCK
+		max_acpu_khz = 1190400;
+#else
+		max_acpu_khz = 998400;
 #endif
 		break;
 	case 0x10:
@@ -587,6 +588,9 @@ static void __init acpuclk_init(void)
 #ifdef	CONFIG_HTCLEO_OVERCLOCK
 		if (speed->acpu_khz == 883200)
 			break;
+#elif CONFIG_HTCLEO_EXOVERCLOCK
+		if (speed->acpu_khz == 998400)
+			break;
 #else
 		if (speed->acpu_khz == 768000)
 			break;
@@ -594,12 +598,14 @@ static void __init acpuclk_init(void)
 #ifdef	CONFIG_HTCLEO_OVERCLOCK
 		if (speed->acpu_khz == 0) {
 			pr_err("acpuclk_init: cannot find 883.2MHz\n");
-			BUG();
+#elif CONFIG_HTCLEO_EXOVERCLOCK
+		if (speed->acpu_khz == 0) {
+			pr_err("acpuclk_init: cannot find 998.4MHz\n");
 #else
 		if (speed->acpu_khz == 0) {
 			pr_err("acpuclk_init: cannot find 768MHz\n");
-			BUG();
 #endif
+		BUG();
 		}
 		speed++;
 	}
