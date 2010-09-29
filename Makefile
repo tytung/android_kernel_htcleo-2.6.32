@@ -529,7 +529,7 @@ KBUILD_CFLAGS   += -mcpu=cortex-a8 -march=armv7-a -mtune=cortex-a8 -mfpu=vfpv3
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS	+= -O2 -mcpu=cortex-a8 -march=armv7-a -mtune=cortex-a8 -mfpu=vfpv3
+KBUILD_CFLAGS	+= -O2
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
