@@ -63,7 +63,7 @@ inline unsigned int kgsl_ringbuffer_sizelog2quadwords(unsigned int sizedwords)
 	return sizelog2quadwords;
 }
 
-#if defined(CONFIG_MACH_HTCLEO)
+
 // +Cotulla hack
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(a)        (sizeof(a)/sizeof(a[0]))
@@ -727,7 +727,6 @@ unsigned char fw_yamato_pm4[9220] =
 	0x00, 0x00, 0x00, 0x00
 };
 // -Cotulla hack
-#endif
 
 /* functions */
 void kgsl_cp_intrcallback(struct kgsl_device *device)
@@ -938,12 +937,13 @@ static int kgsl_ringbuffer_load_pm4_ucode(struct kgsl_device *device)
 {
 	int status = 0;
 	int i;
+//	const struct firmware *fw = NULL;
 	unsigned int *fw_ptr = NULL;
 	size_t fw_word_size = 0;
-	
-#if !defined(CONFIG_MACH_HTCLEO)
-	const struct firmware *fw = NULL;
+	struct firmware foo_fw;
+	struct firmware *fw = &foo_fw;
 
+/*
 	status = request_firmware(&fw, YAMATO_PM4_FW,
 					kgsl_driver.misc.this_device);
 	if (status != 0) {
@@ -951,13 +951,10 @@ static int kgsl_ringbuffer_load_pm4_ucode(struct kgsl_device *device)
 				YAMATO_PM4_FW, status);
 		goto done;
 	}
-#else
-	struct firmware foo_fw;
-	struct firmware *fw = &foo_fw;
-
+*/
 	fw->data = fw_yamato_pm4;
 	fw->size = ARRAYSIZE(fw_yamato_pm4); 
-#endif
+
 	/*this firmware must come in 3 word chunks. plus 1 word of version*/
 	if ((fw->size % (sizeof(uint32_t)*3)) != 4) {
 		KGSL_DRV_ERR("bad firmware size %d.\n", fw->size);
@@ -974,38 +971,32 @@ static int kgsl_ringbuffer_load_pm4_ucode(struct kgsl_device *device)
 		kgsl_yamato_regwrite(device, REG_CP_ME_RAM_DATA, fw_ptr[i]);
 
 done:
-#if !defined(CONFIG_MACH_HTCLEO)
-	release_firmware(fw);
-	return status;
-#else
+//	release_firmware(fw);
+//	return status;
 	return 0;
-#endif
-
 }
 
 static int kgsl_ringbuffer_load_pfp_ucode(struct kgsl_device *device)
 {
 	int status = 0;
 	int i;
+	//const struct firmware *fw = NULL;
 	unsigned int *fw_ptr = NULL;
 	size_t fw_word_size = 0;
-#if !defined(CONFIG_MACH_HTCLEO)
-	const struct firmware *fw = NULL;
+	struct firmware foo_fw;
+	struct firmware *fw = &foo_fw;
 
-	status = request_firmware(&fw, YAMATO_PFP_FW,
+/*	status = request_firmware(&fw, YAMATO_PFP_FW,
 				kgsl_driver.misc.this_device);
 	if (status != 0) {
 		KGSL_DRV_ERR("request_firmware for %s failed with error %d\n",
 				YAMATO_PFP_FW, status);
 		return status;
 	}
-#else
-	struct firmware foo_fw;
-	struct firmware *fw = &foo_fw;
-
+*/
 	fw->data = fw_yamato_pfp;
 	fw->size = ARRAYSIZE(fw_yamato_pfp); 
-#endif
+
 
 	/*this firmware must come in 1 word chunks. */
 	if ((fw->size % sizeof(uint32_t)) != 0) {
@@ -1022,12 +1013,9 @@ static int kgsl_ringbuffer_load_pfp_ucode(struct kgsl_device *device)
 	for (i = 1; i < fw_word_size; i++)
 		kgsl_yamato_regwrite(device, REG_CP_PFP_UCODE_DATA, fw_ptr[i]);
 
-#if !defined(CONFIG_MACH_HTCLEO)
-	release_firmware(fw);
-	return status;
-#else
+//	release_firmware(fw);
+//	return status;
 	return 0;
-#endif
 }
 
 static int kgsl_ringbuffer_start(struct kgsl_ringbuffer *rb)
