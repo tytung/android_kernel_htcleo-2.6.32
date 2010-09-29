@@ -260,6 +260,18 @@ static void AKECS_Report_Value(short *rbuf)
 	       rbuf[6], rbuf[7], rbuf[8]);
 #endif
 
+	/* Offset compass hack taken from michyprimas kernel */
+	short valueint = rbuf[0];
+	if ((valueint + 85) < 360)
+	{
+		rbuf[0] = valueint + 85;
+	}
+	else
+	{
+		short diff = 359 - valueint;
+		rbuf[0] = 85 - diff;
+	}
+
 	/* Report magnetic sensor information */
 	if (atomic_read(&m_flag)) {
 		input_report_abs(data->input_dev, ABS_RX, rbuf[0]);
