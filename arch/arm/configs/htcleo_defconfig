@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.15
-# Thu Sep 30 16:45:36 2010
+# Fri Sep 17 14:11:22 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -800,6 +800,7 @@ CONFIG_MTD_CMDLINE_PARTS=y
 CONFIG_MTD_CHAR=y
 CONFIG_MTD_BLKDEVS=y
 CONFIG_MTD_BLOCK=y
+CONFIG_MTD_BLOCK_RO=y
 # CONFIG_FTL is not set
 # CONFIG_NFTL is not set
 # CONFIG_INFTL is not set
@@ -1624,7 +1625,7 @@ CONFIG_MISC_FILESYSTEMS=y
 # CONFIG_BEFS_FS is not set
 # CONFIG_BFS_FS is not set
 # CONFIG_EFS_FS is not set
-CONFIG_YAFFS_FS=y
+CONFIG_YAFFS_FS=m
 CONFIG_YAFFS_YAFFS1=y
 # CONFIG_YAFFS_9BYTE_TAGS is not set
 # CONFIG_YAFFS_DOES_ECC is not set
