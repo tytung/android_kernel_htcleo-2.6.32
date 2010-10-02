@@ -162,7 +162,7 @@ static struct nand_ecclayout msm_nand_oob_64 =
 		0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  // 10, 11, 12, 13, // 14, 15, // ecc, oob, bbf (inaccessible)
 		16, 17, 18, 19, 20, 21, 22, 23, 24, 25, // 26, 27, 28, 29, // 30, 31, // ecc, oob, bbf (inaccessible)
 		32, 33, 34, 35, 36, 37, 38, 39, 40, 41, // 42, 43, 44, 45, // 46, 47, // ecc, oob, bbf (inaccessible)
-		46, 47, 48, 49, 50, 51, 52, 53, 54, 55, // 56, 57, 58, 59, // 60, 61, // ecc, oob, bbf (inaccessible)
+		48, 49, 50, 51, 52, 53, 54, 55, 56, 57, // 58, 59, 60, 61, // 62, 63, // ecc, oob, bbf (inaccessible)
 	},
 	.oobavail = 16,
 	.oobfree = 
@@ -170,9 +170,11 @@ static struct nand_ecclayout msm_nand_oob_64 =
 		{10, 4},
 		{26, 4},
 		{42, 4},
-		{56, 4},
+		{58, 4},
 	}
 };
+
+#define NUM_PROTECTED_BLOCKS (0x212)
 
 struct flash_identification {
 	uint32_t flash_id;
@@ -564,8 +566,8 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 	else if (ops->mode == MTD_OOB_PLACE)
 		oobType = "MTD_OOB_PLACE";
 
-	printk("msm_nand_read_oob [%d %08X] %08X %08X %d %s\n", 
-		(uint32_t)(from - 0x42c0000) / 0x800, (uint32_t)ops->len, (uint32_t)ops->datbuf, 
+	printk("msm_nand_read_oob [%08X %08X] %08X %08X %d %s\n", 
+		(uint32_t)(from), (uint32_t)ops->len, (uint32_t)ops->datbuf, 
 		(uint32_t)ops->oobbuf, oob_count, readoob?oobType:"OOB_NONE");
 #endif
 
@@ -1033,7 +1035,7 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 	unsigned page = 0;
 	uint32_t cwdatasize;
 	uint32_t cwoobsize;
-	int err;
+	int err=0;
 	dma_addr_t data_dma_addr = 0;
 	dma_addr_t oob_dma_addr = 0;
 	dma_addr_t data_dma_addr_curr = 0;
@@ -1074,6 +1076,12 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 		pr_err("%s: unsupported to, 0x%llx\n", __func__, to);
 		return -EINVAL;
 	}
+	if (to < (NUM_PROTECTED_BLOCKS*mtd->erasesize))
+	{
+		pr_err("%s: cannot write to page in protected area, to=0x%llx\n",
+			__func__, to);
+		return -EINVAL;
+	}
 	if (ops->datbuf != NULL && (ops->len % mtd->writesize) != 0) 
 	{
 		/* when ops->datbuf is NULL, ops->len may refer to ooblen */
@@ -1110,8 +1118,8 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 	else if (ops->mode == MTD_OOB_AUTO)
 		oobType = "MTD_OOB_AUTO";
 
-	printk("msm_nand_write_oob [%d %08X] %08X %08X %d %s\n", 
-		(uint32_t)(to - 0x42c0000) / 0x800, writedata?(uint32_t)ops->len:0, (uint32_t)ops->datbuf, 
+	printk("msm_nand_write_oob [%08X %08X] %08X %08X %d %s\n", 
+		(uint32_t)(to), writedata?(uint32_t)ops->len:0, (uint32_t)ops->datbuf, 
 		(uint32_t)ops->oobbuf, oob_count, writeoob?oobType:"OOB_NONE");
 #endif
 
@@ -1207,27 +1215,6 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 
 	while (page_count-- > 0) 
 	{
-		//dont write pages from userland that are empty
-		if (writedata && !writeoob)
-		{
-			unsigned skippage=1;
-			uint8_t *datbuf = ops->datbuf + pages_written * mtd->writesize;
-			for(n=0;n<mtd->writesize;n++)
-			{
-				if (datbuf[n] != 0xFF)
-				{
-					skippage=0;
-					break;
-				}
-			}
-			
-			if (skippage)
-			{
-				pages_written++;
-				page++;
-				continue;
-			}
-		}
 		page_oob_done=0;
 
 		cmd = dma_buffer->cmd;
@@ -1535,10 +1522,18 @@ msm_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 	if (mtd->writesize == 4096)
 		page = instr->addr >> 12;
 
-	printk("nand_erase(%d)\n", page);
+#ifdef ENABLE_ENTRY_TRACE
+	printk("+msm_nand_erase(%d)\n", page);
+#endif
 
 	if (instr->addr & (mtd->erasesize - 1)) {
 		pr_err("%s: unsupported erase address, 0x%llx\n",
+			__func__, instr->addr);
+		return -EINVAL;
+	}
+	if (instr->addr < (NUM_PROTECTED_BLOCKS*mtd->erasesize))
+	{
+		pr_err("%s: cannot erase block in protected area, addr=0x%llx\n",
 			__func__, instr->addr);
 		return -EINVAL;
 	}
@@ -1672,6 +1667,11 @@ msm_nand_block_isbad(struct mtd_info *mtd, loff_t ofs)
 		pr_err("%s: unsupported block address, 0x%x\n", __func__, (uint32_t)ofs);
 		return -EINVAL;
 	}
+	if (ofs < (NUM_PROTECTED_BLOCKS*mtd->erasesize))
+	{
+		//protected blocks are always good
+		return 0;
+	} 
 
 	wait_event(chip->wait_queue,
 		(dma_buffer = msm_nand_get_dma_buffer(chip ,
@@ -1746,7 +1746,19 @@ msm_nand_block_isbad(struct mtd_info *mtd, loff_t ofs)
 
 	ret = 0;
 	if (dma_buffer->data.result.flash_status & 0x110)
+	{
+#if VERBOSE
+		if (dma_buffer->data.result.flash_status & 0x100)
+		{
+			pr_err("msm_block_isbad off=%d protection violation\n",(uint32_t)ofs);
+		}
+		if (dma_buffer->data.result.flash_status & 0x10)
+		{
+			pr_err("msm_block_isbad off=%d wrfail\n",(uint32_t)ofs);
+		}
+#endif
 		ret = -EIO;
+	}
 
 	if (!ret) 
 	{
@@ -1756,13 +1768,16 @@ msm_nand_block_isbad(struct mtd_info *mtd, loff_t ofs)
 			if (buf[0] != 0xFF || buf[1] != 0xFF)
 			{
 				ret = 1;
-				printk("###BAD BLOCK [%08X] %08X###\n", (uint32_t)(ofs - 0x42c0000) / 0x800, (uint32_t)ofs);
+				printk("###BAD BLOCK %d %08X###\n", (uint32_t)(ofs) / mtd->erasesize, (uint32_t)ofs);
 			}
 		} 
 		else 
 		{
 			if (buf[0] != 0xFF)
+			{
 				ret = 1;
+				printk("###BAD BLOCK %d %08X###\n", (uint32_t)(ofs) / mtd->erasesize, (uint32_t)ofs);
+			}
 		}
 	}
 
@@ -2016,6 +2031,26 @@ int msm_nand_scan(struct mtd_info *mtd, int maxchips)
 	/* msm_nand_unlock_all(mtd); */
 
 	/* return this->scan_bbt(mtd); */
+
+#if VERBOSE
+	for (i=0;i<nand_info->block_count;i++)
+	{
+		int blockretval = msm_nand_block_isbad(mtd,i*mtd->erasesize);
+		if(blockretval == 1)
+		{
+			pr_info("msm_nand block %d is bad\n",i);
+		}
+		else if (blockretval == -EINVAL)
+		{
+			pr_info("msm_nand block %d -EINVAL\n",i);
+		}
+		else if (blockretval == -EIO)
+		{
+			pr_info("msm_nand block %d -EIO\n",i);
+		}
+	}
+#endif
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(msm_nand_scan);
