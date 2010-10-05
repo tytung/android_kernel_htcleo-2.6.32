@@ -18,7 +18,7 @@ obj-$(CONFIG_ARCH_MSM_SCORPION) += idle-v7.o
 obj-y += gpio.o generic_gpio.o
 obj-y += nand_partitions.o
 obj-y += drv_callback.o
-obj-$(CONFIG_ARCH_QSD8X50) += pmic.o 
+obj-$(CONFIG_ARCH_QSD8X50) += pmic.o
 ifndef CONFIG_MACH_HTCLEO
 obj-$(CONFIG_ARCH_QSD8X50) += htc_wifi_nvs.o htc_bluetooth.o
 else
@@ -118,9 +118,11 @@ obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o board-htcleo-pane
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-ts.o board-htcleo-mmc.o ieee754-df.o board-htcleo-power.o
 
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-battery.o board-htcleo-log.o board-htcleo-audio.o board-htcleo-acoustic.o
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-bt.o board-htcleo-wifi.o board-htcleo-microp.o board-htcleo-bkl.o
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-bt.o board-htcleo-wifi.o board-htcleo-microp.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-proximity.o board-htcleo-leds.o board-htcleo-ls.o
 obj-$(CONFIG_MACH_HTCLEO) += clock-wince.o
+obj-$(CONFIG_HTCLEO_BACKLIGHT) += board-htcleo-bl.o
+obj-$(CONFIG_HTCLEO_BACKLIGHT_LED) += board-htcleo-bl-led.o
 
 # MSM7x30 boards
 obj-$(CONFIG_ARCH_MSM7X30) += panel-samsungwvga-tl2796a.o panel-samsungwvga-s6e63m0.o panel-sonywvga-s6d16a0x21-7x30.o
@@ -244,5 +246,3 @@ obj-$(CONFIG_MACH_MAHIMAHI) += board-mahimahi-smb329.o
 obj-$(CONFIG_MSM_SSBI) += ssbi.o
 
 obj-$(CONFIG_HTC_FB_CONSOLE) += htc_fb_console.o
-
-
