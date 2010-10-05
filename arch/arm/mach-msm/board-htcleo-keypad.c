@@ -36,13 +36,13 @@ struct led_data {
 } keypad_led_data;
 
 
-static unsigned int htcleo_col_gpios[] = { 
+static unsigned int htcleo_col_gpios[] = {
 	HTCLEO_GPIO_KP_MKOUT0,
 	HTCLEO_GPIO_KP_MKOUT1,
 	HTCLEO_GPIO_KP_MKOUT2
 };
 
-static unsigned int htcleo_row_gpios[] = { 
+static unsigned int htcleo_row_gpios[] = {
 	HTCLEO_GPIO_KP_MPIN0,
 	HTCLEO_GPIO_KP_MPIN1,
 	HTCLEO_GPIO_KP_MPIN2
@@ -54,13 +54,24 @@ static unsigned int htcleo_row_gpios[] = {
 
 /* keypad */
 static const unsigned short htcleo_keymap[KEYMAP_SIZE] = {
-	[KEYMAP_INDEX(0, 0)] = KEY_VOLUMEUP,	
-	[KEYMAP_INDEX(0, 1)] = KEY_VOLUMEDOWN,
+#if defined(CONFIG_HTCLEO_KEYMAP_DPAD)
+	[KEYMAP_INDEX(0, 0)] = KEY_LEFT,	// Volume Up
+	[KEYMAP_INDEX(0, 1)] = KEY_RIGHT,	// Volume Down
+	[KEYMAP_INDEX(1, 0)] = KEY_DOWN,	// Windows Button
+	[KEYMAP_INDEX(1, 1)] = KEY_ENTER,	// Dial Button
+	[KEYMAP_INDEX(1, 2)] = KEY_END,  	// Hangup Button
+	[KEYMAP_INDEX(2, 0)] = KEY_UP,		// Back Button
+	[KEYMAP_INDEX(2, 1)] = KEY_LEFTALT,	// Home Button
+#endif
+#if defined(CONFIG_HTCLEO_KEYMAP_ANDROID)
+	[KEYMAP_INDEX(0, 0)] = KEY_VOLUMEUP,	// Volume Up
+	[KEYMAP_INDEX(0, 1)] = KEY_VOLUMEDOWN,	// Volume Down
 	[KEYMAP_INDEX(1, 0)] = KEY_MENU,	// Windows Button
-	[KEYMAP_INDEX(1, 1)] = KEY_SEND,	// Green Button
-	[KEYMAP_INDEX(1, 2)] = KEY_END,		// Red Button
+	[KEYMAP_INDEX(1, 1)] = KEY_SEND,	// Dial Button
+	[KEYMAP_INDEX(1, 2)] = KEY_END,		// Hangup Button
 	[KEYMAP_INDEX(2, 0)] = KEY_BACK,	// Back Button
 	[KEYMAP_INDEX(2, 1)] = KEY_HOME,	// Home Button
+#endif
 };
 
 static struct gpio_event_matrix_info htcleo_keypad_matrix_info = {
