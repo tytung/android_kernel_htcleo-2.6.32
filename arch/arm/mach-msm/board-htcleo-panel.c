@@ -953,7 +953,12 @@ int __init htcleo_init_panel(void)
 	}
 
 	detect_panel_type();
-	
+
+	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 0);
+	LCM_DELAY(2);
+	vreg_disable(vreg_lcd);
+	gpio_set_value(HTCLEO_GPIO_LCM_POWER, 0);
+
 	ret = platform_device_register(&msm_device_mdp);
 	if (ret != 0)
 		return ret;
