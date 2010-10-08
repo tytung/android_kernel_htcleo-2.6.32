@@ -333,6 +333,14 @@ unsigned htcleo_get_vbus_state(void)
 
 #endif
 
+static struct platform_device htcleo_rfkill = {
+        .name = "htcleo_rfkill",
+        .id = -1,
+};
+
+
+
+
 ///////////////////////////////////////////////////////////////////////
 // Flashlight
 ///////////////////////////////////////////////////////////////////////
@@ -476,61 +484,6 @@ static struct platform_device msm_camera_sensor_s5k3e2fx =
 	},
 };
 
-///////////////////////////////////////////////////////////////////////
-// bluetooth
-///////////////////////////////////////////////////////////////////////
-static char bdaddress[20];
-static void bt_export_bd_address(void)
- {
-	unsigned char cTemp[6];
-
-	memcpy(cTemp, get_bt_bd_ram(), 6);
-	sprintf(bdaddress, "%02x:%02x:%02x:%02x:%02x:%02x", cTemp[0], cTemp[1], cTemp[2], cTemp[3], cTemp[4], cTemp[5]);
-	pr_info("BD_ADDRESS=%s\n", bdaddress);
-}
-
-module_param_string(bdaddress, bdaddress, sizeof(bdaddress), S_IWUSR | S_IRUGO);
-MODULE_PARM_DESC(bdaddress, "BT MAC ADDRESS");
-
-static uint32_t bt_gpio_table[] =
-{
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RTS, 2, GPIO_OUTPUT, GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_CTS, 2, GPIO_INPUT, GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RX, 2, GPIO_INPUT, GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_TX, 2, GPIO_OUTPUT,GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_RESET_N, 0, GPIO_OUTPUT,GPIO_PULL_DOWN, GPIO_4MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_SHUTDOWN_N, 0, GPIO_OUTPUT,GPIO_PULL_DOWN, GPIO_4MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_CHIP_WAKE, 0, GPIO_OUTPUT,GPIO_PULL_DOWN, GPIO_4MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_HOST_WAKE, 0, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_4MA),
-};
-
-#ifdef CONFIG_SERIAL_MSM_HS
-static struct msm_serial_hs_platform_data msm_uart_dm1_pdata =
-{
-	/* Chip to Device */
-	.rx_wakeup_irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_BT_HOST_WAKE),
-	.inject_rx_on_wakeup = 0,
-	.cpu_lock_supported = 0,
-
-	/* for bcm */
-	.bt_wakeup_pin_supported = 1,
-	.bt_wakeup_pin   = HTCLEO_GPIO_BT_CHIP_WAKE,
-	.host_wakeup_pin = HTCLEO_GPIO_BT_HOST_WAKE,
-
-};
-#endif
-
-static void __init htcleo_bt_init(void)
-{
-	config_gpio_table(bt_gpio_table, ARRAY_SIZE(bt_gpio_table));
-}
-
-
-static struct platform_device htcleo_rfkill =
-{
-	.name = "htcleo_rfkill",
-	.id = -1,
-};
 
 ///////////////////////////////////////////////////////////////////////
 // KGSL (HW3D support)#include <linux/android_pmem.h>
@@ -693,6 +646,9 @@ static struct platform_device *devices[] __initdata =
 	&htc_headset_mgr,
 	&htc_headset_gpio,
 };
+
+
+
 ///////////////////////////////////////////////////////////////////////
 // Vibrator
 ///////////////////////////////////////////////////////////////////////
@@ -811,13 +767,28 @@ static void __init htcleo_init(void)
 
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 
+
 #ifdef CONFIG_SERIAL_MSM_HS
-  	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
-	msm_device_uart_dm1.name = "msm_serial_hs_bcm"; /* for bcm */
-    	msm_device_uart_dm1.resource[3].end = 6;
+static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
+        .rx_wakeup_irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_BT_HOST_WAKE), /*Chip to Device*/
+        .inject_rx_on_wakeup = 0,
+        .cpu_lock_supported = 0,
+
+        /* for bcm */
+        .bt_wakeup_pin_supported = 1,
+        .bt_wakeup_pin = HTCLEO_GPIO_BT_CHIP_WAKE,
+        .host_wakeup_pin = HTCLEO_GPIO_BT_HOST_WAKE,
+};
+#endif
+
+#ifdef CONFIG_SERIAL_MSM_HS
+        msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
+        msm_device_uart_dm1.name = "msm_serial_hs_bcm"; /* for bcm */
+        msm_device_uart_dm1.resource[3].end = 6;
 #endif
 
 	i2c_register_board_info(0, base_i2c_devices, ARRAY_SIZE(base_i2c_devices));
+
 
 #ifdef CONFIG_USB_ANDROID
 	htcleo_add_usb_devices();
@@ -826,8 +797,6 @@ static void __init htcleo_init(void)
 	htcleo_init_mmc(0);
 	platform_device_register(&htcleo_timed_gpios);
 
-	bt_export_bd_address();
-	htcleo_bt_init();
 	htcleo_audio_init();
 	
 #ifdef CONFIG_USB_ANDROID
