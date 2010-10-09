@@ -373,35 +373,27 @@ static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_statu
 
     /* Get Temperature */
     n = ((raw[0] << 8) | (raw[1]));
+    short tRaw = n;
+    // TODO: This isn't ideal but gives ROUGHLY (within about 3C) the correct values and is better than what I had previously
+    if ( PC == LEO_EXTENDED_BATTERY_CAPACITY ) n *= 7;
     n /= 16;
 
 //    printk("temp = %x\n", n);
-    double v;
     if (n > 2047 || n == 0)
     {
         s->temp_C = 250;
     }
     else
     {
-	v = 0.021277 * (300.0 / (2047.0 / n - 1.0));
-	/* The following change is presuming the values I modified are based on the packaged id of the battery.
-           Whilst I am confident of my percentage calculation changes above I am not confident of this one though
-           user feedback seems to indicate it is working */
-	if ( ACR > 9000 )
-	{
-		s->temp_C = (1.0 / ((log(v) * 0.000290698) + 0.003354016) - 3.15);
-	}
-	else
-	{
-		s->temp_C = 10 * (1.0 / ((log(v) * 0.000290698) + 0.003354016) - 273.15);
-	}
+        double v = 0.021277 * (300.0 / (2047.0 / n - 1.0));
+	s->temp_C = 10 * (1.0 / ((log(v) * 0.000290698) + 0.003354016) - 273.15);
     }
     if (s->temp_C < -250)
     {
         s->temp_C = -250;
     }
 
-    printk("PC=%d ACR=%d RAAC=%d T=%d, TRAW=%hd\n", PC, ACR, s->percentage, s->temp_C);
+    printk("PC=%d ACR=%d RAAC=%d T=%d, TRAW=%hd\n", PC, ACR, s->percentage, s->temp_C, tRaw);
 }
 
 static int htcleo_battery_read_status(struct htcleo_device_info *di)
