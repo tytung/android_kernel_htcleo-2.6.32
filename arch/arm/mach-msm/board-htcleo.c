@@ -460,6 +460,8 @@ static int flashlight_control(int mode)
 static struct camera_flash_cfg msm_camera_sensor_flash_cfg = {
 	.camera_flash		= flashlight_control,
 	.num_flash_levels	= FLASHLIGHT_NUM,
+	.low_temp_limit		= 5,
+	.low_cap_limit		= 15,
 };
 
 static struct msm_camera_sensor_info msm_camera_sensor_s5k3e2fx_data =
@@ -538,7 +540,7 @@ static struct platform_device msm_kgsl_device =
 // Memory 
 ///////////////////////////////////////////////////////////////////////
 
-static struct android_pmem_platform_data android_pmem_pdata = {
+static struct android_pmem_platform_data mdp_pmem_pdata = {
 	.name		= "pmem",
 	.no_allocator	= 0,
 	.cached		= 1,
@@ -550,19 +552,20 @@ static struct android_pmem_platform_data android_pmem_adsp_pdata = {
 	.cached		= 1,
 };
 
-static struct android_pmem_platform_data android_pmem_camera_pdata = {
-	.name		= "pmem_camera",
-        .start		= MSM_PMEM_CAMERA_BASE,
-	.size 		= MSM_PMEM_CAMERA_SIZE,
-	.no_allocator	= 1,
+
+static struct android_pmem_platform_data android_pmem_venc_pdata = {
+	.name		= "pmem_venc",
+	.start		= MSM_PMEM_VENC_BASE,
+	.size		= MSM_PMEM_VENC_SIZE,
+	.no_allocator	= 0,
 	.cached		= 1,
 };
 
-static struct platform_device android_pmem_device = {
+static struct platform_device android_pmem_mdp_device = {
 	.name		= "android_pmem",
 	.id		= 0,
 	.dev		= {
-		.platform_data = &android_pmem_pdata
+		.platform_data = &mdp_pmem_pdata
 	},
 };
 
@@ -574,13 +577,14 @@ static struct platform_device android_pmem_adsp_device = {
 	},
 };
 
-static struct platform_device android_pmem_camera_device = {
+static struct platform_device android_pmem_venc_device = {
 	.name		= "android_pmem",
-	.id		= 6,
+	.id		= 5,
 	.dev		= {
-		.platform_data = &android_pmem_camera_pdata,
+		.platform_data = &android_pmem_venc_pdata,
 	},
 };
+
 ///////////////////////////////////////////////////////////////////////
 // RAM-Console
 ///////////////////////////////////////////////////////////////////////
@@ -634,9 +638,9 @@ static struct platform_device *devices[] __initdata =
 	&msm_device_smd,
 	&htcleo_rfkill,
 	&msm_device_rtc,
-	&android_pmem_device,
+	&android_pmem_mdp_device,
 	&android_pmem_adsp_device,
-	&android_pmem_camera_device,
+	&android_pmem_venc_device,
 	&msm_device_i2c,
 	&msm_kgsl_device,
 	&msm_camera_sensor_s5k3e2fx,
@@ -859,8 +863,8 @@ static void __init htcleo_allocate_memory_regions(void)
 	size = pmem_sf_size;
 	if (size) {
 		addr = alloc_bootmem(size);
-		android_pmem_pdata.start = __pa(addr);
-		android_pmem_pdata.size = size;
+		mdp_pmem_pdata.start = __pa(addr);
+		mdp_pmem_pdata.size = size;
 		pr_info("allocating %lu bytes at %p (%lx physical) for sf "
 			"pmem arena\n", size, addr, __pa(addr));
 	}
