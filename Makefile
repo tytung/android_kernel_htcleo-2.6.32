@@ -523,7 +523,7 @@ endif # $(dot-config)
 all: vmlinux
 
 #ifdef CONFIG_MACH_HTCLEO
-KBUILD_CFLAGS   += -mcpu=cortex-a8 -march=armv7-a -mtune=cortex-a8 -mfpu=vfpv3
+KBUILD_CFLAGS   += -march=armv7-a -mtune=cortex-a8 -mfpu=vfpv3
 #endif
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE

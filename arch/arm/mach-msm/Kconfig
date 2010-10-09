@@ -498,7 +498,7 @@ choice
 		bool "DG Timer"
 	help
 	  High resolution timer.
-endchoice	  
+endchoice
 
 choice
 	prompt "Suspend sleep mode"
@@ -525,7 +525,7 @@ choice
 
 	config MSM7X00A_SLEEP_WAIT_FOR_INTERRUPT
 		bool "Wait for interrupt"
-endchoice	  
+endchoice
 
 config MSM7X00A_SLEEP_MODE
 	int
@@ -560,7 +560,7 @@ choice
 
 	config MSM7X00A_IDLE_SLEEP_WAIT_FOR_INTERRUPT
 		bool "Wait for interrupt"
-endchoice	  
+endchoice
 
 config MSM7X00A_IDLE_SLEEP_MODE
 	int
@@ -861,7 +861,7 @@ config WIFI_CONTROL_FUNC
 	bool "Enable WiFi control function abstraction"
 	help
 	  Enables Power/Reset/Carddetect function abstraction
-	
+
 config WIFI_MEM_PREALLOC
 	depends on WIFI_CONTROL_FUNC
 	bool "Preallocate memory for WiFi buffers"
@@ -1117,3 +1117,35 @@ config HTCLEO_ENABLE_MULTI_TOUCH
 	depends on MACH_HTCLEO
 	help
 		Add multitouch support for touchscreen
+
+choice
+	prompt "HTCLEO Keymapping"
+	default HTCLEO_KEYMAP_ANDROID
+
+	config HTCLEO_KEYMAP_ANDROID
+		bool "Keymapping for Android"
+	help
+		Optimized for the default Android GUI
+
+	config HTCLEO_KEYMAP_DPAD
+		bool "Alternative Keymapping"
+	help
+		Useful in GUIs not designed for touch-only use as this enables
+		four direction keys, alt key and enter key. Assumes landscape orientation.
+endchoice
+
+choice
+	prompt "HTCLEO Backlight API type"
+	default HTCLEO_BACKLIGHT_LED
+
+	config HTCLEO_BACKLIGHT_LED
+		bool "Backlight control via LED API"
+	help
+		Needed by Google Android
+
+	config HTCLEO_BACKLIGHT
+	select BACKLIGHT_LCD_SUPPORT
+		bool "Standard backlight API"
+	help
+		Works in standard Linux distros. Tested in GNOME.
+endchoice
