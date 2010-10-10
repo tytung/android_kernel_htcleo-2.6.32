@@ -60,10 +60,16 @@
 #include "proc_comm.h"
 #include "dex_comm.h"
 
+#define ATAG_MAGLDR_BOOT    0x4C47414D 
+struct tag_magldr_entry
+{
+     _Bool fNoNandBoot;
+};
+
 extern int __init htcleo_init_mmc(unsigned debug_uart);
 extern void __init htcleo_audio_init(void);
 extern unsigned char *get_bt_bd_ram(void);
-static unsigned int nand_boot = 1;
+static unsigned int nand_boot = 0;
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -74,13 +80,14 @@ int htcleo_is_nand_boot(void)
 	return nand_boot;	
 }
 
-static int __init board_nandboot_setup(char *bootconfig)
+static int __init parse_tag_nand_boot(const struct tag *tag)
 {
-	if (!strncmp(bootconfig, "0", 1))
-		nand_boot=0;
-	return 1;
+	struct tag_magldr_entry *mentry = (struct tag_magldr_entry *)(&tag->u);
+	nand_boot = !(unsigned int)mentry->fNoNandBoot;
+	pr_info("Nand Boot: %d\n", nand_boot);
+	return 0;
 }
-__setup("nand_boot=", board_nandboot_setup);
+__tagtable(ATAG_MAGLDR_BOOT, parse_tag_nand_boot);
 
 
 ///////////////////////////////////////////////////////////////////////
