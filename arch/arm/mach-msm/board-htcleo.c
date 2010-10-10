@@ -733,6 +733,16 @@ static void do_grp_reset(void)
 {
    	writel(0x20000, MSM_CLK_CTL_BASE + 0x214);
 }
+
+static void do_sdc1_reset(void)
+{
+	volatile uint32_t* sdc1_clk = MSM_CLK_CTL_BASE + 0x218;
+
+	*sdc1_clk |= (1 << 9);
+   	mdelay(1);
+	*sdc1_clk &= ~(1 << 9);
+}
+
 ///////////////////////////////////////////////////////////////////////
 // Init
 ///////////////////////////////////////////////////////////////////////
@@ -747,6 +757,7 @@ static void __init htcleo_init(void)
 	msm_hw_reset_hook = htcleo_reset;
 
 	do_grp_reset();
+	do_sdc1_reset();
 
 	msm_acpu_clock_init(&htcleo_clock_data);
 	
