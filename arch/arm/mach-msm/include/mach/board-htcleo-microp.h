@@ -112,20 +112,21 @@ struct microp_i2c_client_data {
 #define MICROP_I2C_WCMD_MOBEAM_SEND		0xB3
 
 
-#define IRQ_GSENSOR	    (1<<10)
-#define IRQ_LSENSOR  	(1<<9)
-#define IRQ_REMOTEKEY	(1<<7)
-#define IRQ_HEADSETIN	(1<<2)
-#define IRQ_PROXIMITY   (1<<1)
-#define IRQ_SDCARD	    (1<<0)
+#define IRQ_GSENSOR				(1<<10)
+#define IRQ_LSENSOR  				(1<<9)
+#define IRQ_REMOTEKEY				(1<<7)
+#define IRQ_HEADSETIN				(1<<2)
+#define IRQ_PROXIMITY   			(1<<1)
+#define IRQ_SDCARD	    			(1<<0)
 
-#define READ_GPI_STATE_HPIN	(1<<2)
-#define READ_GPI_STATE_SDCARD	(1<<0)
+#define READ_GPI_STATE_HPIN			(1<<2)
+#define READ_GPI_STATE_SDCARD			(1<<0)
 
-#define GPO_PROXIMITY   0x3
+#define GPO_CM3602   				0x3
+#define LS_PWR_ON				(1 << 0)
+#define PS_PWR_ON				(1 << 1)
 
 int microp_i2c_read(uint8_t addr, uint8_t *data, int length);
 int microp_i2c_write(uint8_t addr, uint8_t *data, int length);
-int microp_gpo_enable(uint16_t interrupt_mask);
-int microp_gpo_disable(uint16_t interrupt_mask);
+int capella_cm3602_power(int pwr_device, uint8_t enable);
 #endif

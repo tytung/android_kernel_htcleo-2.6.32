@@ -46,6 +46,9 @@
 #include "board-htcleo.h"
 
 static uint32_t microp_als_kadc;
+static int als_power_control;
+static DEFINE_MUTEX(capella_cm3602_lock);
+
 
 extern void p_sensor_irq_handler(void);
 
@@ -262,33 +265,46 @@ static int microp_read_gpi_status(struct i2c_client *client, uint16_t *status)
 	return 0;
 }
 
-static int microp_interrupt_enable(struct i2c_client *client, uint16_t interrupt_mask)
+static int microp_interrupt_get_status(uint16_t *interrupt_mask)
+{
+	uint8_t data[2];
+	int ret = -1;
+
+	ret = microp_i2c_read(MICROP_I2C_RCMD_GPI_INT_STATUS, data, 2);
+	if (ret < 0) {
+		pr_err("%s: read interrupt status fail\n",  __func__);
+		return ret;
+	}
+
+	*interrupt_mask = data[0]<<8 | data[1];
+	return 0;
+}
+
+static int microp_interrupt_enable( uint16_t interrupt_mask)
 {
 	uint8_t data[2];
 	int ret = -1;
 
 	data[0] = interrupt_mask >> 8;
 	data[1] = interrupt_mask & 0xFF;
-	ret = i2c_write_block(client, MICROP_I2C_WCMD_GPI_INT_CTL_EN, data, 2);
+	ret = microp_i2c_write(MICROP_I2C_WCMD_GPI_INT_CTL_EN, data, 2);
 
 	if (ret < 0)
-		dev_err(&client->dev, "%s: enable 0x%x interrupt failed\n",
-			__func__, interrupt_mask);
+		pr_err("%s: enable 0x%x interrupt failed\n", __func__, interrupt_mask);
 	return ret;
 }
 
-static int microp_interrupt_disable(struct i2c_client *client, uint16_t interrupt_mask)
+static int microp_interrupt_disable(uint16_t interrupt_mask)
 {
 	uint8_t data[2];
 	int ret = -1;
 
 	data[0] = interrupt_mask >> 8;
 	data[1] = interrupt_mask & 0xFF;
-	ret = i2c_write_block(client, MICROP_I2C_WCMD_GPI_INT_CTL_DIS, data, 2);
+	ret = microp_i2c_write(MICROP_I2C_WCMD_GPI_INT_CTL_DIS, data, 2);
 
 	if (ret < 0)
-		dev_err(&client->dev, "%s: disable 0x%x interrupt failed\n",
-			__func__, interrupt_mask);
+		pr_err("%s: disable 0x%x interrupt failed\n", __func__, interrupt_mask);
 	return ret;
 }
 
@@ -351,6 +367,68 @@ int microp_gpo_disable(uint16_t interrupt_mask)
 }
 EXPORT_SYMBOL(microp_gpo_disable);
 
+/*
+ * CM3602 Power for LS and Proximity
+*/
+int __capella_cm3602_power(int on)
+{
+	int rc;
+	printk(KERN_DEBUG "%s: Turn the capella_cm3602 power %s\n",
+		__func__, (on) ? "on" : "off");
+	if (on) {
+		rc = microp_gpo_enable(GPO_CM3602);
+		if (rc < 0)
+			return -EIO;
+	} else {
+		rc = microp_gpo_disable(GPO_CM3602);
+		if (rc < 0)
+			return -EIO;
+	}
+	return 0;
+}
+
+
+int capella_cm3602_power(int pwr_device, uint8_t enable)
+{
+	unsigned int old_status = 0;
+	uint16_t interrupts = 0;
+	int ret = 0, on = 0;
+	mutex_lock(&capella_cm3602_lock);
+	if(pwr_device==PS_PWR_ON) { // Switch the Proximity IRQ
+		if(enable) {
+			ret = microp_interrupt_get_status(&interrupts);
+			if (ret < 0) {
+				pr_err("%s: read interrupt status fail\n", __func__);
+				return ret;
+			}
+			interrupts |= IRQ_PROXIMITY;
+			ret = microp_interrupt_enable(interrupts);
+		}
+		else {
+			interrupts |= IRQ_PROXIMITY;
+			ret = microp_interrupt_disable(interrupts);
+		}
+		if (ret < 0) {
+			pr_err("%s: failed to enable gpi irqs\n", __func__);
+			return ret;
+		}
+	}
+
+	old_status = als_power_control;
+	if (enable)
+		als_power_control |= pwr_device;
+	else
+		als_power_control &= ~pwr_device;
+
+	on = als_power_control ? 1 : 0;
+	if (old_status == 0 && on)
+		ret = __capella_cm3602_power(1);
+	else if (!on)
+		ret = __capella_cm3602_power(0);
+
+	mutex_unlock(&capella_cm3602_lock);
+	return ret;
+}
 
 /*
  * Interrupt
@@ -376,26 +454,25 @@ static void microp_i2c_intr_work_func(struct work_struct *work)
 	struct i2c_client *client;
 	struct microp_i2c_client_data *cdata;
 	uint8_t data[3];
-	uint16_t intr_status = 0, gpi_status = 0;
+	uint16_t intr_status = 0;
 	int ret = 0;
 
 	up_work = container_of(work, struct microp_i2c_work, work);
 	client = up_work->client;
 	cdata = i2c_get_clientdata(client);
 
-	ret = i2c_read_block(client, MICROP_I2C_RCMD_GPI_INT_STATUS, data, 2);
+	ret = microp_interrupt_get_status(&intr_status);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: read interrupt status fail\n",
 			 __func__);
 	}
 
-	intr_status = data[0]<<8 | data[1];
 	ret = i2c_write_block(client, MICROP_I2C_WCMD_GPI_INT_STATUS_CLR, data, 2);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: clear interrupt status fail\n",
 			 __func__);
 	}
-	pr_debug("intr_status=0x%02x\n", intr_status);
+	pr_info("intr_status=0x%02x\n", intr_status);
 
 	if (intr_status & IRQ_PROXIMITY) {
 		p_sensor_irq_handler();
@@ -413,10 +490,8 @@ static int microp_function_initialize(struct i2c_client *client)
 
 	cdata = i2c_get_clientdata(client);
 
-	interrupts |= IRQ_PROXIMITY;
-
 	/* enable the interrupts */
-	ret = microp_interrupt_enable(client, interrupts);
+	ret = microp_interrupt_enable(interrupts);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: failed to enable gpi irqs\n",
 			__func__);
