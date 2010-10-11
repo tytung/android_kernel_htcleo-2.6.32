@@ -19,6 +19,7 @@
 #include <mach/htc_acoustic_qsd.h>
 #include <asm/gpio.h>
 #include <mach/gpio.h>
+#include <mach/htc_headset_mgr.h>
 
 #include "board-htcleo.h"
 #include "devices.h"
@@ -318,12 +319,21 @@ static struct q6audio_analog_ops ops =
     .get_rx_vol = htcleo_get_rx_vol,
 };
 
+static void hs_mic_register(void)
+{
+	struct headset_notifier notifier;
+	notifier.id = HEADSET_REG_MIC_BIAS;
+	notifier.func = htcleo_mic_enable;
+	headset_notifier_register(&notifier);
+}
+
 void __init htcleo_audio_init(void)
 {
     mutex_init(&mic_lock);
     mutex_init(&bt_sco_lock);
     q6audio_register_analog_ops(&ops);
     acoustic_register_ops(&acoustic);
+    hs_mic_register();
 //        q6audio_set_acdb_file("default_PMIC.acdb");
 }
 

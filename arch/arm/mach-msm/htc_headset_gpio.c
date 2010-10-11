@@ -393,7 +393,7 @@ static int audiojack_probe(struct platform_device *pdev)
 		}
 
 		ret = request_irq(pjack_info->irq_mic,
-				  mic_irq_handler, IRQF_DISABLED | IRQF_TRIGGER_FALLING | IRQF_TRIGGER_LOW, "mic_headset", NULL);
+				  mic_irq_handler, IRQF_DISABLED | IRQF_TRIGGER_LOW, "mic_headset", NULL);
 		if (ret < 0)
 			goto err_request_detect_irq;
 
