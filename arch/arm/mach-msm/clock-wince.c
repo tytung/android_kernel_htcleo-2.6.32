@@ -434,6 +434,7 @@ static unsigned long get_mdns_host_clock(uint32_t id)
 	return freq;
 }
 
+// Cotullaz "new" clock functions
 static int new_clk_set_rate(uint32_t id, unsigned long rate)
 {
     unsigned clk = -1;
@@ -559,23 +560,54 @@ static int new_clk_set_rate(uint32_t id, unsigned long rate)
 		clk = 95;
 		break;
 
-  /*
+// Cotulla: I am too lazy...
+#define MHZ(x)  ((x) * 1000 * 1000)
+#define KHZ(x)  ((x) * 1000)
+
     case SDC1_CLK:
+		if (rate > MHZ(50)) speed = 14;
+        else if (rate > KHZ(49152)) speed = 13;
+        else if (rate > MHZ(45)) speed = 12;
+        else if (rate > MHZ(40)) speed = 11;
+        else if (rate > MHZ(35)) speed = 10;
+        else if (rate > MHZ(30)) speed = 9;
+        else if (rate > MHZ(25)) speed = 8;
+        else if (rate > MHZ(20)) speed = 7;
+        else if (rate > MHZ(15)) speed = 6;
+        else if (rate > MHZ(10)) speed = 5;
+        else if (rate > MHZ(5))  speed = 4;
+        else if (rate > KHZ(400))speed = 3;
+        else if (rate > KHZ(144))speed = 2;
+        else speed = 1;
         clk = 66;
         break;
     case SDC2_CLK:
+		if (rate > MHZ(50)) speed = 14;
+        else if (rate > KHZ(49152)) speed = 13;
+        else if (rate > MHZ(45)) speed = 12;
+        else if (rate > MHZ(40)) speed = 11;
+        else if (rate > MHZ(35)) speed = 10;
+        else if (rate > MHZ(30)) speed = 9;
+        else if (rate > MHZ(25)) speed = 8;
+        else if (rate > MHZ(20)) speed = 7;
+        else if (rate > MHZ(15)) speed = 6;
+        else if (rate > MHZ(10)) speed = 5;
+        else if (rate > MHZ(5))  speed = 4;
+        else if (rate > KHZ(400))speed = 3;
+        else if (rate > KHZ(144))speed = 2;
+        else speed = 1;
         clk = 67;
         break;
-    case SDC3_CLK:
-        clk = 68;
-        break;
-    case SDC4_CLK:
-        clk = 69;
+
+#undef MHZ
+#undef KHZ
+
+        // both none
+    case SDC1_PCLK:
+    case SDC2_PCLK:
+        return 0;
         break;
 
-    case MDP_CLK:
-        clk = 9;
-        break;    */
     default:
         return -1;  
     }
@@ -641,22 +673,20 @@ static int new_clk_enable(uint32_t id)
     case MDP_CLK:
         clk = 9;
         break;
- /*
+
     case SDC1_CLK:
         clk = 66;
         break;
     case SDC2_CLK:
         clk = 67;
         break;
-    case SDC3_CLK:
-        clk = 68;
+    case SDC1_PCLK:
+        clk = 17;
         break;
-    case SDC4_CLK:
-        clk = 69;
+    case SDC2_PCLK:
+        clk = 16;
         break;
 
-
-*/
     default:
         return -1;  
     }
@@ -723,24 +753,19 @@ static int new_clk_disable(uint32_t id)
         clk = 9;
         break;
 
- /*
     case SDC1_CLK:
         clk = 66;
         break;
     case SDC2_CLK:
         clk = 67;
         break;
-    case SDC3_CLK:
-        clk = 68;
+    case SDC1_PCLK:
+        clk = 17;
         break;
-    case SDC4_CLK:
-        clk = 69;
+    case SDC2_PCLK:
+        clk = 16;
         break;
 
-    case MDP_CLK:
-        clk = 9;
-        break;
-*/
     default:
         return -1;  
     }
@@ -752,6 +777,82 @@ static int new_clk_disable(uint32_t id)
     return 0;
 }
 
+static long new_clk_get_rate(uint32_t id)
+{
+    unsigned clk = -1;
+    unsigned rate;
+    switch (id)
+    {
+    case ICODEC_RX_CLK:
+        clk = 50;
+        break;
+    case ICODEC_TX_CLK:
+        clk = 52;
+        break;
+    case ECODEC_CLK:
+        clk = 42;
+        break;
+    case SDAC_MCLK:
+        clk = 64;
+        break;
+    case IMEM_CLK:
+        clk = 55;
+        break;
+    case GRP_CLK:
+        clk = 56;
+        break;
+    case ADM_CLK:
+        clk = 19;
+        break;
+
+    case UART1DM_CLK:
+        clk = 78;
+        break;
+    case UART2DM_CLK:
+        clk = 80;
+        break;
+
+    case VFE_AXI_CLK:
+        clk = 24;
+        break;
+    case VFE_MDC_CLK:
+        clk = 40;
+        break;
+    case VFE_CLK:
+        clk = 41;
+        break;
+    case MDC_CLK:
+        clk = 53; // ??
+        break;
+
+    case SPI_CLK:
+        clk = 95;
+        break;
+
+    case MDP_CLK:
+        clk = 9;
+        break;
+
+    case SDC1_CLK:
+        clk = 66;
+        break;
+    case SDC2_CLK:
+        clk = 67;
+        break;
+    case SDC1_PCLK:
+        clk = 17;
+        break;
+    case SDC2_PCLK:
+        clk = 16;
+        break;
+
+    default:
+        return 0;
+    }
+
+    msm_proc_comm(PCOM_CLK_REGIME_SEC_MSM_GET_CLK_FREQ_KHZ, &clk, &rate);
+    return clk*1000;
+}
 
 static int new_clk_set_flags(uint32_t id, unsigned long flags)
 {    
@@ -891,7 +992,10 @@ static unsigned long pc_clk_get_rate(uint32_t id)
 {
 	unsigned long rate = 0;
 
-	switch (id) {
+	rate = new_clk_get_rate(id);
+
+	if(rate == 0) {
+		switch (id) {
 		/* known MD/NS clocks, MSM_CLK dump and arm/mach-msm/clock-7x30.c */
 		case SDC1_CLK:
 		case SDC2_CLK:
@@ -919,6 +1023,7 @@ static unsigned long pc_clk_get_rate(uint32_t id)
 			if(debug_mask&DEBUG_UNKNOWN_ID)
 				printk("%s: unknown clock: id=%u\n", __func__, id);
 			rate = 0;
+		}
 	}
 
 	return rate;
@@ -1179,7 +1284,7 @@ static int __init clock_late_init(void)
 	}
 	mutex_unlock(&clocks_mutex);
 	pr_info("clock_late_init() disabled %d unused clocks\n", count);
-	
+
 	// reset imem config, I guess all devices need this so somewhere here would be good.
 	// it needs to be moved to somewhere else.
 	//writel( 0, MSM_IMEM_BASE ); // IMEM addresses have to ve checked and enabled
