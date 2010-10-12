@@ -250,8 +250,9 @@ static void insert_11pin_35mm(int *state)
 	SYS_MSG("Insert USB 3.5mm headset");
 	set_35mm_hw_state(1);
 
-	if (hs_mgr_notifier.mic_status)
+	if (hs_mgr_notifier.mic_status) {
 		mic = hs_mgr_notifier.mic_status();
+	}
 
 	if (mic == HEADSET_NO_MIC) {
 		/* without microphone */
@@ -279,6 +280,7 @@ static void remove_11pin_35mm(void)
 static void button_35mm_do_work(struct work_struct *w)
 {
 	int key;
+	int pressed;
 	struct button_work *work;
 
 	work = container_of(w, struct button_work, key_work.work);
@@ -291,31 +293,26 @@ static void button_35mm_do_work(struct work_struct *w)
 	}
 
 	if (hi->key_level_flag) {
-		switch (hi->key_level_flag) {
+		pressed = (hi->key_level_flag & 0x80) ? 0:1;
+		switch (hi->key_level_flag & 0x7f) {
 		case 1:
-			H2WI("3.5mm RC: Play Pressed");
+			H2WI("3.5mm RC: Play(%d)", pressed);
 			key = HS_MGR_KEYCODE_MEDIA;
 			break;
 		case 2:
-			H2WI("3.5mm RC: BACKWARD Pressed");
+			H2WI("3.5mm RC: BACKWARD(%d)", pressed);
 			key = HS_MGR_KEYCODE_BACKWARD;
 			break;
 		case 3:
-			H2WI("3.5mm RC: FORWARD Pressed");
+			H2WI("3.5mm RC: FORWARD(%d)", pressed);
 			key = HS_MGR_KEYCODE_FORWARD;
 			break;
 		default:
-			H2WI("3.5mm RC: WRONG Button Pressed");
+			H2WI("3.5mm RC: WRONG Button Pressed (%d)", hi->key_level_flag);
 			return;
 		}
-		headset_button_event(1, key);
-	} else { /* key release */
-		if (atomic_read(&hi->btn_state))
-			headset_button_event(0, atomic_read(&hi->btn_state));
-		else
-			H2WI("3.5mm RC: WRONG Button Release");
+		headset_button_event(pressed, key);
 	}
-
 	wake_lock_timeout(&hi->headset_wake_lock, 1.5 * HZ);
 
 	kfree(work);
@@ -424,7 +421,7 @@ static void insert_35mm_do_work(struct work_struct *work)
 		mic1 = mic2 = HEADSET_NO_MIC;
 		if (hs_mgr_notifier.mic_status) {
 			if (hi->ext_35mm_status == HTC_35MM_NO_MIC ||
-			    hi->h2w_35mm_status == HTC_35MM_NO_MIC)
+				hi->h2w_35mm_status == HTC_35MM_NO_MIC)
 				for (i = 0; i < 10; i++) {
 					mic1 = hs_mgr_notifier.mic_status();
 					msleep(HS_DELAY_MIC_DETECT);
