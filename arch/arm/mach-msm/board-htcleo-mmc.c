@@ -241,20 +241,15 @@ int htcleo_wifi_power(int on)
 	if (on) {
 		config_gpio_table(wifi_on_gpio_table,ARRAY_SIZE(wifi_on_gpio_table));
 		mdelay(50);
-		pmic_glb_set_vreg(on, wlan_vreg_1);
-		pmic_glb_set_vreg(on, wlan_vreg_2);
-		pmic_glb_set_vreg(on, wlan_vreg_3);
-		mdelay(100);
 	} else {
 		config_gpio_table(wifi_off_gpio_table, ARRAY_SIZE(wifi_off_gpio_table));
 		mdelay(100);
 	}
+	pmic_glb_set_vreg(on, wlan_vreg_3);
 	
-	printk("%s: VREGS %d\n", __func__, on);
 	mdelay(100);
-	printk("%s: GPIO %d\n", __func__, on);
 	gpio_set_value(HTCLEO_GPIO_WIFI_SHUTDOWN_N, on); /* WIFI_SHUTDOWN */
-	mdelay(1000);
+	mdelay(100);
 
 	htcleo_wifi_power_state = on;
 	return 0;

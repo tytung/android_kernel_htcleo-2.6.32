@@ -81,7 +81,7 @@ static void map_adc_to_level(uint32_t adc, uint32_t *value)
 
 	if (adc > 1024)    
 	{
-		pr_err("map_adc_to_level: adc > 1024\n");
+		pr_err("%s: adc > 1024\n", __func__);
 		*value = 5; // set some good value at error
 		return;
 	}
@@ -90,7 +90,7 @@ static void map_adc_to_level(uint32_t adc, uint32_t *value)
 	{
 		if (adc >= lsensor_adc_table[i])
 		{
-			D("map_adc_to_level: %d -> %d\n", adc, i);
+			D("%s: %d -> %d\n", __func__, adc, i);
 			*value = i;
 			return;
 		}
@@ -124,7 +124,7 @@ static void lightsensor_poll_function(struct work_struct *work)
 	struct lsensor_data* p = &the_data;
 	uint32_t adc = 0, level = 0;
 
-	D("@@@lsensor poll\n");
+	D("%s\n", __func__);
 	if (!p->enabled)
 	{
 		D("  disable\n");
@@ -149,14 +149,19 @@ static void lightsensor_poll_function(struct work_struct *work)
 static int lightsensor_enable(void)
 {
 	struct lsensor_data* p = &the_data;
+	int rc = -EIO;
 
-	D("@@@lightsensor_enable\n");
+	D("%s\n", __func__);
 
 	if (p->enabled)
 	{
 		pr_err("lsensor: already enabled\n");
 		return 0;
 	}
+	rc = capella_cm3602_power(LS_PWR_ON, 1);
+	if (rc < 0)
+		return -EIO;
+	
 	the_data.old_level = -1;
 
 	p->enabled = 1;
@@ -168,14 +173,18 @@ static int lightsensor_enable(void)
 static int lightsensor_disable(void)
 {
 	struct lsensor_data* p = &the_data;
+	int rc = -EIO;
 
-	D("@@@lightsensor_disable\n");
+	D("%s\n", __func__);
 
 	if (!p->enabled)
 	{
 		pr_err("lsensor: nothing to disable\n");
 		return 0;
 	}
+	rc = capella_cm3602_power(LS_PWR_ON, 0);
+	if (rc < 0)
+		return -EIO;
 
 	p->enabled = 0;
 	cancel_delayed_work_sync(&the_data.work);
@@ -231,6 +240,7 @@ static long lightsensor_ioctl(struct file *file, unsigned int cmd, unsigned long
 			rc = -EFAULT;
 			break;
 		}
+		pr_info("%s ls set to: %d\n", __func__, val);
 		rc = val ? lightsensor_enable() : lightsensor_disable();
 		break;
 	case LIGHTSENSOR_IOCTL_GET_ENABLED:
@@ -264,8 +274,6 @@ struct miscdevice lightsensor_misc =
 
 //////////////////////////////////////////////////////////////////////////
 
-
-
 static int lsensor_probe(struct platform_device *pdev)
 {       
 	int ret = -EIO;    
@@ -279,7 +287,7 @@ static int lsensor_probe(struct platform_device *pdev)
 	/* Light Sensor */
 	/*
 	ret = device_create_file(&the_data->dev, &dev_attr_ls_adc);
-	ret = device_create_file(&the_data->dev, &dev_attr_ls_auto);
+	ret = device_create_file(&pdev->dev, &dev_attr_ls_auto);
 	*/
 	input_dev = input_allocate_device();
 	if (!input_dev) 
@@ -315,9 +323,10 @@ static int lsensor_probe(struct platform_device *pdev)
 	}
 
 	the_data.old_level = -1;
+	the_data.enabled=0;
+	the_data.opened=0;
 	INIT_DELAYED_WORK(&the_data.work, lightsensor_poll_function);
 
-	ret = 0; //lsensor_setup();
 	if (!ret)
 		goto done;
 
@@ -331,7 +340,7 @@ done:
 	return ret;
 
 	//	device_remove_file(&client->dev, &dev_attr_ls_adc);
-	//	device_remove_file(&client->dev, &dev_attr_ls_auto);
+	//	device_remove_file(&pdev->dev, &dev_attr_ls_auto);
 
 }
 
