@@ -118,7 +118,7 @@ obj-$(CONFIG_MACH_HTCLEO) += board-htcleo.o board-htcleo-spi.o board-htcleo-pane
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-ts.o board-htcleo-mmc.o ieee754-df.o board-htcleo-power.o
 
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-battery.o board-htcleo-log.o board-htcleo-audio.o board-htcleo-acoustic.o
-obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-bt.o board-htcleo-wifi.o board-htcleo-microp.o
+obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-rfkill.o board-htcleo-wifi.o board-htcleo-microp.o
 obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-proximity.o board-htcleo-leds.o board-htcleo-ls.o
 obj-$(CONFIG_MACH_HTCLEO) += clock-wince.o
 obj-$(CONFIG_HTCLEO_BACKLIGHT) += board-htcleo-bl.o

@@ -666,32 +666,38 @@ static int auo_panel_init(struct msm_lcdc_panel_ops *ops)
 
 static int auo_panel_unblank(struct msm_lcdc_panel_ops *ops)
 {
-	printk("%s\n", __func__);
+	static int first_start=1;
+	pr_info("%s\n", __func__);
+	if(!first_start) {
 
-	mutex_lock(&panel_lock);
+		mutex_lock(&panel_lock);
 
-	gpio_set_value(HTCLEO_GPIO_LCM_POWER, 1);
-	LCM_DELAY(2);
-	vreg_enable(vreg_lcd);
-	LCM_DELAY(2);
+		gpio_set_value(HTCLEO_GPIO_LCM_POWER, 1);
+		LCM_DELAY(2);
+		vreg_enable(vreg_lcd);
+		LCM_DELAY(2);
 
-	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
-	LCM_DELAY(1);
-	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 0);
-	LCM_DELAY(1);
-	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
-	LCM_DELAY(25);
+		gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
+		LCM_DELAY(1);
+		gpio_set_value(HTCLEO_GPIO_LCM_RESET, 0);
+		LCM_DELAY(1);
+		gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
+		LCM_DELAY(25);
 
-	spi_gpio_switch(1);
-	panel_gpio_switch(1);
+		spi_gpio_switch(1);
+		panel_gpio_switch(1);
 
-	LCM_DELAY(33);
+		LCM_DELAY(33);
 
-	auo_panel_cfg_setup(1);
+		auo_panel_cfg_setup(1);
 
-	LCM_DELAY(1);
+		LCM_DELAY(1);
 
-	mutex_unlock(&panel_lock);
+		mutex_unlock(&panel_lock);
+	}
+	else
+ 		first_start=0;
+
 	return 0;
 }
 
@@ -758,30 +764,35 @@ static int sharp_panel_init(struct msm_lcdc_panel_ops *ops)
 
 static int sharp_panel_unblank(struct msm_lcdc_panel_ops *ops)
 {
+	static int first_start=1;
 	pr_info("%s\n", __func__);
+	if(!first_start) {
+		mutex_lock(&panel_lock);
 
-	mutex_lock(&panel_lock);
+		gpio_set_value(HTCLEO_GPIO_LCM_POWER, 1);
 
-	gpio_set_value(HTCLEO_GPIO_LCM_POWER, 1);
+		LCM_DELAY(2);
 
-	LCM_DELAY(2);
+		vreg_enable(vreg_lcd);
 
-	vreg_enable(vreg_lcd);
+		LCM_DELAY(2);
 
-	LCM_DELAY(2);
+		gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
 
-	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
+		spi_gpio_switch(1);
+		panel_gpio_switch(1);
 
-	spi_gpio_switch(1);
-	panel_gpio_switch(1);
+		LCM_DELAY(40);
 
-	LCM_DELAY(40);
+		sharp_panel_cfg_setup(1);
 
-	sharp_panel_cfg_setup(1);
+		LCM_DELAY(57);
 
-	LCM_DELAY(57);
+		mutex_unlock(&panel_lock);
+	}
+	else
+ 		first_start=0;
 
-	mutex_unlock(&panel_lock);
 	return 0;
 
 }

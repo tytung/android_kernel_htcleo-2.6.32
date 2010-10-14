@@ -501,18 +501,6 @@ static void bt_export_bd_address(void)
 module_param_string(bdaddress, bdaddress, sizeof(bdaddress), S_IWUSR | S_IRUGO);
 MODULE_PARM_DESC(bdaddress, "BT MAC ADDRESS");
 
-static uint32_t bt_gpio_table[] =
-{
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RTS, 2, GPIO_OUTPUT, GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_CTS, 2, GPIO_INPUT, GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RX, 2, GPIO_INPUT, GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_TX, 2, GPIO_OUTPUT,GPIO_PULL_UP, GPIO_8MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_RESET_N, 0, GPIO_OUTPUT,GPIO_PULL_DOWN, GPIO_4MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_SHUTDOWN_N, 0, GPIO_OUTPUT,GPIO_PULL_DOWN, GPIO_4MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_CHIP_WAKE, 0, GPIO_OUTPUT,GPIO_PULL_DOWN, GPIO_4MA),
-	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_HOST_WAKE, 0, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_4MA),
-};
-
 #ifdef CONFIG_SERIAL_MSM_HS
 static struct msm_serial_hs_platform_data msm_uart_dm1_pdata =
 {
@@ -528,12 +516,6 @@ static struct msm_serial_hs_platform_data msm_uart_dm1_pdata =
 
 };
 #endif
-
-static void __init htcleo_bt_init(void)
-{
-	config_gpio_table(bt_gpio_table, ARRAY_SIZE(bt_gpio_table));
-}
-
 
 static struct platform_device htcleo_rfkill =
 {
@@ -849,7 +831,6 @@ static void __init htcleo_init(void)
 	platform_device_register(&htcleo_timed_gpios);
 
 	bt_export_bd_address();
-	htcleo_bt_init();
 	htcleo_audio_init();
 	
 #ifdef CONFIG_USB_ANDROID
