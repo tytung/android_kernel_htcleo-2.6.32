@@ -47,9 +47,9 @@ user may be able to adjust time in future
 //#define LSENSOR_ABLK_ONLY       2
 
 
-#define LSENSOR_POLL_PROMESHUTOK   5000
+#define LSENSOR_POLL_PROMESHUTOK   1000
 
-#define D(x...) printk(x)
+#define D(x...) pr_debug(x)
 // pr_info(x)
 
 
@@ -115,7 +115,7 @@ int lightsensor_read_value(uint32_t *val)
 	}
 
 	*val = data[1] | (data[0] << 8);
-	printk("lsensor adc = %d\n", *val);
+	D("lsensor adc = %d\n", *val);
 	return 0;
 }
 

@@ -28,6 +28,7 @@
 #include <linux/android_pmem.h>
 #include <linux/regulator/machine.h>
 #include <linux/leds.h>
+#include <linux/spi/spi.h>
 #ifdef CONFIG_SENSORS_BMA150_SPI
 #include <linux/bma150.h>
 #endif
@@ -90,15 +91,6 @@ static int __init parse_tag_nand_boot(const struct tag *tag)
 __tagtable(ATAG_MAGLDR_BOOT, parse_tag_nand_boot);
 
 
-///////////////////////////////////////////////////////////////////////
-// SPI
-///////////////////////////////////////////////////////////////////////
-
-static struct platform_device qsd_device_spi =
-{
-    .name           = "spi_qsd",
-    .id             = 0,
-};
 
 ///////////////////////////////////////////////////////////////////////
 // Regulator
@@ -521,6 +513,87 @@ static struct platform_device htcleo_rfkill =
 {
 	.name = "htcleo_rfkill",
 	.id = -1,
+};
+
+///////////////////////////////////////////////////////////////////////
+// SPI
+///////////////////////////////////////////////////////////////////////
+
+static struct resource qsd_spi_resources[] = {
+	{
+		.name   = "spi_irq_in",
+		.start  = INT_SPI_INPUT,
+		.end    = INT_SPI_INPUT,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_irq_out",
+		.start  = INT_SPI_OUTPUT,
+		.end    = INT_SPI_OUTPUT,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_irq_err",
+		.start  = INT_SPI_ERROR,
+		.end    = INT_SPI_ERROR,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_base",
+		.start  = 0xA1200000,
+		.end    = 0xA1200000 + SZ_4K - 1,
+		.flags  = IORESOURCE_MEM,
+	},
+	{
+		.name   = "spi_clk",
+		.start  = 17,
+		.end    = 1,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_mosi",
+		.start  = 18,
+		.end    = 1,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_miso",
+		.start  = 19,
+		.end    = 1,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_cs0",
+		.start  = 20,
+		.end    = 1,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_pwr",
+		.start  = 21,
+		.end    = 0,
+		.flags  = IORESOURCE_IRQ,
+	},
+	{
+		.name   = "spi_irq_cs0",
+		.start  = 22,
+		.end    = 0,
+		.flags  = IORESOURCE_IRQ,
+	},
+};
+
+static struct spi_platform_data htcleo_spi_pdata = {
+	.clk_rate	= 4800000,
+};
+
+static struct platform_device qsd_device_spi = {
+	.name           = "spi_qsd",
+	.id             = 0,
+	.num_resources  = ARRAY_SIZE(qsd_spi_resources),
+	.resource       = qsd_spi_resources,
+	.dev		= {
+		.platform_data = &htcleo_spi_pdata
+	},
 };
 
 ///////////////////////////////////////////////////////////////////////

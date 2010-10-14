@@ -17,7 +17,7 @@
 */
 #include <linux/miscdevice.h>
 #include <linux/platform_device.h>
-#include <linux/slab.h>
+#include <linux/slab.h> 
 #include <linux/fb.h>
 #include <linux/file.h>
 #include <linux/fs.h>

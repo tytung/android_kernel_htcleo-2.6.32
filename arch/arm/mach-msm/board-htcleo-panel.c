@@ -56,9 +56,6 @@ static struct vreg *vreg_lcd;
 
 #define LCM_DELAY(a)		msleep(a)
 
-// from board-htcleo-spi.c
-extern void qspi_enable();
-extern void qspi_disable();
 extern int qspi_send_9bit(unsigned char id, unsigned data);
 extern int qspi_send_16bit(unsigned char id, unsigned data);
 extern int qspi_send(unsigned char id, unsigned data);
@@ -642,7 +639,6 @@ static void auo_panel_cfg_setup(int on)
 		spisize = ARRAY_SIZE(AUO_DEINIT) / 6;
 	}
 
-	qspi_enable();
 	for (i = 0; i < spisize; i++)
 	{
 		ret = qspi_send_16bit(spiseq[i].reg, spiseq[i].val);
@@ -655,7 +651,6 @@ static void auo_panel_cfg_setup(int on)
 		LCM_DELAY(spiseq[i].delay);
 		}
 	}
-	qspi_disable();
 }
 
 static int auo_panel_init(struct msm_lcdc_panel_ops *ops)
@@ -740,7 +735,6 @@ static void sharp_panel_cfg_setup(int on)
 		spisize = ARRAY_SIZE(SHARP_DEINIT) / 6;
 	}
 
-	qspi_enable();
 	for (i = 0; i < spisize; i++)
 	{
 		ret = qspi_send_9bit(spiseq[i].reg, spiseq[i].val);
@@ -753,7 +747,6 @@ static void sharp_panel_cfg_setup(int on)
 		    LCM_DELAY(spiseq[i].delay);
 		}
 	}
-	qspi_disable();
 }
 
 static int sharp_panel_init(struct msm_lcdc_panel_ops *ops)
