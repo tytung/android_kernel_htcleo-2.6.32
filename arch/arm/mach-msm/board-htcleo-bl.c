@@ -41,6 +41,24 @@
 
 #define HTCLEO_MAX_BRIGHTNESS 255
 
+int htcleo_brightness_autobacklight(uint8_t value)
+{
+	int ret;
+	uint8_t data[2];
+
+	LCMDBG("%s:(%d)\n", __func__, value);
+
+	data[0] = 1;
+	data[1] = value;
+	ret = microp_i2c_write(MICROP_I2C_WCMD_AUTO_BL_CTL, data, 2);
+	if (ret != 0)
+		pr_err("%s: set auto light sensor fail\n", __func__);
+
+
+	return ret;
+}
+EXPORT_SYMBOL(htcleo_brightness_autobacklight);
+
 int htcleo_brightness_onoff_bkl(int enable)
 {
 	int ret;
@@ -56,7 +74,7 @@ int htcleo_brightness_onoff_bkl(int enable)
 int htcleo_brightness_set_bkl(uint8_t value)
 {
 	int ret;
-	uint8_t cmd[2], data[2];
+	uint8_t cmd[2];
 
 	LCMDBG("microp_set_bkl(%d)\n", value);
 
@@ -64,18 +82,9 @@ int htcleo_brightness_set_bkl(uint8_t value)
 	{
 		value = 9;
 	}
-	// disable autobrigtness
-// CotullaTEST: Lsensor test, add 0x100
-//	data[0] = 0;
-	data[0] = 1;
-	data[1] = 0;
-	ret = microp_i2c_write(MICROP_I2C_WCMD_AUTO_BL_CTL, data, 2); // 23
-	if (ret != 0)
-		pr_err("%s: set auto light sensor fail\n", __func__);
 
 	// setvalue
 	cmd[0] = value << 4;
-//	printk("22LEVEL %02X\n", cmd[0]);
 	ret = microp_i2c_write(MICROP_I2C_WCMD_LCM_BL_MANU_CTL, cmd, 1); // 22
 	if (ret < 0)
 	{
@@ -127,6 +136,8 @@ static struct backlight_ops htcleo_backlight_ops =
 static int htcleo_backlight_probe(struct platform_device *pdev)
 {
     struct backlight_device *bd;
+    ret = device_create_file(&client->dev, &dev_attr_reset);
+    
     bd = backlight_device_register("htcleo-backlight", &pdev->dev, NULL, &htcleo_backlight_ops);
     bd->props.max_brightness = HTCLEO_MAX_BRIGHTNESS;
     bd->props.brightness = HTCLEO_MAX_BRIGHTNESS;
