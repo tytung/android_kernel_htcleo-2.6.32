@@ -226,7 +226,7 @@ static long lightsensor_ioctl(struct file *file, unsigned int cmd, unsigned long
 
 	mutex_lock(&api_lock);
 
-	pr_debug("%s cmd %d\n", __func__, _IOC_NR(cmd));
+	D("%s cmd %d\n", __func__, _IOC_NR(cmd));
 	if (!the_data.opened)
 	{
 		return -EIO;
@@ -240,12 +240,12 @@ static long lightsensor_ioctl(struct file *file, unsigned int cmd, unsigned long
 			rc = -EFAULT;
 			break;
 		}
-		pr_info("%s ls set to: %d\n", __func__, val);
+		D("%s ls set to: %d\n", __func__, val);
 		rc = val ? lightsensor_enable() : lightsensor_disable();
 		break;
 	case LIGHTSENSOR_IOCTL_GET_ENABLED:
 		val = p->enabled;
-		pr_debug("%s enabled %d\n", __func__, val);
+		D("%s enabled %d\n", __func__, val);
 		rc = put_user(val, (unsigned long __user *)arg);
 		break;
 	default:

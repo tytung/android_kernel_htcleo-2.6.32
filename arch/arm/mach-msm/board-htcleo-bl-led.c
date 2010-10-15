@@ -56,7 +56,7 @@ int htcleo_brightness_set_bkl(uint8_t value)
 	int ret;
 	uint8_t cmd[2], data[2];
 
-	printk("microp_set_bkl(%d)\n", value);
+	LCMDBG("microp_set_bkl(%d)\n", value);
 
 	if (value > 9)
 	{
