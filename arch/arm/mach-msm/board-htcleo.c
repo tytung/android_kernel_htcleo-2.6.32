@@ -870,7 +870,18 @@ static void __init htcleo_init(void)
 	perflock_init(&htcleo_perflock_data);
 
 	init_dex_comm();
+
+#ifdef CONFIG_SERIAL_MSM_HS
+  	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
+	msm_device_uart_dm1.name = "msm_serial_hs_bcm"; /* for bcm */
+    	msm_device_uart_dm1.resource[3].end = 6;
+#endif
+
+	bt_export_bd_address();
+	htcleo_audio_init();
 	
+	msm_device_i2c_init();
+
 	/* set the gpu power rail to manual mode so clk en/dis will not
 	* turn off gpu power, and hang it on resume */
 
@@ -879,20 +890,10 @@ static void __init htcleo_init(void)
 	mdelay(100);
 	htcleo_kgsl_power(true);
 	
-#ifdef CONFIG_MICROP_COMMON
-	htcleo_microp_init();
-#endif
-	htcleo_init_panel();
-
-	msm_device_i2c_init();
-
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 
-#ifdef CONFIG_SERIAL_MSM_HS
-  	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
-	msm_device_uart_dm1.name = "msm_serial_hs_bcm"; /* for bcm */
-    	msm_device_uart_dm1.resource[3].end = 6;
-#endif
+	htcleo_init_panel();
+
 
 	i2c_register_board_info(0, base_i2c_devices, ARRAY_SIZE(base_i2c_devices));
 
@@ -903,8 +904,6 @@ static void __init htcleo_init(void)
 	htcleo_init_mmc(0);
 	platform_device_register(&htcleo_timed_gpios);
 
-	bt_export_bd_address();
-	htcleo_audio_init();
 	
 #ifdef CONFIG_USB_ANDROID
 	msm_hsusb_set_vbus_state(htcleo_get_vbus_state());
