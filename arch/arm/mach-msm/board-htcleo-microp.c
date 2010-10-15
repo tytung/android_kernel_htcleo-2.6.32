@@ -373,7 +373,7 @@ EXPORT_SYMBOL(microp_gpo_disable);
 int __capella_cm3602_power(int on)
 {
 	int rc;
-	printk(KERN_DEBUG "%s: Turn the capella_cm3602 power %s\n",
+	pr_debug("%s: Turn the capella_cm3602 power %s\n",
 		__func__, (on) ? "on" : "off");
 	if (on) {
 		rc = microp_gpo_enable(GPO_CM3602);

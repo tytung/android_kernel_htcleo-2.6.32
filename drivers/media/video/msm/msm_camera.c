@@ -1802,10 +1802,12 @@ static long msm_ioctl_common(struct msm_device *pmsm,
 
 int msm_camera_flash(struct msm_sync *sync, int level)
 {
+#if defined(CONFIG_MACH_HTCLEO)
+	static int last_level = -1;
+#endif
 	int flash_level = 0;
 	uint8_t phy_flash = 0;
 	int ret = 0;
-
 	if (!sync->sdata->flash_cfg) {
 		pr_err("%s: camera flash is not supported.\n", __func__);
 		return -EINVAL;
@@ -1834,6 +1836,13 @@ int msm_camera_flash(struct msm_sync *sync, int level)
 		phy_flash = 1;
 		break;
 	case MSM_CAMERA_LED_OFF:
+#if defined(CONFIG_MACH_HTCLEO)
+		//--patch for missing flash---
+		if (last_level == MSM_CAMERA_LED_LOW)
+			sync->sdata->flash_cfg->postpone_led_mode = MSM_CAMERA_LED_HIGH;
+		//--------------------
+#endif
+
 		flash_level = 0;
 		phy_flash = 1;
 		break;
@@ -1841,10 +1850,12 @@ int msm_camera_flash(struct msm_sync *sync, int level)
 		pr_err("%s: invalid flash level %d.\n", __func__, level);
 		return -EINVAL;
 	}
-
 	if (phy_flash)
 		ret = sync->sdata->flash_cfg->camera_flash(flash_level);
 
+#if defined(CONFIG_MACH_HTCLEO)
+	last_level = level;
+#endif
 	return ret;
 }
 
@@ -2236,6 +2247,11 @@ static void msm_vfe_sync(struct msm_vfe_resp *vdata,
 					sync->sdata->flash_cfg->postpone_led_mode);
 				sync->sdata->flash_cfg->camera_flash(
 					sync->sdata->flash_cfg->postpone_led_mode);
+#if defined(CONFIG_MACH_HTCLEO)
+				//--patch form missing flash-------------
+				sync->sdata->flash_cfg->postpone_led_mode=MSM_CAMERA_LED_OFF;
+				//----------------------------
+#endif
 			}
 		}
 	}

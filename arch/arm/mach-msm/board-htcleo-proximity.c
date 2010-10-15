@@ -32,6 +32,8 @@
 #define INT_PSENSOR	(1<<4)
 #define GPO_PROXIMITY   0x3
 
+#define D(x...) pr_debug(x)
+
 static int misc_opened;
 
 static void p_sensor_do_work(struct work_struct *w);
@@ -50,14 +52,14 @@ static int report_psensor_data(void)
 {
 	int ret, ps_data = 0;
 	uint8_t data[3] = {0, 0, 0};
-	pr_info("%s\n", __func__);
+	D("%s\n", __func__);
 
 	ret = microp_i2c_read(MICROP_I2C_RCMD_GPIO_STATUS, data, 3);
 	if (ret < 0)
 		pr_err("%s: read data failed\n", __func__);
 	else {
 		ps_data = (data[1] & 0x1) ? 1 : 0;
-		pr_info("proximity %s\n", ps_data ? "FAR" : "NEAR");
+		D("proximity %s\n", ps_data ? "FAR" : "NEAR");
 
 		/* 0 is close, 1 is far */
 		input_report_abs(the_data.input_dev, ABS_DISTANCE, ps_data);
@@ -73,7 +75,7 @@ static int capella_cm3602_enable(struct capella_cm3602_data *data)
 {
 	int rc;
 	if (data->enabled) {
-		pr_info("%s: already enabled\n", __func__);
+		D("%s: already enabled\n", __func__);
 		return 0;
 	}
 
@@ -95,7 +97,7 @@ static int capella_cm3602_disable(struct capella_cm3602_data *data)
 {
 	int rc = -EIO;
 	if (!data->enabled) {
-		pr_info("%s: already disabled\n", __func__);
+		D("%s: already disabled\n", __func__);
 		return 0;
 	}
 
@@ -161,7 +163,7 @@ static long capella_cm3602_ioctl(struct file *file,
 			unsigned int cmd, unsigned long arg)
 {
 	int val;
-	pr_info("%s cmd %d\n", __func__, _IOC_NR(cmd));
+	D("%s cmd %d\n", __func__, _IOC_NR(cmd));
 	switch (cmd) {
 	case CAPELLA_CM3602_IOCTL_ENABLE:
 		if (get_user(val, (unsigned long __user *)arg))

@@ -55,7 +55,9 @@ user may be able to adjust time in future
 
 static uint16_t lsensor_adc_table[10] = 
 {
-	0x000, 0x001, 0x00F, 0x01E, 0x03C, 0x121, 0x190, 0x2BA, 0x26E, 0x3FF
+
+	0, 10, 30, 60, 100, 160, 250, 355, 465, 598
+
 };
 
 
@@ -226,7 +228,7 @@ static long lightsensor_ioctl(struct file *file, unsigned int cmd, unsigned long
 
 	mutex_lock(&api_lock);
 
-	pr_debug("%s cmd %d\n", __func__, _IOC_NR(cmd));
+	D("%s cmd %d\n", __func__, _IOC_NR(cmd));
 	if (!the_data.opened)
 	{
 		return -EIO;
@@ -240,12 +242,12 @@ static long lightsensor_ioctl(struct file *file, unsigned int cmd, unsigned long
 			rc = -EFAULT;
 			break;
 		}
-		pr_info("%s ls set to: %d\n", __func__, val);
+		D("%s ls set to: %d\n", __func__, val);
 		rc = val ? lightsensor_enable() : lightsensor_disable();
 		break;
 	case LIGHTSENSOR_IOCTL_GET_ENABLED:
 		val = p->enabled;
-		pr_debug("%s enabled %d\n", __func__, val);
+		D("%s enabled %d\n", __func__, val);
 		rc = put_user(val, (unsigned long __user *)arg);
 		break;
 	default:
