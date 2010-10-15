@@ -38,6 +38,49 @@
 #endif
 
 static struct led_trigger *htcleo_lcd_backlight;
+static int auto_bl_state=0;
+
+int htcleo_brightness_autobacklight(uint8_t value)
+{
+	int ret;
+	uint8_t data[2];
+
+	LCMDBG("%s:(%d)\n", __func__, value);
+	if(value!=0 && value!=1) return -1;
+
+	data[0] = 1;
+	data[1] = value;
+	ret = microp_i2c_write(MICROP_I2C_WCMD_AUTO_BL_CTL, data, 2);
+	if (ret != 0) {
+		pr_err("%s: set auto light sensor fail\n", __func__);
+		return ret;
+	}
+	auto_bl_state=value;
+	return 0;
+}
+EXPORT_SYMBOL(htcleo_brightness_autobacklight);
+
+static ssize_t htcleo_auto_bl_get(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	int ret;
+	ret = sprintf(buf, "%d", auto_bl_state);
+	return ret;
+}
+
+static ssize_t htcleo_auto_bl_set(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int set_state;
+	sscanf(buf, "%d", &set_state);
+	if(set_state!=0 && set_state!=1) return -EINVAL;
+	htcleo_brightness_autobacklight(set_state);
+	return count;
+}
+
+
+static DEVICE_ATTR(auto_bl, 0644,  htcleo_auto_bl_get, htcleo_auto_bl_set);
 
 int htcleo_brightness_onoff_bkl(int enable)
 {
@@ -54,26 +97,17 @@ int htcleo_brightness_onoff_bkl(int enable)
 int htcleo_brightness_set_bkl(uint8_t value)
 {
 	int ret;
-	uint8_t cmd[2], data[2];
+	uint8_t cmd[2];
 
-	LCMDBG("microp_set_bkl(%d)\n", value);
+	LCMDBG("%s:(%d)\n", __func__, value);
 
 	if (value > 9)
 	{
 		value = 9;
 	}
-	// disable autobrigtness
-// CotullaTEST: Lsensor test, add 0x100
-//	data[0] = 0;
-	data[0] = 1;
-	data[1] = 0;
-	ret = microp_i2c_write(MICROP_I2C_WCMD_AUTO_BL_CTL, data, 2); // 23
-	if (ret != 0)
-		pr_err("%s: set auto light sensor fail\n", __func__);
 
 	// setvalue
 	cmd[0] = value << 4;
-//	printk("22LEVEL %02X\n", cmd[0]);
 	ret = microp_i2c_write(MICROP_I2C_WCMD_LCM_BL_MANU_CTL, cmd, 1); // 22
 	if (ret < 0)
 	{
@@ -112,6 +146,7 @@ static struct led_classdev htcleo_backlight_led =
 static int  htcleo_backlight_probe(struct platform_device *pdev)
 {
 	int rc;
+	rc = device_create_file(&pdev->dev, &dev_attr_auto_bl);
 	printk(KERN_INFO "%s: HTCLeo Backlight connect with microP: "
 			"Probe\n", __func__);
 	
@@ -119,12 +154,14 @@ static int  htcleo_backlight_probe(struct platform_device *pdev)
 	rc = led_classdev_register(&pdev->dev, &htcleo_backlight_led);
 	if (rc)
 	      LCMDBG("HTCLeo Backlight: failure on register led_classdev\n");
-	return 0;
+	htcleo_brightness_autobacklight(0);
+	return rc;
 
 }
 
 static int htcleo_backlight_remove(struct platform_device *pdev)
 {
+	device_remove_file(&pdev->dev, &dev_attr_auto_bl);
 	return 0;
 }
 
