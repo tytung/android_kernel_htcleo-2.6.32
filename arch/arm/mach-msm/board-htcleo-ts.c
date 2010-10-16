@@ -39,18 +39,15 @@
 #define TOUCH_TYPE_68       2
 #define TOUCH_TYPE_2A       3
 
-
 #define LEO_TYPE_1          1
 #define LEO_TYPE_2          2
 #define LEO_TYPE_3          3
-
-
 
 #define TYPE_68_DEVID	(0x68 >> 1)
 #define TYPE_B8_DEVID	(0xB8 >> 1)
 #define TYPE_2A_DEVID	(0x2A >> 1)
 
-
+#define TS_USE_IRQ		1
 
 #define MAKEWORD(a, b)      ((uint16_t)(((uint8_t)(a)) | ((uint16_t)((uint8_t)(b))) << 8))
 
@@ -65,7 +62,9 @@ struct htcleo_ts_data
 	int pressed1;
 	int pressed2;
 	struct work_struct work;
+#ifndef TS_USE_IRQ	
 	struct hrtimer timer;
+#endif
 	uint16_t version;
 	struct early_suspend early_suspend;
 };
@@ -385,6 +384,7 @@ static void htcleo_ts_work_func(struct work_struct *work)
 	enable_irq(ts->client->irq);
 }
 
+#ifndef TS_USE_IRQ	
 static enum hrtimer_restart htcleo_ts_timer_func(struct hrtimer *timer)
 {
 	struct htcleo_ts_data *ts = container_of(timer, struct htcleo_ts_data, timer);
@@ -392,8 +392,7 @@ static enum hrtimer_restart htcleo_ts_timer_func(struct hrtimer *timer)
 	hrtimer_start(&ts->timer, ktime_set(0, 12500000), HRTIMER_MODE_REL);
 	return HRTIMER_NORESTART;
 }
-
-
+#else
 static irqreturn_t htcleo_ts_irq_handler(int irq, void *dev_id)
 {
 	struct htcleo_ts_data *ts = dev_id;
@@ -401,7 +400,7 @@ static irqreturn_t htcleo_ts_irq_handler(int irq, void *dev_id)
 	queue_work(htcleo_touch_wq, &ts->work);
 	return IRQ_HANDLED;
 }
-
+#endif
 
 
 ////////////////////////////////////////////////////////////////////////////
@@ -543,14 +542,17 @@ static int htcleo_ts_probe(struct i2c_client *client, const struct i2c_device_id
 		goto err_input_register_device_failed;
 	}
 
+#ifdef TS_USE_IRQ	
 	ts->client->irq = gpio_to_irq(HTCLEO_GPIO_TS_IRQ);
 	ret = request_irq(ts->client->irq, htcleo_ts_irq_handler,
 		      ts->intr_type ? IRQF_TRIGGER_HIGH : IRQF_TRIGGER_LOW,
 			LEO_TOUCH_DRV_NAME, ts);
-
+#else
 	hrtimer_init(&ts->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	ts->timer.function = htcleo_ts_timer_func;
 	hrtimer_start(&ts->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
+#endif
+
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	ts->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
@@ -585,9 +587,11 @@ static int htcleo_ts_remove(struct i2c_client *client)
 
 	unregister_early_suspend(&ts->early_suspend);
 
+#ifdef TS_USE_IRQ	
 	free_irq(client->irq, ts);
-
+#else
 	hrtimer_cancel(&ts->timer);
+#endif
 	input_unregister_device(ts->input_dev);
 	kfree(ts);
 
@@ -599,9 +603,11 @@ static int htcleo_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	struct htcleo_ts_data *ts = i2c_get_clientdata(client);
 	int ret;
 
+#ifdef TS_USE_IRQ	
 	disable_irq_nosync(client->irq);
-
+#else
 	hrtimer_cancel(&ts->timer);
+#endif
 	ret = cancel_work_sync(&ts->work);
 	if (ret)
 	{
@@ -624,9 +630,11 @@ static int htcleo_ts_resume(struct i2c_client *client)
 	htcleo_init_ts(ts);
 	htcleo_init_intr(ts);
 
+#ifdef TS_USE_IRQ	
 	enable_irq(client->irq);
-
+#else
 	hrtimer_start(&ts->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
+#endif
 	return 0;
 }
 
