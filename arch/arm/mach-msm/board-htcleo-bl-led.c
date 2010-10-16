@@ -37,10 +37,14 @@
 #define LCMDBG(fmt, arg...) {}
 #endif
 
+#define HTCLEO_DEFAULT_BACKLIGHT_BRIGHTNESS 255
+static int htcleo_backlight_brightness = HTCLEO_DEFAULT_BACKLIGHT_BRIGHTNESS;
+
 static struct led_trigger *htcleo_lcd_backlight;
 static int auto_bl_state=0;
+static DEFINE_MUTEX(htcleo_backlight_lock);
 
-int htcleo_brightness_autobacklight(uint8_t value)
+static int htcleo_brightness_autobacklight(uint8_t value)
 {
 	int ret;
 	uint8_t data[2];
@@ -73,16 +77,18 @@ static ssize_t htcleo_auto_bl_set(struct device *dev,
 				   const char *buf, size_t count)
 {
 	int set_state;
+	mutex_lock(&htcleo_backlight_lock);
 	sscanf(buf, "%d", &set_state);
 	if(set_state!=0 && set_state!=1) return -EINVAL;
 	htcleo_brightness_autobacklight(set_state);
+	mutex_unlock(&htcleo_backlight_lock);
 	return count;
 }
 
 
 static DEVICE_ATTR(auto_bl, 0644,  htcleo_auto_bl_get, htcleo_auto_bl_set);
 
-int htcleo_brightness_onoff_bkl(int enable)
+static int htcleo_brightness_onoff_bkl(int enable)
 {
 	int ret;
 	uint8_t data[1];
@@ -94,7 +100,7 @@ int htcleo_brightness_onoff_bkl(int enable)
 	return 0;
 }
 
-int htcleo_brightness_set_bkl(uint8_t value)
+static int htcleo_brightness_set_bkl(uint8_t value)
 {
 	int ret;
 	uint8_t cmd[2];
@@ -118,9 +124,10 @@ int htcleo_brightness_set_bkl(uint8_t value)
 	return 0;
 }
 
-void htcleo_brightness_set(struct led_classdev *led_cdev, enum led_brightness val)
+static void htcleo_brightness_set(struct led_classdev *led_cdev, enum led_brightness val)
 {
-	led_cdev->brightness = val;
+	mutex_lock(&htcleo_backlight_lock);
+	htcleo_backlight_brightness = val;
 
 	// set brigtness level via MicroP
 	LCMDBG("htcleo_brightness_set: %d\n", val);
@@ -134,13 +141,20 @@ void htcleo_brightness_set(struct led_classdev *led_cdev, enum led_brightness va
 		htcleo_brightness_onoff_bkl(1);
 		htcleo_brightness_set_bkl((val - 30) / 23);
 	}
+	mutex_unlock(&htcleo_backlight_lock);
+}
+
+static enum led_brightness htcleo_brightness_get(struct led_classdev *led_cdev)
+{
+	return htcleo_backlight_brightness;
 }
 
 static struct led_classdev htcleo_backlight_led = 
 {
 	.name = "lcd-backlight",
-	.brightness = LED_FULL,
+	.brightness = HTCLEO_DEFAULT_BACKLIGHT_BRIGHTNESS,
 	.brightness_set = htcleo_brightness_set,
+	.brightness_get = htcleo_brightness_get,
 };
 
 static int  htcleo_backlight_probe(struct platform_device *pdev)
