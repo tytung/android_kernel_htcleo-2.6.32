@@ -56,7 +56,7 @@ user may be able to adjust time in future
 static uint16_t lsensor_adc_table[10] = 
 {
 
-	0, 10, 30, 60, 100, 160, 250, 355, 465, 598
+	0, 5, 20, 70, 150, 240, 330, 425, 515, 590
 
 };
 
