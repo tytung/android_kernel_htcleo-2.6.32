@@ -173,11 +173,6 @@ static uint16_t g_usModuleVersion;	/*0: rev.4, 1: rev.5 */
 #define NUM_INIT_REG                  94
 #define NUM_LC_REG                    434
 
-static const char *s5k3e2fxVendor = "Samsung";
-static const char *s5k3e2fxNAME = "s5k3e2fx";
-static const char *s5k3e2fxSize = "5M";
-
-
 struct s5k3e2fx_i2c_reg_conf {
 	unsigned short waddr;
 	unsigned char bdata;
@@ -1298,40 +1293,6 @@ struct s5k3e2fx_i2c_reg_conf lc_setting[2][NUM_LC_REG] = {
 
 static struct wake_lock s5k3e2fx_wake_lock;
 
-static ssize_t sensor_vendor_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	ssize_t ret = 0;
-
-	sprintf(buf, "%s %s %s\n", s5k3e2fxVendor, s5k3e2fxNAME, s5k3e2fxSize);
-	ret = strlen(buf) + 1;
-
-	return ret;
-}
-static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
-
-static struct kobject *android_s5k3e2fx;
-
-static int s5k3e2fx_sysfs_init(void)
-{
-	int ret ;
-	pr_info("s5k3e2fx:kobject creat and add\n");
-	android_s5k3e2fx = kobject_create_and_add("android_camera", NULL);
-	if (android_s5k3e2fx == NULL) {
-		pr_info("s5k3e2fx_sysfs_init: subsystem_register " \
-		"failed\n");
-		ret = -ENOMEM;
-		return ret ;
-	}
-	pr_info("s5k3e2fx:sysfs_create_file\n");
-	ret = sysfs_create_file(android_s5k3e2fx, &dev_attr_sensor.attr);
-	if (ret) {
-		pr_info("s5k3e2fx_sysfs_init: sysfs_create_file " \
-		"failed\n");
-		kobject_del(android_s5k3e2fx);
-	}
-	return 0 ;
-}
 static inline void init_suspend(void)
 {
 	wake_lock_init(&s5k3e2fx_wake_lock, WAKE_LOCK_IDLE, "s5k3e2fx");
@@ -2967,7 +2928,6 @@ static int s5k3e2fx_sensor_probe(const struct msm_camera_sensor_info *info,
 	s->s_release = s5k3e2fx_sensor_release;
 	s->s_config = s5k3e2fx_sensor_config;
 
-	s5k3e2fx_sysfs_init();
 	return rc;
 
 probe_fail:
