@@ -27,7 +27,6 @@
 #include "board-htcleo.h"
 
 #define HTCLEO_DEFAULT_KEYPAD_BRIGHTNESS 0
-static int htcleo_keypad_brightness = HTCLEO_DEFAULT_KEYPAD_BRIGHTNESS;
 static DEFINE_MUTEX(htcleo_keypad_brightness_lock);
 
 struct led_data {
@@ -179,7 +178,7 @@ static void keypad_led_brightness_set(struct led_classdev *led_cdev,
 
 	if (brightness > 255)
 		brightness = 255;
-	htcleo_keypad_brightness = brightness;
+	led_cdev->brightness = brightness;
 
 	spin_lock_irqsave(&keypad_led_data.brightness_lock, flags);
 	keypad_led_data.brightness = brightness;
@@ -191,7 +190,7 @@ static void keypad_led_brightness_set(struct led_classdev *led_cdev,
 
 static enum led_brightness keypad_led_brightness_get(struct led_classdev *led_cdev)
 {
-	return htcleo_keypad_brightness;
+	return led_cdev->brightness;
 }
 
 static struct led_classdev htcleo_backlight_led = 

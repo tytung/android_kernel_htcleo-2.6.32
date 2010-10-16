@@ -38,7 +38,6 @@
 #endif
 
 #define HTCLEO_DEFAULT_BACKLIGHT_BRIGHTNESS 255
-static int htcleo_backlight_brightness = HTCLEO_DEFAULT_BACKLIGHT_BRIGHTNESS;
 
 static struct led_trigger *htcleo_lcd_backlight;
 static int auto_bl_state=0;
@@ -127,11 +126,11 @@ static int htcleo_brightness_set_bkl(uint8_t value)
 static void htcleo_brightness_set(struct led_classdev *led_cdev, enum led_brightness val)
 {
 	mutex_lock(&htcleo_backlight_lock);
-	htcleo_backlight_brightness = val;
 
 	// set brigtness level via MicroP
 	LCMDBG("htcleo_brightness_set: %d\n", val);
 	if (val > 255) val = 255;
+	led_cdev->brightness = val;
 	if (val < 30)
 	{
 		htcleo_brightness_onoff_bkl(0);
@@ -146,7 +145,7 @@ static void htcleo_brightness_set(struct led_classdev *led_cdev, enum led_bright
 
 static enum led_brightness htcleo_brightness_get(struct led_classdev *led_cdev)
 {
-	return htcleo_backlight_brightness;
+	return led_cdev->brightness;
 }
 
 static struct led_classdev htcleo_backlight_led = 
