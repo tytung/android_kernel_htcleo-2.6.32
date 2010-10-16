@@ -554,7 +554,12 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 		}
 	}
 
-	if (oob_count > 0 && ops->ooboffs != 0) 
+	if (!readdata && !readoob)
+	{
+		pr_err("%s: nothing to do\n", __func__);
+		return -EINVAL;
+	}
+	if (readoob && ops->ooboffs != 0) 
 	{
 		pr_err("%s: unsupported ops->ooboffs, %d\n", __func__, ops->ooboffs);
 		return -EINVAL;
@@ -1106,7 +1111,12 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 		}
 	}
 
-	if (oob_count != 0 && ops->ooboffs != 0)
+	if (!writedata && !writeoob)
+	{
+		pr_err("%s: nothing to do\n", __func__);
+		return -EINVAL;
+	}
+	if (writeoob && ops->ooboffs != 0)
 	{
 		pr_err("%s: unsupported ops->ooboffs, %d\n", __func__, ops->ooboffs);
 		return -EINVAL;
