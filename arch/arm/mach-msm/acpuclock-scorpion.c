@@ -529,10 +529,10 @@ void __init acpu_freq_tbl_fixup(void)
 		break;
 	case 0x30:
 	case 0x00:
-#ifdef	CONFIG_HTCLEO_OVERCLOCK
-		max_acpu_khz = 1113600;
-#elif CONFIG_HTCLEO_OVERCLOCK
+#ifdef	CONFIG_HTCLEO_EXOVERCLOCK
 		max_acpu_khz = 1190400;
+#elif   CONFIG_HTCLEO_OVERCLOCK
+		max_acpu_khz = 1113600;
 #else
 		max_acpu_khz = 998400;
 #endif
@@ -585,22 +585,22 @@ static void __init acpuclk_init(void)
 	 */
 	speed = acpu_freq_tbl;
 	for (;;) {
-#ifdef	CONFIG_HTCLEO_OVERCLOCK
-		if (speed->acpu_khz == 883200)
-			break;
-#elif CONFIG_HTCLEO_EXOVERCLOCK
+#ifdef	CONFIG_HTCLEO_EXOVERCLOCK
 		if (speed->acpu_khz == 998400)
+			break;
+#elif CONFIG_HTCLEO_OVERCLOCK
+		if (speed->acpu_khz == 883200)
 			break;
 #else
 		if (speed->acpu_khz == 768000)
 			break;
 #endif
-#ifdef	CONFIG_HTCLEO_OVERCLOCK
-		if (speed->acpu_khz == 0) {
-			pr_err("acpuclk_init: cannot find 883.2MHz\n");
-#elif CONFIG_HTCLEO_EXOVERCLOCK
+#ifdef	CONFIG_HTCLEO_EXOVERCLOCK
 		if (speed->acpu_khz == 0) {
 			pr_err("acpuclk_init: cannot find 998.4MHz\n");
+#elif CONFIG_HTCLEO_OVERCLOCK
+		if (speed->acpu_khz == 0) {
+			pr_err("acpuclk_init: cannot find 883.2MHz\n");
 #else
 		if (speed->acpu_khz == 0) {
 			pr_err("acpuclk_init: cannot find 768MHz\n");
