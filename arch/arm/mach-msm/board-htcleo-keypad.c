@@ -26,8 +26,10 @@
 
 #include "board-htcleo.h"
 
+#define HTCLEO_DEFAULT_KEYPAD_BRIGHTNESS 0
+static DEFINE_MUTEX(htcleo_keypad_brightness_lock);
+
 struct led_data {
-	struct led_classdev ldev;
 	struct mutex led_data_mutex;
 	struct work_struct brightness_work;
 	spinlock_t brightness_lock;
@@ -169,6 +171,7 @@ static void keypad_led_brightness_set(struct led_classdev *led_cdev,
 			       enum led_brightness brightness)
 {
 	unsigned long flags;
+	mutex_lock(&htcleo_keypad_brightness_lock);
 
 	pr_debug("Setting %s brightness current %d new %d\n",
 			led_cdev->name, led_cdev->brightness, brightness);
@@ -182,8 +185,21 @@ static void keypad_led_brightness_set(struct led_classdev *led_cdev,
 	spin_unlock_irqrestore(&keypad_led_data.brightness_lock, flags);
 
 	schedule_work(&keypad_led_data.brightness_work);
+	mutex_unlock(&htcleo_keypad_brightness_lock);
 }
 
+static enum led_brightness keypad_led_brightness_get(struct led_classdev *led_cdev)
+{
+	return led_cdev->brightness;
+}
+
+static struct led_classdev htcleo_backlight_led = 
+{
+	.name = "button-backlight",
+	.brightness = HTCLEO_DEFAULT_KEYPAD_BRIGHTNESS,
+	.brightness_set = keypad_led_brightness_set,
+	.brightness_get = keypad_led_brightness_get,
+};
 
 static int __init htcleo_init_keypad(void)
 {
@@ -214,15 +230,12 @@ static int __init htcleo_init_keypad(void)
 		goto err_gpio_kpl;
 	}
 
-	keypad_led_data.ldev.name = "button-backlight";
-	keypad_led_data.ldev.brightness_set = keypad_led_brightness_set;
 	keypad_led_data.oldval = 0;
 	mutex_init(&keypad_led_data.led_data_mutex);
 	INIT_WORK(&keypad_led_data.brightness_work, keypad_led_brightness_set_work);
 	spin_lock_init(&keypad_led_data.brightness_lock);
-	ret = led_classdev_register(&htcleo_input_device.dev, &keypad_led_data.ldev);
+	ret = led_classdev_register(&htcleo_input_device.dev, &htcleo_backlight_led);
 	if (ret) {
-		keypad_led_data.ldev.name = NULL;
 		goto exit;
 	}
 

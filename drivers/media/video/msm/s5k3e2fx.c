@@ -14,6 +14,7 @@
 #include <mach/camera.h>
 #include <linux/clk.h>
 #include <linux/wakelock.h>
+#include <linux/earlysuspend.h>
 
 static uint16_t g_usModuleVersion;	/*0: rev.4, 1: rev.5 */
 
@@ -1689,8 +1690,16 @@ struct s5k3e2fx_ctrl {
 	enum msm_s_test_mode set_test;
 };
 
+struct s5k3e2fx_waitevent{
+	uint32_t waked_up;
+	wait_queue_head_t event_wait;
+};
+static struct s5k3e2fx_waitevent s5k3e2fx_event;
+static struct platform_device *s5k3e2fx_pdev;
+
 static struct s5k3e2fx_ctrl *s5k3e2fx_ctrl;
 static DECLARE_WAIT_QUEUE_HEAD(s5k3e2fx_wait_queue);
+DECLARE_MUTEX(s5k3e2fx_sem);
 
 #define MAX_I2C_RETRIES 20
 static int i2c_transfer_retry(struct i2c_adapter *adap,
@@ -2319,8 +2328,26 @@ static int s5k3e2fx_setting(enum msm_s_reg_update rupdate,
 
 static int s5k3e2fx_sensor_open_init(const struct msm_camera_sensor_info *data)
 {
-	int rc;
+	int rc=0;
+	int timeout;
 
+
+	down(&s5k3e2fx_sem);
+
+	/*check whether resume done*/
+	timeout = wait_event_interruptible_timeout(
+		s5k3e2fx_event.event_wait,
+		s5k3e2fx_event.waked_up,
+		30*HZ);
+
+	pr_info("wait event : %d timeout:%d\n",
+		s5k3e2fx_event.waked_up, timeout);
+	if (timeout == 0) {
+		up(&s5k3e2fx_sem);
+		return rc;
+	}
+
+	msm_camio_probe_on(s5k3e2fx_pdev);
 	CDBG("%s %s:%d\n", __FILE__, __func__, __LINE__);
 	s5k3e2fx_ctrl = kzalloc(sizeof(struct s5k3e2fx_ctrl), GFP_KERNEL);
 	if (!s5k3e2fx_ctrl) {
@@ -2369,6 +2396,7 @@ static int s5k3e2fx_sensor_open_init(const struct msm_camera_sensor_info *data)
 init_fail1:
 	kfree(s5k3e2fx_ctrl);
 init_done:
+	up(&s5k3e2fx_sem);
 	return rc;
 }
 
@@ -2405,6 +2433,8 @@ static int s5k3e2fx_sensor_release(void)
 	int rc = -EBADF;
 
 	s5k3e2fx_suspend_sensor();
+
+	msm_camio_probe_off(s5k3e2fx_pdev);
 
 	kfree(s5k3e2fx_ctrl);
 	s5k3e2fx_ctrl = NULL;
@@ -2901,39 +2931,6 @@ static int s5k3e2fx_sensor_config(void __user *argp)
 	return rc;
 }
 
-static int s5k3e2fx_sensor_probe(const struct msm_camera_sensor_info *info,
-				 struct msm_sensor_ctrl *s)
-{
-	int rc = 0;
-	pr_info("%s\n", __func__);
-
-	rc = i2c_add_driver(&s5k3e2fx_i2c_driver);
-	if (rc < 0 || s5k3e2fx_client == NULL) {
-		rc = -ENOTSUPP;
-		goto probe_fail;
-	}
-
-	msm_camio_clk_rate_set(S5K3E2FX_DEF_MCLK);
-	msleep(20);
-
-	rc = s5k3e2fx_probe_init_sensor(info);
-	if (rc < 0)
-		goto probe_fail;
-
-	/* lens correction */
-	s5k3e2fx_probe_init_lens_correction(info);
-	init_suspend();
-
-	s->s_init = s5k3e2fx_sensor_open_init;
-	s->s_release = s5k3e2fx_sensor_release;
-	s->s_config = s5k3e2fx_sensor_config;
-
-	return rc;
-
-probe_fail:
-	pr_err("SENSOR PROBE FAILS!\n");
-	return rc;
-}
 
 static int s5k3e2fx_suspend(struct platform_device *pdev, pm_message_t state)
 {
@@ -2942,6 +2939,8 @@ static int s5k3e2fx_suspend(struct platform_device *pdev, pm_message_t state)
 
 	if (!sinfo->need_suspend)
 		return 0;
+
+	s5k3e2fx_event.waked_up = 0;
 
 	CDBG("s5k3e2fx: camera suspend\n");
 	rc = gpio_request(sinfo->sensor_reset, "s5k3e2fx");
@@ -3035,17 +3034,22 @@ static void s5k3e2fx_sensor_resume_setting(void)
 	s5k3e2fx_i2c_write_b(s5k3e2fx_client->addr, 0x0202, 0x03);
 	s5k3e2fx_i2c_write_b(s5k3e2fx_client->addr, 0x0200, 0x02);
 }
-static int s5k3e2fx_resume(struct platform_device *pdev)
+static void s5k3e2fx_resume(struct early_suspend *handler)
 {
-	int rc = 0;
-	struct msm_camera_sensor_info *sinfo = pdev->dev.platform_data;
+	struct msm_camera_sensor_info *sinfo = s5k3e2fx_pdev->dev.platform_data;
 
 	if (!sinfo->need_suspend)
-		return 0;
+		return;
+
+	/*check whether already suspend*/
+	if (s5k3e2fx_event.waked_up == 1) {
+		pr_info("S5k3e2fx: No nesesary to do Resume\n");
+		return;
+	}
 
 	CDBG("s5k3e2fx_resume\n");
 	/*init msm,clk ,GPIO,enable */
-	msm_camio_probe_on(pdev);
+	msm_camio_probe_on(s5k3e2fx_pdev);
 	msm_camio_clk_enable(CAMIO_MDC_CLK);
 
 	CDBG("msm_camio_probe_on\n");
@@ -3075,14 +3079,106 @@ static int s5k3e2fx_resume(struct platform_device *pdev)
 	s5k3e2fx_i2c_write_b(s5k3e2fx_client->addr, 0x3150, 0x51);
 	msleep(240);
 	/*set RST to low */
-	msm_camio_probe_off(pdev);
+	msm_camio_probe_off(s5k3e2fx_pdev);
 	msm_camio_clk_disable(CAMIO_MDC_CLK);
+	s5k3e2fx_event.waked_up = 1;
+	wake_up(&s5k3e2fx_event.event_wait);
 	CDBG("s5k3e2fx:resume done\n");
+	return;
+}
+
+static struct early_suspend early_suspend_s5k3e2fx = {
+	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN+1,
+	.resume = s5k3e2fx_resume,
+	.suspend = NULL,
+};
+
+static const char *s5k3e2fxVendor = "Samsung";
+static const char *s5k3e2fxNAME = "s5k3e2fx";
+static const char *s5k3e2fxSize = "5M";
+
+static ssize_t sensor_vendor_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	sprintf(buf, "%s %s %s\n", s5k3e2fxVendor, s5k3e2fxNAME, s5k3e2fxSize);
+	ret = strlen(buf) + 1;
+
+	return ret;
+}
+
+static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
+
+static struct kobject *android_s5k3e2fx;
+
+static int s5k3e2fx_sysfs_init(void)
+{
+	int ret ;
+	pr_info("s5k3e2fx:kobject creat and add\n");
+	android_s5k3e2fx = kobject_create_and_add("android_camera", NULL);
+	if (android_s5k3e2fx == NULL) {
+		pr_info("s5k3e2fx_sysfs_init: subsystem_register " \
+		"failed\n");
+		ret = -ENOMEM;
+		return ret ;
+	}
+	pr_info("s5k3e2fx:sysfs_create_file\n");
+	ret = sysfs_create_file(android_s5k3e2fx, &dev_attr_sensor.attr);
+	if (ret) {
+		pr_info("s5k3e2fx_sysfs_init: sysfs_create_file " \
+		"failed\n");
+		kobject_del(android_s5k3e2fx);
+	}
+	return 0 ;
+}
+
+static int s5k3e2fx_sensor_probe(const struct msm_camera_sensor_info *info,
+				 struct msm_sensor_ctrl *s)
+{
+	int rc = 0;
+	pr_info("%s\n", __func__);
+
+	rc = i2c_add_driver(&s5k3e2fx_i2c_driver);
+	if (rc < 0 || s5k3e2fx_client == NULL) {
+		rc = -ENOTSUPP;
+		goto probe_fail;
+	}
+
+	msm_camio_clk_rate_set(S5K3E2FX_DEF_MCLK);
+	msleep(20);
+
+	rc = s5k3e2fx_probe_init_sensor(info);
+	if (rc < 0)
+		goto probe_fail;
+
+	/* lens correction */
+	s5k3e2fx_probe_init_lens_correction(info);
+	init_suspend();
+
+	s->s_init = s5k3e2fx_sensor_open_init;
+	s->s_release = s5k3e2fx_sensor_release;
+	s->s_config = s5k3e2fx_sensor_config;
+
+	/*register late resuem*/
+	register_early_suspend(&early_suspend_s5k3e2fx);
+	/*init wait event*/
+	init_waitqueue_head(&s5k3e2fx_event.event_wait);
+	/*init waked_up value*/
+	s5k3e2fx_event.waked_up = 1;
+	/*write sysfs*/
+	s5k3e2fx_sysfs_init();
+
+	return rc;
+
+probe_fail:
+	pr_err("SENSOR PROBE FAILS!\n");
 	return rc;
 }
 
 static int __s5k3e2fx_probe(struct platform_device *pdev)
 {
+	s5k3e2fx_pdev = pdev;
 	return msm_camera_drv_start(pdev, s5k3e2fx_sensor_probe);
 }
 
@@ -3093,7 +3189,6 @@ static struct platform_driver msm_camera_driver = {
 		.owner = THIS_MODULE,
 	},
 	.suspend = s5k3e2fx_suspend,
-	.resume = s5k3e2fx_resume,
 };
 
 static int __init s5k3e2fx_init(void)

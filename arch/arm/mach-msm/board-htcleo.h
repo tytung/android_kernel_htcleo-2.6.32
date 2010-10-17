@@ -62,65 +62,81 @@
 
 /* End EBI region */
 
-#define HTCLEO_GPIO_PS_HOLD		25
+#define HTCLEO_GPIO_PS_HOLD			25
 
-//#define HTCLEO_GPIO_UP_INT_N		35	// We have to find the right one
-#define HTCLEO_GPIO_UP_INT_N		90
-#define HTCLEO_GPIO_UP_RESET_N		91
-#define HTCLEO_GPIO_LS_EN_N		119
+#define HTCLEO_GPIO_UP_INT_N			90
+#define HTCLEO_GPIO_UP_RESET_N			91
+#define HTCLEO_GPIO_LS_EN_N			119
 
-#define HTCLEO_GPIO_TP_INT_N		92
-#define HTCLEO_GPIO_TP_LS_EN		93
-#define HTCLEO_GPIO_TP_EN		160
+#define HTCLEO_GPIO_TP_INT_N			92
+#define HTCLEO_GPIO_TP_LS_EN			93
+#define HTCLEO_GPIO_TP_EN			160
 
-#define HTCLEO_GPIO_POWER_KEY		94
-#define HTCLEO_GPIO_SD_STATUS		153
+#define HTCLEO_GPIO_POWER_KEY			94
+#define HTCLEO_GPIO_SD_STATUS			153
 
-#define HTCLEO_GPIO_WIFI_SHUTDOWN_N	129
-#define HTCLEO_GPIO_WIFI_IRQ		152
+#define HTCLEO_GPIO_WIFI_SHUTDOWN_N		129
+#define HTCLEO_GPIO_WIFI_IRQ			152
 
-#define HTCLEO_GPIO_VIBRATOR_ON         100
+#define HTCLEO_GPIO_VIBRATOR_ON         	100
 
 /* Flashlight */
-#define HTCLEO_GPIO_FLASHLIGHT_TORCH	159
-#define HTCLEO_GPIO_FLASHLIGHT_FLASH    143
+#define HTCLEO_GPIO_FLASHLIGHT_TORCH		159
+#define HTCLEO_GPIO_FLASHLIGHT_FLASH    	143
 
 
 
-#define HTCLEO_AUD_JACKHP_EN  157
-#define HTCLEO_AUD_2V5_EN     158
-#define HTCLEO_BT_PCM_OUT     68
-#define HTCLEO_BT_PCM_IN      69
-#define HTCLEO_BT_PCM_SYNC    70
-#define HTCLEO_BT_PCM_CLK     71
+#define HTCLEO_AUD_JACKHP_EN  			157
+#define HTCLEO_AUD_2V5_EN     			158
+#define HTCLEO_BT_PCM_OUT     			68
+#define HTCLEO_BT_PCM_IN      			69
+#define HTCLEO_BT_PCM_SYNC    			70
+#define HTCLEO_BT_PCM_CLK    			71
 
 /* Headset */
-#define HTCLEO_GPIO_HDS_MIC      35
-#define HTCLEO_GPIO_HDS_DET      145
+#define HTCLEO_GPIO_HDS_MIC      		35
+#define HTCLEO_GPIO_HDS_DET      		145
 
 /* Keypad */
-#define HTCLEO_GPIO_KP_MKOUT0    33
-#define HTCLEO_GPIO_KP_MKOUT1    32
-#define HTCLEO_GPIO_KP_MKOUT2    31
-#define HTCLEO_GPIO_KP_MPIN0     42
-#define HTCLEO_GPIO_KP_MPIN1     41
-#define HTCLEO_GPIO_KP_MPIN2     40
-#define HTCLEO_GPIO_KP_LED	 48
+#define HTCLEO_GPIO_KP_MKOUT0    		33
+#define HTCLEO_GPIO_KP_MKOUT1    		32
+#define HTCLEO_GPIO_KP_MKOUT2    		31
+#define HTCLEO_GPIO_KP_MPIN0     		42
+#define HTCLEO_GPIO_KP_MPIN1     		41
+#define HTCLEO_GPIO_KP_MPIN2     		40
+#define HTCLEO_GPIO_KP_LED	 		48
 
 /* Bluetooth */
-#define HTCLEO_GPIO_BT_UART1_RTS    43
-#define HTCLEO_GPIO_BT_UART1_CTS    44
-#define HTCLEO_GPIO_BT_UART1_RX     45
-#define HTCLEO_GPIO_BT_UART1_TX     46
-#define HTCLEO_GPIO_BT_RESET_N      146
-#define HTCLEO_GPIO_BT_SHUTDOWN_N   128
-#define HTCLEO_GPIO_BT_HOST_WAKE    37
-#define HTCLEO_GPIO_BT_CHIP_WAKE    57
+#define HTCLEO_GPIO_BT_UART1_RTS    		43
+#define HTCLEO_GPIO_BT_UART1_CTS    		44
+#define HTCLEO_GPIO_BT_UART1_RX     		45
+#define HTCLEO_GPIO_BT_UART1_TX     		46
+#define HTCLEO_GPIO_BT_RESET_N      		146
+#define HTCLEO_GPIO_BT_SHUTDOWN_N   		128
+#define HTCLEO_GPIO_BT_HOST_WAKE    		37
+#define HTCLEO_GPIO_BT_CHIP_WAKE    		57
+
+/* Battery */
+#define HTCLEO_GPIO_BATTERY_CHARGER_ENABLE	22
+#define HTCLEO_GPIO_BATTERY_CHARGER_CURRENT	16
+#define HTCLEO_GPIO_BATTERY_OVER_CHG		147
+#define HTCLEO_GPIO_POWER_USB     		109
+#define HTCLEO_GPIO_USBPHY_3V3_ENABLE		104
+
+/* Touchscreen */
+#define HTCLEO_GPIO_TS_POWER			160
+#define HTCLEO_GPIO_TS_IRQ      		92
+#define HTCLEO_GPIO_TS_SEL      		108
+#define HTCLEO_GPIO_TS_MULT			82
+#define HTCLEO_GPIO_H2W_CLK			27
+
+#define HTCLEO_GPIO_LED_3V3_EN			85
+
 
 /* Compass */
-#define HTCLEO_GPIO_COMPASS_INT_N	39
-#define HTCLEO_GPIO_COMPASS_RST_N	107
-#define HTCLEO_PROJECT_NAME          	"htcleo"
+#define HTCLEO_GPIO_COMPASS_INT_N		39
+#define HTCLEO_GPIO_COMPASS_RST_N		107
+#define HTCLEO_PROJECT_NAME          		"htcleo"
 #define HTCLEO_LAYOUTS { 			   \
 	{ {  0,  1, 0}, { -1,  0,  0}, { 0, 0,  1} }, \
 	{ {  0, -1, 0}, {  1,  0,  0}, { 0, 0, -1} }, \
@@ -131,40 +147,28 @@
 /* Display */
 #define HTCLEO_GPIO_LCM_POWER			88
 #define HTCLEO_GPIO_LCM_RESET			29
-#define HTCLEO_LCD_R1                 (114)
-#define HTCLEO_LCD_R2                 (115)
-#define HTCLEO_LCD_R3                 (116)
-#define HTCLEO_LCD_R4                 (117)
-#define HTCLEO_LCD_R5                 (118)
-#define HTCLEO_LCD_G0                 (121)
-#define HTCLEO_LCD_G1                 (122)
-#define HTCLEO_LCD_G2                 (123)
-#define HTCLEO_LCD_G3                 (124)
-#define HTCLEO_LCD_G4                 (125)
-#define HTCLEO_LCD_G5                 (126)
-#define HTCLEO_LCD_B1                 (130)
-#define HTCLEO_LCD_B2                 (131)
-#define HTCLEO_LCD_B3                 (132)
-#define HTCLEO_LCD_B4                 (133)
-#define HTCLEO_LCD_B5                 (134)
-#define HTCLEO_LCD_PCLK               (135)
-#define HTCLEO_LCD_VSYNC              (136)
-#define HTCLEO_LCD_HSYNC              (137)
-#define HTCLEO_LCD_DE                 (138)
+#define HTCLEO_LCD_R1				(114)
+#define HTCLEO_LCD_R2				(115)
+#define HTCLEO_LCD_R3				(116)
+#define HTCLEO_LCD_R4				(117)
+#define HTCLEO_LCD_R5				(118)
+#define HTCLEO_LCD_G0				(121)
+#define HTCLEO_LCD_G1				(122)
+#define HTCLEO_LCD_G2				(123)
+#define HTCLEO_LCD_G3				(124)
+#define HTCLEO_LCD_G4				(125)
+#define HTCLEO_LCD_G5				(126)
+#define HTCLEO_LCD_B1				(130)
+#define HTCLEO_LCD_B2				(131)
+#define HTCLEO_LCD_B3				(132)
+#define HTCLEO_LCD_B4				(133)
+#define HTCLEO_LCD_B5				(134)
+#define HTCLEO_LCD_PCLK	       			(135)
+#define HTCLEO_LCD_VSYNC	      		(136)
+#define HTCLEO_LCD_HSYNC			(137)
+#define HTCLEO_LCD_DE				(138)
+	
 
-/* Battery */
-#define HTCLEO_GPIO_BATTERY_CHARGER_ENABLE    	22
-#define HTCLEO_GPIO_BATTERY_CHARGER_CURRENT   	16
-#define HTCLEO_GPIO_BATTERY_OVER_CHG		147
-#define HTCLEO_GPIO_POWER_USB     		109
-#define HTCLEO_GPIO_USBPHY_3V3_ENABLE		104
-
-/* Touchscreen */
-#define HTCLEO_GPIO_TS_POWER	160
-#define HTCLEO_GPIO_TS_IRQ      92
-#define HTCLEO_GPIO_TS_SEL      108
-
-#define HTCLEO_GPIO_LED_3V3_EN	85
 
 int htcleo_pm_set_vreg(int enable, unsigned id);
 int __init htcleo_init_panel(void);
