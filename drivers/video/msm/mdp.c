@@ -1048,9 +1048,7 @@ int mdp_probe(struct platform_device *pdev)
 extern void mdp4_hw_init(struct mdp_info *mdp);
 	mdp4_hw_init(mdp);
 #else
-#ifndef CONFIG_MACH_HTCLEO
 	mdp_hw_init(mdp);
-#endif	
 #endif
 
 #if defined CONFIG_MSM_MDP302
