@@ -29,6 +29,7 @@
 #include "board-htcleo.h"
 #include "board-htcleo-ts.h"
 #include "gpio_chip.h"
+#include "proc_comm.h"
 
 
 
@@ -150,15 +151,25 @@ static int leo_detect_ts_type(struct leo_ts_data *ts)
 }
 
 
+static uint32_t touch_on_gpio_table[] =
+{
+	PCOM_GPIO_CFG(HTCLEO_GPIO_TS_SEL, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_2MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_TS_POWER, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_2MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_TS_IRQ, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA),
+};
+
 static int leo_reset_ts(struct leo_ts_data *ts)
 {
 // only for XC
+    config_gpio_table(touch_on_gpio_table, ARRAY_SIZE(touch_on_gpio_table));
+
     gpio_direction_output(HTCLEO_GPIO_TS_SEL, 1);
     gpio_direction_output(HTCLEO_GPIO_TS_POWER, 0);
+//    gpio_direction_input(HTCLEO_GPIO_TS_IRQ);
     msleep(100);
-    gpio_direction_input(HTCLEO_GPIO_TS_IRQ);
 //    gpio_configure(92, GPIOF_INPUT | IRQF_TRIGGER_FALLING);
 
+/*
     while (gpio_get_value(HTCLEO_GPIO_TS_POWER))
     {
         gpio_set_value(HTCLEO_GPIO_TS_SEL, 1);
@@ -167,6 +178,7 @@ static int leo_reset_ts(struct leo_ts_data *ts)
         gpio_set_value(27, 0);
         msleep(10);
     }
+*/
     gpio_set_value(82, 1);
     gpio_set_value(27, 1);
 
@@ -184,6 +196,7 @@ static int leo_reset_ts(struct leo_ts_data *ts)
     {
         gpio_set_value(HTCLEO_GPIO_TS_SEL, 0);
     }
+    msleep(300);
     dev_dbg(&ts->client->dev, "TS: reset done\n");
     return 1;
 }
@@ -256,8 +269,7 @@ static void leo_ts_work_func(struct work_struct *work)
     uint32_t ptcount;
     uint32_t ptx[2];
     uint32_t pty[2];
-    struct leo_ts_data *ts = container_of(work, struct leo_ts_data, work);
-    uint8_t finger2_pressed;
+    struct leo_ts_data *ts = container_of(work, struct leo_ts_data, work);    
     int pressed1, pressed2;
 
     ptcount = 0;
@@ -387,6 +399,7 @@ error:
     ts->prev_ptcount = ptcount;
 
     /* prepare for next intr */
+    msleep(1);
     enable_irq(ts->client->irq);
 }
 
