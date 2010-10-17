@@ -802,7 +802,7 @@ int kgsl_yamato_idle(struct kgsl_device *device, unsigned int timeout)
 	struct kgsl_mmu_debug mmu_dbg;
 	unsigned int rbbm_status;
 	int idle_count = 0;
-#define IDLE_COUNT_MAX 1000000
+#define IDLE_COUNT_MAX 1500000
 
 	KGSL_DRV_VDBG("enter (device=%p, timeout=%d)\n", device, timeout);
 
