@@ -90,6 +90,12 @@ static int __init msm_cpufreq_init(struct cpufreq_policy *policy)
 
 	BUG_ON(cpufreq_frequency_table_cpuinfo(policy, table));
 	policy->cur = acpuclk_get_rate();
+#ifdef	CONFIG_HTCLEO_OVERCLOCK
+	policy->max = 1113600;
+#endif
+#ifdef	CONFIG_HTCLEO_EXOVERCLOCK
+	policy->max = 1113600;
+#endif
 	policy->cpuinfo.transition_latency =
 		acpuclk_get_switch_time() * NSEC_PER_USEC;
 	return 0;

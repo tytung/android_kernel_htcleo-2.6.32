@@ -561,10 +561,6 @@ static int battery_adjust_charge_state(struct htcleo_device_info *di)
 	{
 		di->status.battery_full = 0;
 	}
-	if((di->status.percentage > 98) && (charge_mode == CHARGE_FAST))
-	{
-		charge_mode = CHARGE_SLOW;
-	}
 #else
     // CotullaTODO: add DS274X check code here
     di->status.battery_full = 0;
