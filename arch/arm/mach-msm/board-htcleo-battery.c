@@ -326,7 +326,7 @@ static int htcleo_charge(int on, int fast)
 
 static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_status *s)
 {
-    short n;
+    short n, tRaw;
     uint32_t n32;
     uint32_t FL, ACR, ACR_EMPTY, PC;
 
@@ -373,7 +373,7 @@ static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_statu
 
     /* Get Temperature */
     n = ((raw[0] << 8) | (raw[1]));
-    short tRaw = n;
+    tRaw = n;
     // TODO: This isn't ideal but gives ROUGHLY (within about 3C) the correct values and is better than what I had previously
     if ( PC == LEO_EXTENDED_BATTERY_CAPACITY ) n *= 7;
     n /= 16;
@@ -552,15 +552,19 @@ static int battery_adjust_charge_state(struct htcleo_device_info *di)
     {
         di->status.battery_full = 0;
     }*/
-       if(di->status.percentage >= 99)
-       {
-               di->status.battery_full = 1;
-        charge_mode = CHARGE_BATT_DISABLE;
-       }
-       else
-    {
-        di->status.battery_full = 0;
-    }
+	if(di->status.percentage >= 100)
+	{
+		di->status.battery_full = 1;
+		charge_mode = CHARGE_BATT_DISABLE;
+	}
+	else
+	{
+		di->status.battery_full = 0;
+	}
+	if((di->status.percentage > 98) && (charge_mode == CHARGE_FAST))
+	{
+		charge_mode = CHARGE_SLOW;
+	}
 #else
     // CotullaTODO: add DS274X check code here
     di->status.battery_full = 0;
