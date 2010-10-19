@@ -552,7 +552,7 @@ static int battery_adjust_charge_state(struct htcleo_device_info *di)
     {
         di->status.battery_full = 0;
     }*/
-	if(di->status.percentage >= 100)
+	if(di->status.percentage >= 99)
 	{
 		di->status.battery_full = 1;
 		charge_mode = CHARGE_BATT_DISABLE;
