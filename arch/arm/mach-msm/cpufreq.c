@@ -91,7 +91,7 @@ static int __init msm_cpufreq_init(struct cpufreq_policy *policy)
 	BUG_ON(cpufreq_frequency_table_cpuinfo(policy, table));
 	policy->cur = acpuclk_get_rate();
 #ifdef	CONFIG_HTCLEO_OVERCLOCK
-	policy->max = 1113600;
+	policy->max = 998400;
 #endif
 #ifdef	CONFIG_HTCLEO_EXOVERCLOCK
 	policy->max = 1113600;
