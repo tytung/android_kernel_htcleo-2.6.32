@@ -541,7 +541,7 @@ void __init acpu_freq_tbl_fixup(void)
 #ifdef	CONFIG_HTCLEO_EXOVERCLOCK
 		max_acpu_khz = 1305600;
 #elif   CONFIG_HTCLEO_OVERCLOCK
-		max_acpu_khz = 1152000;
+		max_acpu_khz = 1190400;
 #else
 		max_acpu_khz = 998400;
 #endif
