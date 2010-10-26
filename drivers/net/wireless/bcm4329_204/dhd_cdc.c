@@ -70,6 +70,12 @@ typedef struct dhd_prot {
 	unsigned char buf[WLC_IOCTL_MAXLEN + ROUND_UP_MARGIN];
 } dhd_prot_t;
 
+//---------PATCH for mac address------------
+extern uint8 mac_address[ETHER_ADDR_LEN];
+extern int user_mac_address;
+//------------------------------------------
+
+
 static int
 dhdcdc_msg(dhd_pub_t *dhd)
 {
@@ -905,6 +911,21 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	bcm_mkiovar("ver", "", 0, buf, sizeof(buf));
 	dhdcdc_query_ioctl(dhd, 0, WLC_GET_VAR, buf, sizeof(buf));
 	myprintf("firmware version: %s\n", buf);
+
+//---------PATCH for mac address-----------------
+	if (user_mac_address)
+	{
+		ret = 0;
+		if (!bcm_mkiovar("cur_etheraddr", (char*)mac_address, ETHER_ADDR_LEN, buf, 32)) {
+			myprintf("%s: mkiovar failed for cur_etheraddr\n", __FUNCTION__);
+			ret = -1;
+		}
+		if (!ret)
+			ret = dhdcdc_set_ioctl(dhd, 0, WLC_SET_VAR, buf, 32);
+		if (ret < 0) 
+			myprintf("%s: __moj__ set cur_etheraddr failed\n", __FUNCTION__);
+	}
+//------------------------------------------
 
 
 	/* Get the device MAC address */

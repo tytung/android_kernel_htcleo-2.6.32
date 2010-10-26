@@ -28,6 +28,9 @@ int htcleo_wifi_set_carddetect(int on);
 #define WLAN_SECTION_SIZE_3	(PREALLOC_WLAN_NUMBER_OF_BUFFERS * 1024)
 
 #define WLAN_SKB_BUF_NUM	16
+//---------PATCH for mac address------------
+#define MAC_ADDRESS_LEN_C   17
+//------------------------------------------
 
 static struct sk_buff *wlan_static_skb[WLAN_SKB_BUF_NUM];
 
@@ -42,6 +45,22 @@ static wifi_mem_prealloc_t wifi_mem_array[PREALLOC_WLAN_NUMBER_OF_SECTIONS] = {
 	{ NULL, (WLAN_SECTION_SIZE_2 + PREALLOC_WLAN_SECTION_HEADER) },
 	{ NULL, (WLAN_SECTION_SIZE_3 + PREALLOC_WLAN_SECTION_HEADER) }
 };
+//---------PATCH for mac address-----------------
+static char htcleo_mac_address_c[MAC_ADDRESS_LEN_C+1];
+static int __init htcleo_macaddress_setup(char *bootconfig) 
+{
+	printk("%s: cmdline mac config=%s | %s\n",__FUNCTION__, bootconfig, __FILE__);
+	strncpy(htcleo_mac_address_c, bootconfig, MAC_ADDRESS_LEN_C);
+    return 1;
+}
+__setup("wifi.mac_address=", htcleo_macaddress_setup);
+
+const char *get_htcleo_mac_address_c(void)
+{
+	return htcleo_mac_address_c;
+}
+EXPORT_SYMBOL(get_htcleo_mac_address_c);
+//------------------------------------------
 
 static void *htcleo_wifi_mem_prealloc(int section, unsigned long size)
 {

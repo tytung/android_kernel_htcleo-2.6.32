@@ -72,6 +72,30 @@ struct dhd_bus *g_bus;
 static struct wifi_platform_data *wifi_control_data = NULL;
 static struct resource *wifi_irqres = NULL;
 
+//---------PATCH for mac address-----------------
+extern const char *get_htcleo_mac_address_c(void);
+uint8 mac_address[ETHER_ADDR_LEN];
+int user_mac_address = 0; 
+
+static void dhd_macaddress_setup(void) 
+{
+	int ret, i;
+	unsigned int tmp[ETHER_ADDR_LEN];
+	ret = sscanf(get_htcleo_mac_address_c(), "%2x:%2x:%2x:%2x:%2x:%2x", tmp, tmp+1, tmp+2, tmp+3, tmp+4, tmp+5);
+	if (ret==ETHER_ADDR_LEN)
+	{
+		for (i=0; i<ETHER_ADDR_LEN; i++)
+			mac_address[i] = (uint8)tmp[i];
+		user_mac_address = 1;
+	}
+	myprintf("%s parsed mac_address=%2x:%2x:%2x:%2x:%2x:%2x | %s\n",__FUNCTION__,
+	       mac_address[0], mac_address[1], mac_address[2],
+	       mac_address[3], mac_address[4], mac_address[5], __FILE__);
+    return;
+}
+//------------------------------------------
+
+
 #if 0
 extern int htc_linux_periodic_wakeup_init(void);
 extern void htc_linux_periodic_wakeup_exit(void);
@@ -2221,6 +2245,9 @@ dhd_module_init(void)
 	int error;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+	//-----patch for mac address-----------
+	dhd_macaddress_setup();
+	//-------------------------------------
 
 	/* Sanity check on the module parameters */
 	do {
