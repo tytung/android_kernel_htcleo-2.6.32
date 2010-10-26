@@ -40,6 +40,7 @@ enum {
 
 enum {
 	THERMAL_300,
+	THERMAL_600,
 	THERMAL_1000,
 };
 
