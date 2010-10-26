@@ -175,18 +175,31 @@ static int htcleo_charge(int on, int fast)
 
 static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_status *s)
 {
-	short n;
+	short n, tRaw;
 	uint32_t n32;
-	uint32_t FL, ACR, ACR_EMPTY;
+	uint32_t FL, ACR, ACR_EMPTY, PC;
 
 	/* Get status reg */
 	s->status_reg = raw_status;
 
 	/* Get Level */
-	// TODO: FL too wrong (?)
 	ACR = ((raw[8] << 8) | raw[9]);
-	FL = (LEO_BATTERY_CAPACITY * 1570) / 625;
-	ACR_EMPTY = (LEO_BATTERY_EMPTY * 1570) / 625;
+	/* ACR is always higher on an extended battery, though ideally we'd have code for various batteries
+	   based on their Package IDs (which is what I presume we read via AUX in combination with temp)
+	   but supporting the two official batteries is a good start.  */
+	if( ACR > 9000 )
+	{
+		PC = LEO_EXTENDED_BATTERY_CAPACITY;
+		// FL gives the difference between full and empty ACR values
+		FL = (LEO_EXTENDED_BATTERY_CAPACITY * 1570) / 625; // 5821 = ACR of 15344
+		ACR_EMPTY = (LEO_EXTENDED_BATTERY_EMPTY * 1570) / 625; // 9523
+	}
+	else
+	{
+		PC = LEO_BATTERY_CAPACITY;
+		FL = (LEO_BATTERY_CAPACITY * 1570) / 625; // 3089 = ACR of 4345
+		ACR_EMPTY = (LEO_BATTERY_EMPTY * 1570) / 625; // 1256
+	}
 	s->percentage = (100 * (ACR - ACR_EMPTY)) / FL;
 
 	s->charge_uAh = 1000 * (((ACR - ACR_EMPTY) * 625) / 1570);
@@ -204,13 +217,13 @@ static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_statu
 	n = ((raw[6]) << 8) | raw[7];
 	s->current_uA = 1000 * (((n/4) * 625) / 1570);
 
-	printk("ACR=%d CURR=%d VOL=%d RAAC=%d\n", ACR, s->current_uA, s->voltage_uV, s->percentage);
-
 	// average current not supported by DS2746
 	s->current_avg_uA = s->current_uA;
 
 	/* Get Temperature */
 	n = ((raw[0] << 8) | (raw[1]));
+	tRaw = n;
+	if ( PC == LEO_EXTENDED_BATTERY_CAPACITY ) n *= 7;
 	n /= 16;
 
     //    printk("temp = %x\n", n);
@@ -227,6 +240,7 @@ static void htcleo_parse_data(uint32_t raw_status, u8 *raw, struct battery_statu
 	{
 		s->temp_C = -250;
 	}
+	printk("PC=%d ACR=%d RAAC=%d T=%d, TRAW=%hd\n", PC, ACR, s->percentage, s->temp_C, tRaw);
 }
 
 static int htcleo_battery_read_status(struct htcleo_device_info *di)
@@ -360,6 +374,7 @@ static int battery_adjust_charge_state(struct htcleo_device_info *di)
 	bool charge_timeout = false;
 	static int lastval=0xffff;
 	const int min_curr=5000;
+	uint32_t ACR, FL, ACR_EMPTY;
 
 	mutex_lock(&charge_state_lock);
 
@@ -374,11 +389,17 @@ static int battery_adjust_charge_state(struct htcleo_device_info *di)
 	* NONE:OFF, USB:SLOW, AC:FAST
 	*/
 	charge_mode = source;
-	
+
 	// Check whether the bat is full and change the ACR to right 100% value
 	if(curr >=0 && curr < min_curr && lastval < min_curr &&  perc > 95 && source) {
-		uint32_t FL = (LEO_BATTERY_CAPACITY * 1570) / 625;
-		uint32_t ACR_EMPTY = (LEO_BATTERY_EMPTY * 1570) / 625;
+		ACR = ((di->raw[8] << 8) | di->raw[9]);
+		if( ACR > 9000 ) {
+			FL = (LEO_EXTENDED_BATTERY_CAPACITY * 1570) / 625;
+			ACR_EMPTY = (LEO_EXTENDED_BATTERY_EMPTY * 1570) / 625;
+		} else {
+			FL = (LEO_BATTERY_CAPACITY * 1570) / 625;
+			ACR_EMPTY = (LEO_BATTERY_EMPTY * 1570) / 625;
+		}
 		I2C_Write_ACR(di, FL+ACR_EMPTY);
 		di->status.battery_full = 1;
 		di->status.percentage = 100;
