@@ -738,7 +738,7 @@ static struct platform_device htc_battery_pdev = {
 
 static int get_thermal_id(void)
 {
-	return THERMAL_300;
+	return THERMAL_600;
 }
 
 static struct ds2746_platform_data ds2746_pdev_data = {
