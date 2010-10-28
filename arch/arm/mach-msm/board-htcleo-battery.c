@@ -414,7 +414,7 @@ static int battery_adjust_charge_state(struct htcleo_device_info *di)
 	ovp = gpio_get_value(HTCLEO_GPIO_BATTERY_OVER_CHG);
 	if (ovp)
 	{
-		printk("Battery overpowered!\n");
+		//printk("Battery overpowered!\n");
 	}
 
 	if (temp >= TEMP_HOT || ovp)
