@@ -5,9 +5,6 @@
 
 #define LEO_BATTERY_CAPACITY    1230
 #define LEO_BATTERY_EMPTY       500
-#define LEO_EXTENDED_BATTERY_CAPACITY    2300
-/* This was calculated based on an observed full ACR - FL */
-#define LEO_EXTENDED_BATTERY_EMPTY       3791
 
 // from board-htcleo-power.c
 extern int is_ac_power_supplied(void);
