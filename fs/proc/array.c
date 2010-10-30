@@ -454,7 +454,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 
 	seq_printf(m, "%d (%s) %c %d %d %d %d %d %u %lu \
 %lu %lu %lu %lu %lu %ld %ld %ld %ld %d 0 %llu %lu %ld %lu %lu %lu %lu %lu \
-%lu %lu %lu %lu %lu %lu %lu %lu %d %d %u %u %llu %lu %ld %ld\n",
+%lu %lu %lu %lu %lu %lu %lu %lu %d %d %u %u %llu %lu %ld %lld\n",
 		pid_nr_ns(pid, ns),
 		tcomm,
 		state,

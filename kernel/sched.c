@@ -7060,7 +7060,7 @@ cpumask_var_t nohz_cpu_mask;
  */
 static void update_sysctl(void)
 {
-	unsigned int cpus = min(num_online_cpus(), 8U);
+	unsigned int cpus = min((unsigned int)num_online_cpus(), 8U);
 	unsigned int factor = 1 + ilog2(cpus);
 
 #define SET_SYSCTL(name) \

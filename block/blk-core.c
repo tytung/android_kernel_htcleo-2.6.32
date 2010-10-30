@@ -1560,6 +1560,9 @@ void submit_bio(int rw, struct bio *bio)
 	 * go through the normal accounting stuff before submission.
 	 */
 	if (bio_has_data(bio)) {
+#if defined(CONFIG_MSM_RMT_STORAGE_SERVER)
+		char bde[BDEVNAME_SIZE];
+#endif
 		if (rw & WRITE) {
 			count_vm_events(PGPGOUT, count);
 		} else {
@@ -1576,9 +1579,8 @@ void submit_bio(int rw, struct bio *bio)
 				bdevname(bio->bi_bdev, b),
 				count);
 		}
-#if CONFIG_MSM_RMT_STORAGE_SERVER
+#if defined(CONFIG_MSM_RMT_STORAGE_SERVER)
 		/* Get process info for the bio of writing radio partition in eMMC boot */
-		char bde[BDEVNAME_SIZE];
 		if (!strcmp(bdevname(bio->bi_bdev, bde), "mmcblk0")) {
 			/* 131072 mean modem_st1 partition*/
 			if (bio->bi_sector < 131072) {
