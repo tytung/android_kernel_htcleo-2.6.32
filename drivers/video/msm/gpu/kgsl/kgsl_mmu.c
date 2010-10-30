@@ -464,6 +464,9 @@ int kgsl_mmu_map(struct kgsl_pagetable *pagetable,
 	KGSL_MEM_VDBG("enter (pt=%p, physaddr=%08x, range=%08d, gpuaddr=%p)\n",
 		      pagetable, address, range, gpuaddr);
 
+#ifdef CONFIG_CACHE_L2X0
+        l2x0_cache_flush_all();
+#endif
 	mmu = pagetable->mmu;
 
 	BUG_ON(mmu == NULL);

@@ -119,10 +119,16 @@ static void kgsl_clk_enable(void)
 	clk_set_rate(kgsl_driver.ebi1_clk, 128000000);
 	clk_enable(kgsl_driver.imem_clk);
 	clk_enable(kgsl_driver.grp_clk);
+#ifdef CONFIG_ARCH_MSM7227
+	clk_enable(kgsl_driver.grp_pclk);
+#endif
 }
 
 static void kgsl_clk_disable(void)
 {
+#ifdef CONFIG_ARCH_MSM7227
+	clk_disable(kgsl_driver.grp_pclk);
+#endif
 	clk_disable(kgsl_driver.grp_clk);
 	clk_disable(kgsl_driver.imem_clk);
 	clk_set_rate(kgsl_driver.ebi1_clk, 0);
@@ -163,7 +169,7 @@ static void kgsl_hw_put_locked(bool start_timer)
 {
 	if ((--kgsl_driver.active_cnt == 0) && start_timer) {
 		mod_timer(&kgsl_driver.standby_timer,
-			  jiffies + msecs_to_jiffies(20));
+			  jiffies + msecs_to_jiffies(512));
 	}
 }
 
@@ -1031,10 +1037,52 @@ static long kgsl_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 	return result;
 }
 
+static int kgsl_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	int result;
+	struct kgsl_memdesc *memdesc = NULL;
+	unsigned long vma_size = vma->vm_end - vma->vm_start;
+	unsigned long vma_offset = vma->vm_pgoff << PAGE_SHIFT;
+	struct kgsl_device *device = NULL;
+
+	mutex_lock(&kgsl_driver.mutex);
+
+	device = &kgsl_driver.yamato_device;
+
+	/*allow yamato memstore to be mapped read only */
+	if (vma_offset == device->memstore.physaddr) {
+		if (vma->vm_flags & VM_WRITE) {
+			result = -EPERM;
+			goto done;
+		}
+		memdesc = &device->memstore;
+	}
+
+	if (memdesc->size != vma_size) {
+		KGSL_MEM_ERR("file %p bad size %ld, should be %d\n",
+			file, vma_size, memdesc->size);
+		result = -EINVAL;
+		goto done;
+	}
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+	result = remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
+				vma_size, vma->vm_page_prot);
+	if (result != 0) {
+		KGSL_MEM_ERR("remap_pfn_range returned %d\n",
+				result);
+		goto done;
+	}
+done:
+	mutex_unlock(&kgsl_driver.mutex);
+	return result;
+}
+
 static struct file_operations kgsl_fops = {
 	.owner = THIS_MODULE,
 	.release = kgsl_release,
 	.open = kgsl_open,
+	.mmap = kgsl_mmap,
 	.unlocked_ioctl = kgsl_ioctl,
 };
 
@@ -1096,6 +1144,9 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 	BUG_ON(kgsl_driver.grp_clk != NULL);
 	BUG_ON(kgsl_driver.imem_clk != NULL);
 	BUG_ON(kgsl_driver.ebi1_clk != NULL);
+#ifdef CONFIG_ARCH_MSM7227
+	BUG_ON(kgsl_driver.grp_pclk != NULL);
+#endif
 
 	kgsl_driver.pdev = pdev;
 
@@ -1126,6 +1177,15 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 	}
 	kgsl_driver.ebi1_clk = clk;
 
+#ifdef CONFIG_ARCH_MSM7227
+	clk = clk_get(&pdev->dev, "grp_pclk");
+	if (IS_ERR(clk)) {
+		result = PTR_ERR(clk);
+		KGSL_DRV_ERR("clk_get(grp_pclk) returned %d\n", result);
+		goto done;
+	}
+	kgsl_driver.grp_pclk = clk;
+#endif
 	/*acquire interrupt */
 	kgsl_driver.interrupt_num = platform_get_irq(pdev, 0);
 	if (kgsl_driver.interrupt_num <= 0) {

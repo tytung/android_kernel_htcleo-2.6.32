@@ -16,6 +16,7 @@
 #define _VIDEO_MSM_MDP_PPP_H_
 
 #include <linux/types.h>
+#define  PPP_DUMP_BLITS 0
 
 struct ppp_regs {
 	uint32_t src0;
@@ -68,11 +69,10 @@ int mdp_ppp_cfg_scale(const struct mdp_info *mdp, struct ppp_regs *regs,
 		      struct mdp_rect *src_rect, struct mdp_rect *dst_rect,
 		      uint32_t src_format, uint32_t dst_format);
 int mdp_ppp_load_blur(const struct mdp_info *mdp);
+void mdp_dump_blit(struct mdp_blit_req *req);
 
-#ifndef CONFIG_MSM_MDP31
-int mdp_ppp_cfg_edge_cond(struct mdp_blit_req *req, struct ppp_regs *regs);
-#else
 
+#if defined(CONFIG_MSM_MDP31) || defined(CONFIG_MSM_MDP302)
 int mdp_ppp_blit_split_width(struct mdp_info *mdp, const struct mdp_blit_req *req,
 	struct file *src_file, unsigned long src_start, unsigned long src_len,
 	struct file *dst_file, unsigned long dst_start, unsigned long dst_len);
@@ -80,11 +80,18 @@ int mdp_ppp_blit_split_height(struct mdp_info *mdp, const struct mdp_blit_req *r
 	struct file *src_file, unsigned long src_start, unsigned long src_len,
 	struct file *dst_file, unsigned long dst_start, unsigned long dst_len);
 
+#if defined(CONFIG_MSM_MDP302)
+int mdp_ppp_cfg_edge_cond(struct mdp_blit_req *req, struct ppp_regs *regs);
+#else
 static inline int mdp_ppp_cfg_edge_cond(struct mdp_blit_req *req,
 				 struct ppp_regs *regs)
 {
 	return 0;
 }
+#endif
+
+#else
+int mdp_ppp_cfg_edge_cond(struct mdp_blit_req *req, struct ppp_regs *regs);
 #endif
 
 int mdp_get_bytes_per_pixel(int format);

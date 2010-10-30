@@ -52,19 +52,19 @@ static uint32_t dst_img_cfg[] = {
 	PPP_ARRAY1(CFG, DST)
 };
 
-static const uint32_t bytes_per_pixel[] = {
+static uint32_t bytes_per_pixel[] = {
 	[MDP_RGB_565] = 2,
-	[MDP_XRGB_8888] = 4,
-	[MDP_Y_CBCR_H2V2] = 1,
-	[MDP_ARGB_8888] = 4,
 	[MDP_RGB_888] = 3,
-	[MDP_Y_CRCB_H2V2] = 1,
-	[MDP_YCRYCB_H2V1] = 2,
-	[MDP_Y_CRCB_H2V1] = 1,
-	[MDP_Y_CBCR_H2V1] = 1,
+	[MDP_XRGB_8888] = 4,
+	[MDP_ARGB_8888] = 4,
 	[MDP_RGBA_8888] = 4,
 	[MDP_BGRA_8888] = 4,
 	[MDP_RGBX_8888] = 4,
+	[MDP_Y_CBCR_H2V1] = 1,
+	[MDP_Y_CBCR_H2V2] = 1,
+	[MDP_Y_CRCB_H2V1] = 1,
+	[MDP_Y_CRCB_H2V2] = 1,
+	[MDP_YCRYCB_H2V1] = 2
 };
 
 static uint32_t dst_op_chroma[] = {
@@ -268,7 +268,7 @@ static void blit_blend(struct mdp_blit_req *req, struct ppp_regs *regs)
 	req->alpha &= 0xff;
 	/* ALPHA BLEND */
 	if (HAS_ALPHA(req->src.format)) {
-#if 0
+#if !defined(CONFIG_MACH_HTCLEO)	
 		regs->op |= PPP_OP_ROT_ON | PPP_OP_BLEND_ON;
 		if (req->flags & MDP_BLEND_FG_PREMULT) {
 #ifdef CONFIG_MSM_MDP31
@@ -282,7 +282,7 @@ static void blit_blend(struct mdp_blit_req *req, struct ppp_regs *regs)
 			regs->op |= PPP_OP_BLEND_CONSTANT_ALPHA;
 			req->alpha = 0xff;
 #endif
-		} els {
+		} else {
 			regs->op |= PPP_OP_BLEND_SRCPIXEL_ALPHA;
 		}
 #else
@@ -499,19 +499,21 @@ static int send_blit(const struct mdp_info *mdp, struct mdp_blit_req *req,
 #ifdef CONFIG_MSM_MDP31
 		mdp_writel_dbg(mdp, regs->bg_xy, MDP_PPP_BG_XY);
 		mdp_writel_dbg(mdp, regs->bg_img_sz, MDP_PPP_BG_IMAGE_SIZE);
-		mdp_writel_dbg(mdp, regs->bg_alpha_sel, MDP_PPP_BLEND_BG_ALPHA_SEL);
-
-		mdp_writel_dbg(mdp, 0, MDP_TFETCH_TEST_MODE);
-
+		mdp_writel_dbg(mdp, regs->bg_alpha_sel,
+			       MDP_PPP_BLEND_BG_ALPHA_SEL);
+			       
+#if defined(CONFIG_MACH_HTCLEO)
+      		mdp_writel_dbg(mdp, 0, MDP_TFETCH_TEST_MODE);
+#endif
 #endif
 	}
-	flush_imgs(req, regs, src_file, dst_file);
+	if( src_file != -1 && dst_file != -1 )
+		flush_imgs(req, regs, src_file, dst_file);
 	mdp_writel_dbg(mdp, 0x1000, MDP_DISPLAY0_START);
 	return 0;
 }
 
-#if PPP_DUMP_BLITS
-static void mdp_dump_blit(struct mdp_blit_req *req)
+void mdp_dump_blit(struct mdp_blit_req *req)
 {
 	pr_info("%s: src: w=%d h=%d f=0x%x offs=0x%x mem_id=%d\n", __func__,
 		req->src.width, req->src.height, req->src.format,
@@ -529,7 +531,6 @@ static void mdp_dump_blit(struct mdp_blit_req *req)
 	pr_info("%s: transp_max=0x%08x\n", __func__, req->transp_mask);
 	pr_info("%s: flags=%08x\n", __func__, req->flags);
 }
-#endif
 
 int mdp_ppp_blit(const struct mdp_info *mdp, struct mdp_blit_req *req,
 		 struct file *src_file, unsigned long src_start, unsigned long src_len,
@@ -655,13 +656,6 @@ int mdp_get_bytes_per_pixel(int format)
 
 void mdp_ppp_dump_debug(const struct mdp_info *mdp)
 {
-	mdp_dump_register(mdp, MDP_CMD_STATUS);
-	mdp_dump_register(mdp, MDP_DMA_P_CONFIG);
-	mdp_dump_register(mdp, MDP_DISPLAY_STATUS);
-	mdp_dump_register(mdp, MDP_DMA_P_IBUF_Y_STRIDE);
-	mdp_dump_register(mdp, MDP_DMA_P_IBUF_ADDR);
-	mdp_dump_register(mdp, MDP_LCDC_UNDERFLOW_CTL);
-	mdp_dump_register(mdp, MDP_TFETCH_TEST_MODE);
 	mdp_dump_register(mdp, MDP_TFETCH_STATUS);
 	mdp_dump_register(mdp, MDP_TFETCH_TILE_COUNT);
 	mdp_dump_register(mdp, MDP_TFETCH_FETCH_COUNT);
@@ -672,4 +666,236 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp)
 	mdp_dump_register(mdp, MDP_PPP_BLEND_STATUS);
 	mdp_dump_register(mdp, MDP_INTR_STATUS);
 	mdp_dump_register(mdp, MDP_INTR_ENABLE);
+}
+
+
+/* Splits a blit into two horizontal stripes.  Used to work around MDP bugs */
+int mdp_ppp_blit_split_height(struct mdp_info *mdp, const struct mdp_blit_req *req,
+	struct file *src_file, unsigned long src_start, unsigned long src_len,
+	struct file *dst_file, unsigned long dst_start, unsigned long dst_len)
+{
+	int ret;
+	struct mdp_blit_req splitreq;
+	int s_x_0, s_x_1, s_w_0, s_w_1, s_y_0, s_y_1, s_h_0, s_h_1;
+	int d_x_0, d_x_1, d_w_0, d_w_1, d_y_0, d_y_1, d_h_0, d_h_1;
+
+	splitreq = *req;
+	/* break dest roi at height*/
+	d_x_0 = d_x_1 = req->dst_rect.x;
+	d_w_0 = d_w_1 = req->dst_rect.w;
+	d_y_0 = req->dst_rect.y;
+	if (req->dst_rect.h % 32 == 3)
+		d_h_1 = (req->dst_rect.h - 3) / 2 - 1;
+	else
+		d_h_1 = (req->dst_rect.h - 1) / 2 - 1;
+	d_h_0 = req->dst_rect.h - d_h_1;
+	d_y_1 = d_y_0 + d_h_0;
+	if (req->dst_rect.h == 3) {
+		d_h_1 = 2;
+		d_h_0 = 2;
+		d_y_1 = d_y_0 + 1;
+	}
+	/* break source roi */
+	if (splitreq.flags & MDP_ROT_90) {
+		s_y_0 = s_y_1 = req->src_rect.y;
+		s_h_0 = s_h_1 = req->src_rect.h;
+		s_x_0 = req->src_rect.x;
+		s_w_1 = (req->src_rect.w * d_h_1) / req->dst_rect.h;
+		s_w_0 = req->src_rect.w - s_w_1;
+		s_x_1 = s_x_0 + s_w_0;
+		if (d_h_1 >= 8 * s_w_1) {
+			s_w_1++;
+			s_x_1--;
+		}
+	} else {
+		s_x_0 = s_x_1 = req->src_rect.x;
+		s_w_0 = s_w_1 = req->src_rect.w;
+		s_y_0 = req->src_rect.y;
+		s_h_1 = (req->src_rect.h * d_h_1) / req->dst_rect.h;
+		s_h_0 = req->src_rect.h - s_h_1;
+		s_y_1 = s_y_0 + s_h_0;
+		if (d_h_1 >= 8 * s_h_1) {
+			s_h_1++;
+			s_y_1--;
+		}
+	}
+
+	/* blit first region */
+	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_90) ||
+		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
+		splitreq.src_rect.h = s_h_0;
+		splitreq.src_rect.y = s_y_0;
+		splitreq.dst_rect.h = d_h_0;
+		splitreq.dst_rect.y = d_y_0;
+		splitreq.src_rect.x = s_x_0;
+		splitreq.src_rect.w = s_w_0;
+		splitreq.dst_rect.x = d_x_0;
+		splitreq.dst_rect.w = d_w_0;
+	} else {
+		splitreq.src_rect.h = s_h_0;
+		splitreq.src_rect.y = s_y_0;
+		splitreq.dst_rect.h = d_h_1;
+		splitreq.dst_rect.y = d_y_1;
+		splitreq.src_rect.x = s_x_0;
+		splitreq.src_rect.w = s_w_0;
+		splitreq.dst_rect.x = d_x_1;
+		splitreq.dst_rect.w = d_w_1;
+	}
+	ret = mdp_blit_and_wait(mdp, &splitreq,
+		src_file, src_start, src_len,
+		dst_file, dst_start, dst_len);
+	if (ret)
+		return ret;
+
+	/* blit second region */
+	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_90) ||
+		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
+		splitreq.src_rect.h = s_h_1;
+		splitreq.src_rect.y = s_y_1;
+		splitreq.dst_rect.h = d_h_1;
+		splitreq.dst_rect.y = d_y_1;
+		splitreq.src_rect.x = s_x_1;
+		splitreq.src_rect.w = s_w_1;
+		splitreq.dst_rect.x = d_x_1;
+		splitreq.dst_rect.w = d_w_1;
+	} else {
+		splitreq.src_rect.h = s_h_1;
+		splitreq.src_rect.y = s_y_1;
+		splitreq.dst_rect.h = d_h_0;
+		splitreq.dst_rect.y = d_y_0;
+		splitreq.src_rect.x = s_x_1;
+		splitreq.src_rect.w = s_w_1;
+		splitreq.dst_rect.x = d_x_0;
+		splitreq.dst_rect.w = d_w_0;
+	}
+	ret = mdp_blit_and_wait(mdp, &splitreq,
+		src_file, src_start, src_len,
+		dst_file, dst_start, dst_len);
+	return ret;
+}
+
+/* Splits a blit into two vertical stripes.  Used to work around MDP bugs */
+int mdp_ppp_blit_split_width(struct mdp_info *mdp, const struct mdp_blit_req *req,
+	struct file *src_file, unsigned long src_start, unsigned long src_len,
+	struct file *dst_file, unsigned long dst_start, unsigned long dst_len)
+{
+	int ret;
+	struct mdp_blit_req splitreq;
+	int s_x_0, s_x_1, s_w_0, s_w_1, s_y_0, s_y_1, s_h_0, s_h_1;
+	int d_x_0, d_x_1, d_w_0, d_w_1, d_y_0, d_y_1, d_h_0, d_h_1;
+	splitreq = *req;
+
+	/* break dest roi at width*/
+	d_y_0 = d_y_1 = req->dst_rect.y;
+	d_h_0 = d_h_1 = req->dst_rect.h;
+	d_x_0 = req->dst_rect.x;
+	if (req->dst_rect.w % 32 == 6)
+		d_w_1 = req->dst_rect.w / 2 - 1;
+	else if (req->dst_rect.w % 2 == 0)
+		d_w_1 = req->dst_rect.w / 2;
+	else if (req->dst_rect.w % 32 == 3)
+		d_w_1 = (req->dst_rect.w - 3) / 2 - 1;
+	else
+		d_w_1 = (req->dst_rect.w - 1) / 2 - 1;
+	d_w_0 = req->dst_rect.w - d_w_1;
+	d_x_1 = d_x_0 + d_w_0;
+	if (req->dst_rect.w == 3) {
+		d_w_1 = 2;
+		d_w_0 = 2;
+		d_x_1 = d_x_0 + 1;
+	}
+
+	/* break src roi at height or width*/
+	if (splitreq.flags & MDP_ROT_90) {
+		s_x_0 = s_x_1 = req->src_rect.x;
+		s_w_0 = s_w_1 = req->src_rect.w;
+		s_y_0 = req->src_rect.y;
+		s_h_1 = (req->src_rect.h * d_w_1) / req->dst_rect.w;
+		s_h_0 = req->src_rect.h - s_h_1;
+		s_y_1 = s_y_0 + s_h_0;
+		if (d_w_1 >= 8 * s_h_1) {
+			s_h_1++;
+			s_y_1--;
+		}
+	} else {
+		s_y_0 = s_y_1 = req->src_rect.y;
+		s_h_0 = s_h_1 = req->src_rect.h;
+		s_x_0 = req->src_rect.x;
+		s_w_1 = (req->src_rect.w * d_w_1) / req->dst_rect.w;
+		s_w_0 = req->src_rect.w - s_w_1;
+		s_x_1 = s_x_0 + s_w_0;
+		if (d_w_1 >= 8 * s_w_1) {
+			s_w_1++;
+			s_x_1--;
+		}
+	}
+
+	/* blit first region */
+	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_270) ||
+		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
+		splitreq.src_rect.h = s_h_0;
+		splitreq.src_rect.y = s_y_0;
+		splitreq.dst_rect.h = d_h_0;
+		splitreq.dst_rect.y = d_y_0;
+		splitreq.src_rect.x = s_x_0;
+		splitreq.src_rect.w = s_w_0;
+		splitreq.dst_rect.x = d_x_0;
+		splitreq.dst_rect.w = d_w_0;
+	} else {
+		splitreq.src_rect.h = s_h_0;
+		splitreq.src_rect.y = s_y_0;
+		splitreq.dst_rect.h = d_h_1;
+		splitreq.dst_rect.y = d_y_1;
+		splitreq.src_rect.x = s_x_0;
+		splitreq.src_rect.w = s_w_0;
+		splitreq.dst_rect.x = d_x_1;
+		splitreq.dst_rect.w = d_w_1;
+	}
+
+	if (unlikely((splitreq.dst_rect.h != 1) &&
+		((splitreq.dst_rect.h % 32 == 3) ||
+		(splitreq.dst_rect.h % 32) == 1)))
+		ret = mdp_ppp_blit_split_height(mdp, &splitreq,
+			src_file, src_start, src_len,
+			dst_file, dst_start, dst_len);
+	else
+		ret = mdp_blit_and_wait(mdp, &splitreq,
+			src_file, src_start, src_len,
+			dst_file, dst_start, dst_len);
+	if (ret)
+		return ret;
+
+	/* blit second region */
+	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_270) ||
+		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
+		splitreq.src_rect.h = s_h_1;
+		splitreq.src_rect.y = s_y_1;
+		splitreq.dst_rect.h = d_h_1;
+		splitreq.dst_rect.y = d_y_1;
+		splitreq.src_rect.x = s_x_1;
+		splitreq.src_rect.w = s_w_1;
+		splitreq.dst_rect.x = d_x_1;
+		splitreq.dst_rect.w = d_w_1;
+	} else {
+		splitreq.src_rect.h = s_h_1;
+		splitreq.src_rect.y = s_y_1;
+		splitreq.dst_rect.h = d_h_0;
+		splitreq.dst_rect.y = d_y_0;
+		splitreq.src_rect.x = s_x_1;
+		splitreq.src_rect.w = s_w_1;
+		splitreq.dst_rect.x = d_x_0;
+		splitreq.dst_rect.w = d_w_0;
+	}
+
+	if (unlikely((splitreq.dst_rect.h != 1) &&
+		((splitreq.dst_rect.h % 32 == 3) ||
+		(splitreq.dst_rect.h % 32) == 1)))
+		ret = mdp_ppp_blit_split_height(mdp, &splitreq,
+			src_file, src_start, src_len,
+			dst_file, dst_start, dst_len);
+	else
+		ret = mdp_blit_and_wait(mdp, &splitreq,
+			src_file, src_start, src_len,
+			dst_file, dst_start, dst_len);
+	return ret;
 }
