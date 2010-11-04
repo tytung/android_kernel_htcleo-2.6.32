@@ -47,7 +47,7 @@ user may be able to adjust time in future
 //#define LSENSOR_ABLK_ONLY       2
 
 
-#define LSENSOR_POLL_PROMESHUTOK   1000
+#define LSENSOR_POLL_PROMESHUTOK   5000
 
 #define D(x...) pr_debug(x)
 // pr_info(x)
