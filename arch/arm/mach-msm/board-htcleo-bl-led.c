@@ -85,7 +85,7 @@ static ssize_t htcleo_auto_bl_set(struct device *dev,
 }
 
 
-static DEVICE_ATTR(auto_bl, 0644,  htcleo_auto_bl_get, htcleo_auto_bl_set);
+static DEVICE_ATTR(auto_bl, 0666,  htcleo_auto_bl_get, htcleo_auto_bl_set);
 
 static int htcleo_brightness_onoff_bkl(int enable)
 {
@@ -131,14 +131,14 @@ static void htcleo_brightness_set(struct led_classdev *led_cdev, enum led_bright
 	LCMDBG("htcleo_brightness_set: %d\n", val);
 	if (val > 255) val = 255;
 	led_cdev->brightness = val;
-	if (val < 30)
+	if (val < 1)
 	{
 		htcleo_brightness_onoff_bkl(0);
 	}
 	else
 	{
 		htcleo_brightness_onoff_bkl(1);
-		htcleo_brightness_set_bkl((val - 30) / 23);
+		htcleo_brightness_set_bkl((val - 1) / 23);
 	}
 	mutex_unlock(&htcleo_backlight_lock);
 }

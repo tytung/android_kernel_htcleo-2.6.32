@@ -497,6 +497,7 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 	unsigned page_oob_done;
 	uint32_t oob_count=0;
 	uint32_t oob_done_size=0;
+	uint32_t data_count=0; //number of bytes mapped into dma
 	int readdata=0;
 	int readoob=0;
 	uint32_t readcmd;
@@ -620,6 +621,7 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 	{
 		/* memset(ops->datbuf, 0x55, ops->len); */
 		data_dma_addr_curr = data_dma_addr = msm_nand_dma_map(chip->dev, ops->datbuf, ops->len, DMA_FROM_DEVICE);
+		data_count = ops->len; //initially map whole buf to dma
 		if (dma_mapping_error(chip->dev, data_dma_addr)) 
 		{
 			pr_err("msm_nand_read_oob: failed to get dma addr for %p\n", ops->datbuf);
@@ -821,11 +823,14 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 			if (readdata) 
 			{
 				uint8_t *datbuf = ops->datbuf + pages_read * mtd->writesize;
-
-				dma_sync_single_for_cpu(chip->dev,
-					data_dma_addr_curr-mtd->writesize,
-					mtd->writesize, DMA_BIDIRECTIONAL);
-
+				uint32_t data_done = data_dma_addr_curr-data_dma_addr;
+#if VERBOSE
+				printk("msm_nand_read_oob dma_unmap_page %08x\n", (uint32_t)data_dma_addr_curr);
+#endif
+				dma_unmap_page(chip->dev, data_dma_addr, data_count, DMA_FROM_DEVICE);
+				data_count -= data_done; // we wont be mapping the already transferred bytes to avoid corruption
+				//data now ready to be read by cpu
+				
 				for (n = 0; n < mtd->writesize; n++) 
 				{
 					if ((n % 512) == 0xF3 && datbuf[n] == 0x76)
@@ -842,13 +847,26 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 					}
 				}
 
-				dma_sync_single_for_device(chip->dev,
-					data_dma_addr_curr-mtd->writesize,
-					mtd->writesize, DMA_BIDIRECTIONAL);
-
+				//remap dma if there's still data to be read
+				if (data_count > 0)
+				{
+#if VERBOSE
+					printk("msm_nand_read_oob dma_map_page offset=%d length=%d\n", (uint32_t)(ops->len-data_count), data_count);
+#endif
+					data_dma_addr = msm_nand_dma_map(chip->dev, ops->datbuf+(ops->len-data_count), data_count, DMA_FROM_DEVICE);
+					data_dma_addr_curr = data_dma_addr;
+#if VERBOSE
+					printk("msm_nand_read_oob dma_map_page returned %08x\n", (uint32_t)data_dma_addr);
+#endif
+				}
+				else
+				{
+					data_dma_addr_curr = data_dma_addr = 0;
+				}
 			}
 			if (readoob && oob_done_size < oob_count) 
 			{
+				//no sync needed for BIDIR dma buffers
 				uint8_t *pageoobbuf = ops->oobbuf + oob_done_size;
 
 				for (n = 0; n < page_oob_done; n++)
@@ -909,7 +927,7 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 		} 
 		else 
 		{
-			pr_info("error status: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x \n",
+			pr_info("msm_nand_read_oob error status: %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x \n",
 				dma_buffer->data.result[0].flash_status,
 				dma_buffer->data.result[0].buffer_status,
 				dma_buffer->data.result[1].flash_status,
@@ -950,9 +968,9 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_o
 	msm_nand_release_dma_buffer(chip, dma_buffer, sizeof(*dma_buffer));
 
 	if (readoob)
-		dma_unmap_page(chip->dev, oob_dma_addr, oob_count, DMA_FROM_DEVICE);
+		dma_unmap_page(chip->dev, oob_dma_addr, oob_count, DMA_BIDIRECTIONAL);
 err_dma_map_oobbuf_failed:
-	if (readdata)
+	if (readdata && data_dma_addr != 0)
 		dma_unmap_page(chip->dev, data_dma_addr, ops->len, DMA_FROM_DEVICE);
 
 #ifdef ENABLE_FLASH_RW_DUMP

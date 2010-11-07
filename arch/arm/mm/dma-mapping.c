@@ -544,6 +544,12 @@ void dma_cache_maint(const void *start, size_t size, int direction)
 	void (*inner_op)(const void *, const void *);
 	void (*outer_op)(unsigned long, unsigned long);
 
+	if (!virt_addr_valid(start) || !virt_addr_valid(start + size - 1))
+	{
+		printk(KERN_ERR "%s: %08x not a valid virt address, PAGE_OFFSET=%08x, high_memory=%08x\n", 
+			__func__, (uint32_t)start,(uint32_t)PAGE_OFFSET, (uint32_t)high_memory );
+	}
+
 	BUG_ON(!virt_addr_valid(start) || !virt_addr_valid(start + size - 1));
 
 	switch (direction) {
