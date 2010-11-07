@@ -3324,6 +3324,8 @@ static struct early_suspend early_suspend_s5k3e2fx = {
 static const char *s5k3e2fxVendor = "Samsung";
 static const char *s5k3e2fxNAME = "s5k3e2fx";
 static const char *s5k3e2fxSize = "5M";
+static uint32_t htcwc_value;
+static int sensor_probe_node = 0;
 
 static ssize_t sensor_vendor_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -3336,7 +3338,45 @@ static ssize_t sensor_vendor_show(struct device *dev,
 	return ret;
 }
 
+static ssize_t htcwc_get(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t length;
+	length = sprintf(buf, "%d\n", htcwc_value);
+	return length;
+}
+
+static ssize_t htcwc_set(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	uint32_t tmp = 0;
+
+	tmp = buf[0] - 0x30; /* only get the first char */
+
+#if 0
+	if (strcmp(current->comm,"com.android.camera")!=0){
+		pr_info("No permission : not camera ap\n");
+		return -EINVAL;
+	}
+#endif
+
+	htcwc_value = tmp;
+	//pr_info("current_comm = %s\n", current->comm);
+	pr_info("htcwc_value = %d\n", htcwc_value);
+	return count;
+}
+
+static ssize_t sensor_read_node(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	ssize_t length;
+	length = sprintf(buf, "%d\n", sensor_probe_node);
+	return length;
+}
+
+static DEVICE_ATTR(htcwc, 0777, htcwc_get, htcwc_set);
 static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
+static DEVICE_ATTR(node, 0444, sensor_read_node, NULL);
 
 static struct kobject *android_s5k3e2fx;
 
@@ -3344,7 +3384,7 @@ static int s5k3e2fx_sysfs_init(void)
 {
 	int ret ;
 	pr_info("s5k3e2fx:kobject creat and add\n");
-	android_s5k3e2fx = kobject_create_and_add("android_camera", NULL);
+	android_s5k3e2fx = kobject_create_and_add("android_camera2", NULL);
 	if (android_s5k3e2fx == NULL) {
 		pr_info("s5k3e2fx_sysfs_init: subsystem_register " \
 		"failed\n");
@@ -3358,6 +3398,19 @@ static int s5k3e2fx_sysfs_init(void)
 		"failed\n");
 		kobject_del(android_s5k3e2fx);
 	}
+
+	ret = sysfs_create_file(android_s5k3e2fx, &dev_attr_htcwc.attr);
+	if (ret) {
+		pr_info("ov9665_sysfs_init: sysfs_create_file htcwc failed\n");
+		kobject_del(android_s5k3e2fx);
+	}
+
+	ret = sysfs_create_file(android_s5k3e2fx, &dev_attr_node.attr);
+	if (ret) {
+		pr_info("ov9665_sysfs_init: dev_attr_node failed\n");
+		kobject_del(android_s5k3e2fx);
+	}
+
 	return 0 ;
 }
 
@@ -3489,6 +3542,7 @@ static int s5k3e2fx_sensor_probe(struct msm_camera_sensor_info *info,
 	}
 
 	msm_camio_clk_rate_set(S5K3E2FX_DEF_MCLK);
+	sensor_probe_node = s->node;
 	msleep(20);
 
 	rc = s5k3e2fx_probe_init_sensor(info);
