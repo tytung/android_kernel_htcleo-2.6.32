@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32.15
-# Fri Oct 29 13:59:28 2010
+# Mon Nov  8 20:09:00 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -965,7 +965,8 @@ CONFIG_PPPOPNS=y
 # CONFIG_SLIP is not set
 CONFIG_SLHC=y
 # CONFIG_NETCONSOLE is not set
-# CONFIG_MSM_RMNET is not set
+CONFIG_MSM_RMNET=m
+# CONFIG_MSM_RMNET_DEBUG is not set
 # CONFIG_NETPOLL is not set
 # CONFIG_NET_POLL_CONTROLLER is not set
 # CONFIG_KINETO_GAN is not set
