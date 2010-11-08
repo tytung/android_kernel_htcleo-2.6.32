@@ -3379,11 +3379,27 @@ static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
 static DEVICE_ATTR(node, 0444, sensor_read_node, NULL);
 
 static struct kobject *android_s5k3e2fx;
+static struct kobject *android_s5k3e2fx_des;
 
 static int s5k3e2fx_sysfs_init(void)
 {
 	int ret ;
 	pr_info("s5k3e2fx:kobject creat and add\n");
+	android_s5k3e2fx_des = kobject_create_and_add("android_camera", NULL);
+	if (android_s5k3e2fx_des == NULL) {
+		pr_info("s5k3e2fx_sysfs_init: subsystem_register " \
+		"failed\n");
+		ret = -ENOMEM;
+		return ret ;
+	}
+	pr_info("s5k3e2fx:sysfs_create_file\n");
+	ret = sysfs_create_file(android_s5k3e2fx_des, &dev_attr_sensor.attr);
+	if (ret) {
+		pr_info("s5k3e2fx_sysfs_init: sysfs_create_file " \
+		"failed\n");
+		kobject_del(android_s5k3e2fx_des);
+	}
+
 	android_s5k3e2fx = kobject_create_and_add("android_camera2", NULL);
 	if (android_s5k3e2fx == NULL) {
 		pr_info("s5k3e2fx_sysfs_init: subsystem_register " \
