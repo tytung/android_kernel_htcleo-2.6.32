@@ -678,15 +678,12 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 		 * was a protection violation (0x100), we lose
 		 */
 		pageerr = rawerr = 0;
-// This check fails on reading from Leos NAND, we have to check why
-#ifndef CONFIG_MACH_HTCLEO		
 		for (n = start_sector; n < cwperpage; n++) {
 			if (dma_buffer->data.result[n].flash_status & 0x110) {
 				rawerr = -EIO;
 				break;
 			}
 		}
-#endif
 		if (rawerr) {
 			if (ops->datbuf) {
 				uint8_t *datbuf = ops->datbuf +

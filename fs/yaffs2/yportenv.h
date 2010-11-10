@@ -13,7 +13,6 @@
  * Note: Only YAFFS headers are LGPL, YAFFS C code is covered by GPL.
  */
 
-
 #ifndef __YPORTENV_H__
 #define __YPORTENV_H__
 
@@ -41,7 +40,7 @@
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19))
 #include <linux/config.h>
 #endif
-
+#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
@@ -49,6 +48,11 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/xattr.h>
+#include <linux/list.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/stat.h>
+#include <linux/sort.h>
 
 #define YCHAR char
 #define YUCHAR unsigned char
@@ -60,6 +64,7 @@
 #define yaffs_strnlen(s,m)	strnlen(s,m)
 #define yaffs_sprintf	       sprintf
 #define yaffs_toupper(a)       toupper(a)
+#define yaffs_sort(base, n, sz, cmp_fn) sort(base, n, sz, cmp_fn, NULL)
 
 #define Y_INLINE __inline__
 
@@ -87,7 +92,7 @@
 #define Y_TIME_CONVERT(x) (x)
 #endif
 
-#define yaffs_SumCompare(x, y) ((x) == (y))
+#define yaffs_sum_cmp(x, y) ((x) == (y))
 #define yaffs_strcmp(a, b) strcmp(a, b)
 
 #define TENDSTR "\n"
@@ -112,7 +117,6 @@
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
-
 
 #define YMALLOC(x) malloc(x)
 #define YFREE(x)   free(x)
@@ -145,7 +149,7 @@
 #define YAFFS_ROOT_MODE			0755
 #define YAFFS_LOSTNFOUND_MODE		0700
 
-#define yaffs_SumCompare(x, y) ((x) == (y))
+#define yaffs_sum_cmp(x, y) ((x) == (y))
 #define yaffs_strcmp(a, b) strcmp(a, b)
 
 #else
@@ -170,7 +174,7 @@
 #define O_RDWR		02
 #endif
 
-#ifndef O_CREAT		
+#ifndef O_CREAT
 #define O_CREAT 	0100
 #endif
 
@@ -210,6 +214,10 @@
 #define EINVAL	22
 #endif
 
+#ifndef ENFILE
+#define ENFILE	23
+#endif
+
 #ifndef EBADF
 #define EBADF	9
 #endif
@@ -218,7 +226,7 @@
 #define EACCES	13
 #endif
 
-#ifndef EXDEV	
+#ifndef EXDEV
 #define EXDEV	18
 #endif
 
@@ -262,7 +270,6 @@
 #define EISDIR 21
 #endif
 
-
 // Mode flags
 
 #ifndef S_IFMT
@@ -281,7 +288,7 @@
 #define S_IFREG		0100000
 #endif
 
-#ifndef S_IREAD 
+#ifndef S_IREAD
 #define S_IREAD		0000400
 #endif
 
@@ -328,6 +335,5 @@
 	Y_DUMP_STACK();\
 } while (0)
 #endif
-
 
 #endif
