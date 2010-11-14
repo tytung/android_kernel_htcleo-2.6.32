@@ -843,10 +843,7 @@ void battery_param_init(struct battery_type *battery)
 	if (battery->thermal_id == THERMAL_1000) {
 		TEMP_MAP = TEMP_MAP_1000K;
 		printk(DRIVER_ZONE "Use 1000 Kohm thermal resistance");
-	} else if (battery->thermal_id == THERMAL_600) {
-		TEMP_MAP = TEMP_MAP_600K;
-		printk(DRIVER_ZONE "Use 600 Kohm thermal resistance");
-	} else	{
+	} else {
 		printk(DRIVER_ZONE "Use default(300 Kohm) thermal resistance");
 	}
 
