@@ -34,6 +34,7 @@
 #endif
 #include <linux/akm8973.h>
 #include <../../../drivers/staging/android/timed_gpio.h>
+#include <linux/ds2746_battery.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -231,9 +232,6 @@ static struct microp_i2c_platform_data microp_data = {
 
 static struct i2c_board_info base_i2c_devices[] =
 {
-  	{
-		I2C_BOARD_INFO("htcleo-battery", 0x26),
-	},
 	{
 		I2C_BOARD_INFO(LEO_TOUCH_DRV_NAME, 0),
 	},
@@ -716,11 +714,45 @@ static struct platform_device ram_console_device = {
 // Power/Battery
 ///////////////////////////////////////////////////////////////////////
 
-static struct platform_device htcleo_power  =
-{
-	.name = "htcleo_power",
-	.id = -1,
+static struct htc_battery_platform_data htc_battery_pdev_data = {
+	.func_show_batt_attr = htc_battery_show_attr,
+	.gpio_mbat_in = -1,
+	.gpio_mchg_en_n = HTCLEO_GPIO_BATTERY_CHARGER_ENABLE,
+	.gpio_iset = HTCLEO_GPIO_BATTERY_CHARGER_CURRENT,
+	.guage_driver = GUAGE_DS2746,
+	.charger = LINEAR_CHARGER,
+	.m2a_cable_detect = 0,
+	.force_no_rpc = 1,
+	.int_data = {
+		.chg_int = HTCLEO_GPIO_BATTERY_OVER_CHG,
+	},
 };
+
+static struct platform_device htc_battery_pdev = {
+	.name = "htc_battery",
+	.id = -1,
+	.dev	= {
+		.platform_data = &htc_battery_pdev_data,
+	},
+};
+
+static int get_thermal_id(void)
+{
+	return THERMAL_600;
+}
+
+static struct ds2746_platform_data ds2746_pdev_data = {
+	.func_get_thermal_id = get_thermal_id,
+};
+
+static struct platform_device ds2746_battery_pdev = {
+	.name = "ds2746-battery",
+	.id = -1,
+	.dev = {
+		.platform_data = &ds2746_pdev_data,
+	},
+};
+
 ///////////////////////////////////////////////////////////////////////
 // Real Time Clock
 ///////////////////////////////////////////////////////////////////////
@@ -751,10 +783,11 @@ static struct platform_device *devices[] __initdata =
 	&android_pmem_adsp_device,
 	&android_pmem_venc_device,
 	&msm_device_i2c,
+	&ds2746_battery_pdev,
+	&htc_battery_pdev,
 	&msm_kgsl_device,
 	&msm_camera_sensor_s5k3e2fx,
 	&htcleo_flashlight_device,
-	&htcleo_power,
 	&qsd_device_spi,
 	&htc_headset_mgr,
 	&htc_headset_gpio,
@@ -905,10 +938,6 @@ static void __init htcleo_init(void)
 	platform_device_register(&htcleo_timed_gpios);
 
 	
-#ifdef CONFIG_USB_ANDROID
-	msm_hsusb_set_vbus_state(htcleo_get_vbus_state());
-#endif
-
 	/* Blink the camera LED shortly to show that we're alive! */
 #ifdef CONFIG_HTCLEO_BLINK_AT_BOOT
 	bank6_in = (unsigned int*)(MSM_GPIO1_BASE + 0x0864);
