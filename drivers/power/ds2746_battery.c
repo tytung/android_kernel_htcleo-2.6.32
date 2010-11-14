@@ -580,9 +580,7 @@ static void __update_capacity(void)
 {
 	INT32 next_capacity_01p;
 
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 	pr_info("ds2746_batt:__update_capacity start\n");
-#endif
 	if (poweralg.charge_state == CHARGE_STATE_PREDICTION ||
 		poweralg.charge_state == CHARGE_STATE_UNKNOWN){
 
@@ -791,7 +789,6 @@ BOOL do_power_alg(BOOL is_event_triggered)
 	/*powerlog_to_file(&poweralg);
 	update_os_batt_status(&poweralg);*/
 
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 	printk(DRIVER_ZONE "[%d] P=%d cable=%d%d flags=%d%d%d debug=%d%d%d%d fst_discharge=%d/%d [%u]\n",
 		poweralg.charge_state,
 		poweralg.capacity_01p,
@@ -807,7 +804,6 @@ BOOL do_power_alg(BOOL is_event_triggered)
 		poweralg.fst_discharge_capacity_01p,
 		poweralg.fst_discharge_acr_mAh,
 		BAHW_MyGetMSecs());
-#endif
 
 	return TRUE;
 }
@@ -885,9 +881,7 @@ void power_alg_preinit(void)
 static BLOCKING_NOTIFIER_HEAD(ds2746_notifier_list);
 int ds2746_register_notifier(struct notifier_block *nb)
 {
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 	pr_info("%s\n", __func__);
-#endif
 	return blocking_notifier_chain_register(&ds2746_notifier_list, nb);
 }
 
@@ -900,9 +894,7 @@ int ds2746_unregister_notifier(struct notifier_block *nb)
 int ds2746_blocking_notify(unsigned long val, void *v)
 {
 	int chg_ctl;
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 	pr_info("%s\n", __func__);
-#endif
 
 	if (val == DS2784_CHARGING_CONTROL){
 		chg_ctl = *(int *) v;
@@ -1052,23 +1044,17 @@ void ds2746_charger_control(int type)
 			else if (htc_batt_info.rep.battery_full)
 				pr_info("batt: charging OFF [FULL]\n");
 			else*/
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 			pr_info("batt: charging OFF\n");
-#endif
 			break;
 		case CHARGE_SLOW:
 			chg_ctl = ENABLE_SLOW_CHG;
 			ds2746_blocking_notify(DS2784_CHARGING_CONTROL, &chg_ctl);
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 			pr_info("batt: charging SLOW\n");
-#endif 
 			break;
 		case CHARGE_FAST:
 			chg_ctl = ENABLE_FAST_CHG;
 			ds2746_blocking_notify(DS2784_CHARGING_CONTROL, &chg_ctl);
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 			pr_info("batt: charging FAST\n");
-#endif
 			break;
 	}
 }
@@ -1091,9 +1077,7 @@ static void ds2746_battery_work(struct work_struct *work)
 				struct ds2746_device_info, monitor_work);
 	unsigned long flags;
 
-#if HTC_BATTERY_DS2746_DEBUG_ENABLE
 	pr_info("[ds2746_batt] ds2746_battery_work*\n");
-#endif
 	do_power_alg(0);
 	get_state_check_interval_min_sec();
 	di->last_poll = alarm_get_elapsed_realtime();

@@ -507,7 +507,6 @@ static BOOL __ds2746_battery_adc_udpate(struct battery_type *battery)
 		return FALSE;
 	}
 
-#if HTC_ENABLE_POWER_DEBUG
 	printk(DRIVER_ZONE " [x0]%x [x8]%x %x %x %x %x %x %x %x %x %x\n",
 		reg[0],
 		reg[2],
@@ -520,7 +519,6 @@ static BOOL __ds2746_battery_adc_udpate(struct battery_type *battery)
 		reg[9],
 		reg[10],
 		reg[11]);
-#endif
 
 	if (!(reg[0] & DS2746_STATUS_AIN0) || !(reg[0] & DS2746_STATUS_AIN1)) {
 		printk(DRIVER_ZONE " AIN not ready...\n");
