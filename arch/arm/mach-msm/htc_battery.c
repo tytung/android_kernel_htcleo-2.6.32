@@ -114,6 +114,7 @@ struct htc_battery_info {
 	int gpio_usb_id;
 	int gpio_mchg_en_n;
 	int gpio_iset;
+	int gpio_power;
 	int guage_driver;
 	int m2a_cable_detect;
 	int force_no_rpc;
@@ -368,10 +369,20 @@ static int init_batt_gpio(void)
 	if (htc_batt_info.gpio_mchg_en_n > 0 &&
 		gpio_request(htc_batt_info.gpio_mchg_en_n, "charger_en") < 0)
 		goto gpio_failed;
+	else
+	  	gpio_direction_output(htc_batt_info.gpio_mchg_en_n, 1);
 	if (htc_batt_info.gpio_iset > 0 &&
 		gpio_request(htc_batt_info.gpio_iset, "charge_current") < 0)
 		goto gpio_failed;
+	else
+		gpio_direction_output(htc_batt_info.gpio_iset, 1);
 
+	if (htc_batt_info.gpio_power > 0 &&
+		gpio_request(htc_batt_info.gpio_power, "usb_power") < 0)
+		goto gpio_failed;
+	else
+		gpio_direction_output(htc_batt_info.gpio_power, 0);
+	
 	return 0;
 
 gpio_failed:
@@ -387,7 +398,6 @@ gpio_failed:
 int battery_charging_ctrl(enum batt_ctl_t ctl)
 {
 	int result = 0;
-
 	if (!htc_battery_initial) return 0;
 	
 	switch (ctl) {
@@ -1699,9 +1709,10 @@ static int htc_battery_probe(struct platform_device *pdev)
 {
 	int rc = 0;
 	struct htc_battery_platform_data *pdata = pdev->dev.platform_data;
-
+ 
 	htc_batt_info.device_id = pdev->id;
 	htc_batt_info.gpio_usb_id = pdata->gpio_usb_id;
+	htc_batt_info.gpio_power = pdata->gpio_power;
 	htc_batt_info.guage_driver = pdata->guage_driver;
 	htc_batt_info.m2a_cable_detect = pdata->m2a_cable_detect;
 	htc_batt_info.force_no_rpc = pdata->force_no_rpc;
