@@ -87,11 +87,6 @@ static int count_this_packet(void *_hdr, int len)
 static int in_suspend;
 static unsigned long timeout_us;
 static struct workqueue_struct *rmnet_wq;
-extern int smd_read(smd_channel_t *ch, void *data, int len);
-extern int smd_open(const char *name, smd_channel_t **_ch,
-	     void *priv, void (*notify)(void *, unsigned));
-extern int smd_write_atomic(smd_channel_t *ch, const void *data, int len);
-extern int smd_read_avail(smd_channel_t *ch);
 
 static void do_check_active(struct work_struct *work)
 {

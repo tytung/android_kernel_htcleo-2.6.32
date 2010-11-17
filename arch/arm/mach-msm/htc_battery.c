@@ -399,6 +399,7 @@ int battery_charging_ctrl(enum batt_ctl_t ctl)
 {
 	int result = 0;
 	if (!htc_battery_initial) return 0;
+	
 	switch (ctl) {
 	case DISABLE:
 		BATT_LOG("charger OFF");

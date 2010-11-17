@@ -22,8 +22,9 @@ static uint16_t g_usModuleVersion;	/*0: rev.4, 1: rev.5 */
 #ifdef CONFIG_MACH_PASSIONC
 #define REG_PLL_MULTIPLIER_LSB_VALUE      0xA0
 #else
-#define REG_PLL_MULTIPLIER_LSB_VALUE	  0x90
+#define REG_PLL_MULTIPLIER_LSB_VALUE	  0xA6
 #endif
+/* 0xA6 for PCLK=83MHz */
 /* 0xA0 for PCLK=80MHz */
 /* 0x90 for PCLK=72MHz */
 
@@ -3082,7 +3083,9 @@ static int s5k3e2fx_set_default_focus(void)
 	return rc;
 }
 
-static int s5k3e2fx_move_focus(int direction, int num_steps)
+static int s5k3e2fx_move_focus(
+	int direction, int num_steps,int coarse_delay,int fine_delay,
+	int step_dir, int init_code_offset_max)
 {
 	int rc = 0;
 	int i;
@@ -3093,11 +3096,30 @@ static int s5k3e2fx_move_focus(int direction, int num_steps)
 	uint8_t next_pos_msb, next_pos_lsb;
 	int16_t s_move[5];
 	uint32_t gain;		/* Q10 format */
+	int16_t step_direction_pre_define;
+	int16_t init_code_offset_pre_define;
+	int16_t coarse_search_delay;
+	int16_t fine_search_delay;
+
+	if (g_usModuleVersion == 1) { /* EVT5 */
+		step_direction_pre_define = step_dir;
+		init_code_offset_pre_define = init_code_offset_max;
+		/*fine search delay time is turnable*/
+		coarse_search_delay = coarse_delay;
+		fine_search_delay = fine_delay;
+	} else {
+		step_direction_pre_define = 20;
+		init_code_offset_pre_define = 738;
+		coarse_search_delay = 6;
+		fine_search_delay = 4;
+	}
+
+pr_info("%s step_direction_pre_define %d\n", __func__, step_direction_pre_define);
 
 	if (direction == MOVE_NEAR)
-		step_direction = 20;
+		step_direction = step_direction_pre_define;
 	else if (direction == MOVE_FAR)
-		step_direction = -20;
+		step_direction = 0 - step_direction_pre_define;
 	else {
 		pr_err("s5k3e2fx_move_focus failed at line %d ...\n", __LINE__);
 		return -EINVAL;
@@ -3122,8 +3144,8 @@ static int s5k3e2fx_move_focus(int direction, int num_steps)
 	for (i = 0; i <= 4; i++) {
 		next_pos = (int16_t) (pos_offset + s_move[i]);
 
-		if (next_pos > (738 + init_code))
-			next_pos = 738 + init_code;
+		if (next_pos > (init_code_offset_max + init_code))
+			next_pos = init_code_offset_pre_define + init_code;
 		else if (next_pos < 0)
 			next_pos = 0;
 
@@ -3147,10 +3169,11 @@ static int s5k3e2fx_move_focus(int direction, int num_steps)
 
 		pos_offset = next_pos;
 		s5k3e2fx_ctrl->curr_lens_pos = pos_offset - init_code;
-		if (num_steps > 1)
-			mdelay(6);
+
+		if(num_steps > 1)
+			mdelay(coarse_search_delay);
 		else
-			mdelay(4);
+			mdelay(fine_search_delay);
 	}
 
 	return rc;
@@ -3375,8 +3398,8 @@ static ssize_t sensor_read_node(struct device *dev,
 }
 
 static DEVICE_ATTR(htcwc, 0777, htcwc_get, htcwc_set);
-static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
 static DEVICE_ATTR(node, 0444, sensor_read_node, NULL);
+static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
 
 static struct kobject *android_s5k3e2fx;
 static struct kobject *android_s5k3e2fx_des;
@@ -3399,7 +3422,7 @@ static int s5k3e2fx_sysfs_init(void)
 		"failed\n");
 		kobject_del(android_s5k3e2fx_des);
 	}
-
+	
 	android_s5k3e2fx = kobject_create_and_add("android_camera2", NULL);
 	if (android_s5k3e2fx == NULL) {
 		pr_info("s5k3e2fx_sysfs_init: subsystem_register " \
@@ -3414,13 +3437,11 @@ static int s5k3e2fx_sysfs_init(void)
 		"failed\n");
 		kobject_del(android_s5k3e2fx);
 	}
-
 	ret = sysfs_create_file(android_s5k3e2fx, &dev_attr_htcwc.attr);
 	if (ret) {
 		pr_info("ov9665_sysfs_init: sysfs_create_file htcwc failed\n");
 		kobject_del(android_s5k3e2fx);
 	}
-
 	ret = sysfs_create_file(android_s5k3e2fx, &dev_attr_node.attr);
 	if (ret) {
 		pr_info("ov9665_sysfs_init: dev_attr_node failed\n");
@@ -3517,7 +3538,11 @@ static int s5k3e2fx_sensor_config(void __user *argp)
 
 	case CFG_MOVE_FOCUS:
 		rc = s5k3e2fx_move_focus(cdata.cfg.focus.dir,
-					 cdata.cfg.focus.steps);
+					 cdata.cfg.focus.steps,
+					 cdata.cfg.focus.coarse_delay,
+					 cdata.cfg.focus.fine_delay,
+					 cdata.cfg.focus.step_dir,
+					 cdata.cfg.focus.init_code_offset_max);
 		break;
 
 	case CFG_SET_DEFAULT_FOCUS:
@@ -3558,7 +3583,6 @@ static int s5k3e2fx_sensor_probe(struct msm_camera_sensor_info *info,
 	}
 
 	msm_camio_clk_rate_set(S5K3E2FX_DEF_MCLK);
-	sensor_probe_node = s->node;
 	msleep(20);
 
 	rc = s5k3e2fx_probe_init_sensor(info);
