@@ -1077,10 +1077,10 @@ choice
 endchoice
 		
 config HTCLEO_OVERCLOCK
-  bool "Support overclock to 1.113GHz"
+  bool "Support overclock to 1.190GHz"
 	default n
   help
-		add overclock ability to 1.113GHz.
+		add overclock ability to 1.190GHz.
 config HTCLEO_EXOVERCLOCK
   bool "Support overclock to 1.305GHz"
 	depends on HTCLEO_OVERCLOCK
