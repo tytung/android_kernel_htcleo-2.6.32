@@ -241,13 +241,26 @@ msm_i2c_interrupt(int irq, void *devid)
 
 	return IRQ_HANDLED;
 }
+#define MICROP_I2C_RCMD_GSENSOR_X_DATA		0x77
+#define MICROP_I2C_RCMD_GSENSOR_Y_DATA		0x78
+#define MICROP_I2C_RCMD_GSENSOR_Z_DATA		0x79
+#define MICROP_I2C_ADDR						0x66
+#define GSENSOR_TIMEDOUT					210
+
+static int is_gsensor_msg(struct i2c_msg msgs[])
+{
+	return msgs->addr==MICROP_I2C_ADDR && 
+					(msgs->buf[0] == MICROP_I2C_RCMD_GSENSOR_X_DATA || 
+					msgs->buf[0] == MICROP_I2C_RCMD_GSENSOR_Y_DATA|| 
+					msgs->buf[0] == MICROP_I2C_RCMD_GSENSOR_Z_DATA);
+}
 
 static int
-msm_i2c_poll_notbusy(struct msm_i2c_dev *dev, int warn)
+msm_i2c_poll_notbusy(struct msm_i2c_dev *dev, int warn, struct i2c_msg msgs[])
 {
 	uint32_t retries = 0;
 
-	while (retries != 200) {
+	while (retries != (is_gsensor_msg(msgs) ? 100 : 200)) {
 		uint32_t status = readl(dev->base + I2C_STATUS);
 
 		if (!(status & I2C_STATUS_BUS_ACTIVE)) {
@@ -259,8 +272,8 @@ msm_i2c_poll_notbusy(struct msm_i2c_dev *dev, int warn)
 		if (retries++ > 100)
 			msleep(10);
 	}
-	dev_err(dev->dev, "Error waiting for notbusy\n");
-	return -ETIMEDOUT;
+	dev_err(dev->dev, "Error waiting for notbusy (addr=%02x, msgs=%02x)\n", msgs->addr, msgs->buf[0]);
+	return is_gsensor_msg(msgs) ? -GSENSOR_TIMEDOUT : -ETIMEDOUT;
 }
 
 static int
@@ -333,7 +346,7 @@ msm_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 {
 	DECLARE_COMPLETION_ONSTACK(complete);
 	struct msm_i2c_dev *dev = i2c_get_adapdata(adap);
-	int ret;
+	int ret, ret_wait;
 	long timeout;
 	unsigned long flags;
 
@@ -346,7 +359,7 @@ msm_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	clk_enable(dev->clk);
 	enable_irq(dev->irq);
 
-	ret = msm_i2c_poll_notbusy(dev, 1);
+	ret = msm_i2c_poll_notbusy(dev, 1, msgs);
 	if (ret) {
 		dev_err(dev->dev, "Still busy in starting xfer(%02X)\n",
 			msgs->addr);
@@ -380,9 +393,7 @@ msm_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	 */
 
 	timeout = wait_for_completion_timeout(&complete, HZ);
-	if (msm_i2c_poll_notbusy(dev, 0))  /* Read may not have stopped in time */
-		dev_err(dev->dev, "Still busy after xfer completion (%02X)\n",
-			msgs->addr);
+	ret_wait = msm_i2c_poll_notbusy(dev, 0, msgs);
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->flush_cnt) {
 		dev_warn(dev->dev, "%d unrequested bytes read\n",
@@ -397,7 +408,17 @@ msm_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 	dev->flush_cnt = 0;
 	dev->cnt = 0;
 	spin_unlock_irqrestore(&dev->lock, flags);
-
+	if (ret_wait) /* Read may not have stopped in time */
+	{
+		dev_err(dev->dev, "Still busy after xfer completion (%02X)\n", msgs->addr);
+		if (ret_wait == -GSENSOR_TIMEDOUT)
+			ret = 2; // in most situations the value of ret is 2 (dev->ret), we set it to 2 just to be sure that function i2c_read_block doesn't repeats the read
+		if (!dev->skip_recover) {
+			ret_wait = msm_i2c_recover_bus_busy(dev);
+			if (ret_wait)
+				goto err;
+		}
+	}
 	if (!timeout) {
 		dev_err(dev->dev, "Transaction timed out\n");
 		ret = -ETIMEDOUT;
