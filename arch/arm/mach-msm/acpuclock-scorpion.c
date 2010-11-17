@@ -601,7 +601,7 @@ static void __init acpuclk_init(void)
 		if (speed->acpu_khz == 998400)
 			break;
 #elif CONFIG_HTCLEO_OVERCLOCK
-		if (speed->acpu_khz == 883200)
+		if (speed->acpu_khz == 768000)
 			break;
 #else
 		if (speed->acpu_khz == 768000)
@@ -612,7 +612,7 @@ static void __init acpuclk_init(void)
 			pr_err("acpuclk_init: cannot find 998.4MHz\n");
 #elif CONFIG_HTCLEO_OVERCLOCK
 		if (speed->acpu_khz == 0) {
-			pr_err("acpuclk_init: cannot find 883.2MHz\n");
+			pr_err("acpuclk_init: cannot find 768MHz\n");
 #else
 		if (speed->acpu_khz == 0) {
 			pr_err("acpuclk_init: cannot find 768MHz\n");
