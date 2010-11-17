@@ -168,7 +168,9 @@
 #define HTCLEO_LCD_HSYNC			(137)
 #define HTCLEO_LCD_DE				(138)
 	
-
+/* Voltage driver */
+#define HTCLEO_TPS65023_MIN_UV_MV		(800)
+#define HTCLEO_TPS65023_MAX_UV_MV		(1350)
 
 int htcleo_pm_set_vreg(int enable, unsigned id);
 int __init htcleo_init_panel(void);
