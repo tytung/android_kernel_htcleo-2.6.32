@@ -397,7 +397,7 @@ static int acpuclk_set_vdd_level(int vdd)
 			 */
 			return 0;
 		}
-		pr_info("acpuclk_set_vdd_level got regulator\n");
+		pr_info("acpuclk_set_vdd_level got regulator setting vdd_level %d \n", vdd);
 	}
 	vdd *= 1000; /* mV -> uV */
 	return regulator_set_voltage(drv_state.regulator, vdd, vdd);

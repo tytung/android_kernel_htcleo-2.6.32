@@ -911,7 +911,7 @@ static int btcoex_dhcp_timer_start(struct net_device *dev)
 	char buf_reg41va_dhcp_on[8] = { 41, 00, 00, 00, 0x33, 0x00, 0x00, 0x00 };
 	char buf_reg68va_dhcp_on[8] = { 68, 00, 00, 00, 0x90, 0x01, 0x00, 0x00 };
 	char buf_reg12va_sco_time[4] = { 12, 0, 0, 0};
-	int sco_lasttime;
+	int sco_lasttime = 0;
 	int ret;
 
 	bcm_mkiovar("btc_params", (char*)&buf_reg12va_sco_time[0], sizeof(buf_reg12va_sco_time), ioctlbuf, sizeof(ioctlbuf));
