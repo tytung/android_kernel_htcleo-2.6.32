@@ -14,6 +14,7 @@
  *
  */
 
+#if defined(CONFIG_MICROP_COMMON) || defined(CONFIG_MACH_HTCLEO)
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/leds.h>
@@ -24,6 +25,7 @@
 
 int gl_state = 0; // Green led last state
 int al_state = 0; // Amber led last state
+
 
 static int microp_write_led_mode(struct led_classdev *led_cdev,uint8_t mode, uint16_t off_timer){
 
@@ -836,4 +838,4 @@ module_exit(microp_led_exit);
 
 MODULE_DESCRIPTION("Atmega MicroP led driver");
 MODULE_LICENSE("GPL");
-
+#endif
