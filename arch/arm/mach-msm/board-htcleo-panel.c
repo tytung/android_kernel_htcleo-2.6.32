@@ -659,40 +659,41 @@ static int auo_panel_init(struct msm_lcdc_panel_ops *ops)
 	return 0;
 }
 
+static void auo_panel_unblank_do_work(struct work_struct *w)
+{
+	gpio_set_value(HTCLEO_GPIO_LCM_POWER, 1);
+	LCM_DELAY(2);
+	vreg_enable(vreg_lcd);
+	LCM_DELAY(2);
+
+	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
+	LCM_DELAY(1);
+	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 0);
+	LCM_DELAY(1);
+	gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
+	LCM_DELAY(25);
+
+	spi_gpio_switch(1);
+	panel_gpio_switch(1);
+
+	LCM_DELAY(33);
+
+	auo_panel_cfg_setup(1);
+
+	LCM_DELAY(1);
+}
+
+static DECLARE_WORK(auo_unblank_work, auo_panel_unblank_do_work);
+
 static int auo_panel_unblank(struct msm_lcdc_panel_ops *ops)
 {
 	static int first_start=1;
 	pr_info("%s\n", __func__);
 	if(!first_start) {
-
-		mutex_lock(&panel_lock);
-
-		gpio_set_value(HTCLEO_GPIO_LCM_POWER, 1);
-		LCM_DELAY(2);
-		vreg_enable(vreg_lcd);
-		LCM_DELAY(2);
-
-		gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
-		LCM_DELAY(1);
-		gpio_set_value(HTCLEO_GPIO_LCM_RESET, 0);
-		LCM_DELAY(1);
-		gpio_set_value(HTCLEO_GPIO_LCM_RESET, 1);
-		LCM_DELAY(25);
-
-		spi_gpio_switch(1);
-		panel_gpio_switch(1);
-
-		LCM_DELAY(33);
-
-		auo_panel_cfg_setup(1);
-
-		LCM_DELAY(1);
-
-		mutex_unlock(&panel_lock);
+        schedule_work(&auo_unblank_work);
 	}
 	else
  		first_start=0;
-
 	return 0;
 }
 
