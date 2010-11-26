@@ -296,6 +296,13 @@ config HTCLEO_BLINK_AT_BOOT
        help
          Blink flash led during hardware init
 
+config HTCLEO_BTN_BACKLIGHT_MANAGER
+      depends on MACH_HTCLEO
+      default y
+      bool "Use button backlight manager"
+      help
+	Use kernel button backlight manager to turn on/off backlight
+
 config MACH_PASSIONC
 	depends on ARCH_QSD8X50
 	default n

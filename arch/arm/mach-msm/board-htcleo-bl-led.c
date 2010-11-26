@@ -2,6 +2,7 @@
  *
  * Copyright (c) 2010 Cotulla
  * Edited to Common Structure by Markinus
+ * Added support for Button backlight manager by Danijel Posilović (dan1j3l)
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -37,17 +38,15 @@
 #endif
 
 #define HTCLEO_DEFAULT_BACKLIGHT_BRIGHTNESS 255
-int BUTTON_BACKLIGHT_GPIO = 48;
+
 
 static struct led_trigger *htcleo_lcd_backlight;
 static int auto_bl_state=0;
 static DEFINE_MUTEX(htcleo_backlight_lock);
-static int btn_backlight_control = 1;
 
-static struct delayed_off
-{
-    struct delayed_work work;
-} delayed_off_work;
+#ifdef CONFIG_HTCLEO_BTN_BACKLIGHT_MANAGER
+static int BUTTON_BACKLIGHT_GPIO = 48;
+#endif
 
 static int htcleo_brightness_autobacklight(uint8_t value)
 {
@@ -92,47 +91,16 @@ static ssize_t htcleo_auto_bl_set(struct device *dev,
 
 static DEVICE_ATTR(auto_bl, 0666,  htcleo_auto_bl_get, htcleo_auto_bl_set);
 
-
-//////////////////////////////////////////////////////
-// Button backlight control
-//////////////////////////////////////////////////////
-static void btn_delayed_off_function(struct work_struct *work){
-    gpio_set_value(BUTTON_BACKLIGHT_GPIO, 0);
-}
-static ssize_t htcleo_btn_control_get(struct device *dev,struct device_attribute *attr, char *buf)
-{
-	int ret;
-	ret = sprintf(buf, "%d", btn_backlight_control);
-	return ret;
-}
-
-static ssize_t htcleo_btn_control_set(struct device *dev,struct device_attribute *attr,const char *buf, size_t count)
-{
-	int set_state;
-	mutex_lock(&htcleo_backlight_lock);
-	sscanf(buf, "%d", &set_state);
-	if(set_state!=0 && set_state!=1) return -EINVAL;
-	btn_backlight_control = set_state;
-    gpio_set_value(BUTTON_BACKLIGHT_GPIO, set_state);
-	mutex_unlock(&htcleo_backlight_lock);
-	return count;
-}
-static DEVICE_ATTR(btn_control, 0666,  htcleo_btn_control_get, htcleo_btn_control_set);
-
-
 static int htcleo_brightness_onoff_bkl(int enable)
 {
 	int ret;
 	uint8_t data[1];
 
-    // If btn backlight control enabled then set it
-    if (btn_backlight_control){
-        // Enable backlight
-        gpio_set_value(BUTTON_BACKLIGHT_GPIO, enable);
-        // Schedule timed off dan1j3l TODO !!!
-        //cancel_delayed_work_sync(&delayed_off_work.work);
-        //schedule_delayed_work(&delayed_off_work.work, msecs_to_jiffies(10000));
-    }
+#ifdef CONFIG_HTCLEO_BTN_BACKLIGHT_MANAGER
+    // Disable button backlight along with screen
+    if (!enable)
+        gpio_set_value(BUTTON_BACKLIGHT_GPIO, 0);
+#endif
 
 	data[0] = enable ? 1 : 0;
 	ret = microp_i2c_write(MICROP_I2C_WCMD_BL_EN, data, 1);
@@ -204,9 +172,6 @@ static int  htcleo_backlight_probe(struct platform_device *pdev)
 	rc = device_create_file(&pdev->dev, &dev_attr_auto_bl);
 	printk(KERN_INFO "%s: HTCLeo Backlight connect with microP: "
 			"Probe\n", __func__);
-    // Kernel button backlight control
-    rc = device_create_file(&pdev->dev, &dev_attr_btn_control);
-    INIT_DELAYED_WORK(&delayed_off_work.work, btn_delayed_off_function);
 
 	led_trigger_register_simple("lcd-backlight-gate", &htcleo_lcd_backlight);
 	rc = led_classdev_register(&pdev->dev, &htcleo_backlight_led);
@@ -220,7 +185,6 @@ static int  htcleo_backlight_probe(struct platform_device *pdev)
 static int htcleo_backlight_remove(struct platform_device *pdev)
 {
 	device_remove_file(&pdev->dev, &dev_attr_auto_bl);
-	device_remove_file(&pdev->dev, &dev_attr_btn_control);
 	return 0;
 }
 

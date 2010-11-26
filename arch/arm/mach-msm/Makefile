@@ -127,6 +127,7 @@ obj-$(CONFIG_MACH_HTCLEO) += board-htcleo-proximity.o board-htcleo-ls.o
 obj-$(CONFIG_MACH_HTCLEO) += clock-wince.o
 obj-$(CONFIG_HTCLEO_BACKLIGHT) += board-htcleo-bl.o
 obj-$(CONFIG_HTCLEO_BACKLIGHT_LED) += board-htcleo-bl-led.o
+obj-$(CONFIG_HTCLEO_BTN_BACKLIGHT_MANAGER) += board-htcleo-btn_backlight-manager.o
 
 # MSM7x30 boards
 obj-$(CONFIG_ARCH_MSM7X30) += panel-samsungwvga-tl2796a.o panel-samsungwvga-s6e63m0.o panel-sonywvga-s6d16a0x21-7x30.o

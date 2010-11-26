@@ -63,7 +63,7 @@
 #include "dex_comm.h"
 
 
-#define ATAG_MAGLDR_BOOT    0x4C47414D 
+#define ATAG_MAGLDR_BOOT    0x4C47414D
 struct tag_magldr_entry
 {
      _Bool fNoNandBoot;
@@ -80,7 +80,7 @@ static unsigned int nand_boot = 0;
 ///////////////////////////////////////////////////////////////////////
 int htcleo_is_nand_boot(void)
 {
-	return nand_boot;	
+	return nand_boot;
 }
 
 static int __init parse_tag_nand_boot(const struct tag *tag)
@@ -240,10 +240,10 @@ static struct platform_device microp_devices[] = {
 	{
 		.name = "leds-microp",
 		.id = -1,
-		.dev = { 
+		.dev = {
 			.platform_data = &microp_leds_data,
 		},
-		                                                                        
+
 	},
 	{
 		.name = "htcleo-lsensor",
@@ -282,7 +282,7 @@ static struct i2c_board_info base_i2c_devices[] =
 };
 
 ///////////////////////////////////////////////////////////////////////
-// USB 
+// USB
 ///////////////////////////////////////////////////////////////////////
 
 static uint32_t usb_phy_3v3_table[] =
@@ -706,7 +706,7 @@ static struct platform_device msm_kgsl_device =
 };
 
 ///////////////////////////////////////////////////////////////////////
-// Memory 
+// Memory
 ///////////////////////////////////////////////////////////////////////
 
 static struct android_pmem_platform_data mdp_pmem_pdata = {
@@ -824,6 +824,17 @@ struct platform_device msm_device_rtc = {
 	.name = "msm_rtc",
 	.id = -1,
 };
+
+#ifdef CONFIG_HTCLEO_BTN_BACKLIGHT_MANAGER
+///////////////////////////////////////////////////////////////////////
+// Button backlight manager
+///////////////////////////////////////////////////////////////////////
+struct platform_device btn_backlight_manager = {
+    .name   = "btn_backlight_manager",
+    .id     = -1,
+};
+#endif
+
 ///////////////////////////////////////////////////////////////////////
 // Platform Devices
 ///////////////////////////////////////////////////////////////////////
@@ -854,6 +865,9 @@ static struct platform_device *devices[] __initdata =
 	&qsd_device_spi,
 	&htc_headset_mgr,
 	&htc_headset_gpio,
+#ifdef CONFIG_HTCLEO_BTN_BACKLIGHT_MANAGER
+	&btn_backlight_manager,
+#endif
 };
 ///////////////////////////////////////////////////////////////////////
 // Vibrator
@@ -962,7 +976,7 @@ static void __init htcleo_init(void)
 	do_sdc1_reset();
 
 	msm_acpu_clock_init(&htcleo_clock_data);
-	
+
 	perflock_init(&htcleo_perflock_data);
 
 	init_dex_comm();
@@ -975,7 +989,7 @@ static void __init htcleo_init(void)
 
 	bt_export_bd_address();
 	htcleo_audio_init();
-	
+
 	msm_device_i2c_init();
 
 	/* set the gpu power rail to manual mode so clk en/dis will not
@@ -985,7 +999,7 @@ static void __init htcleo_init(void)
 	htcleo_kgsl_power(false);
 	mdelay(100);
 	htcleo_kgsl_power(true);
-	
+
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 
 	htcleo_init_panel();
@@ -996,11 +1010,11 @@ static void __init htcleo_init(void)
 #ifdef CONFIG_USB_ANDROID
 	htcleo_add_usb_devices();
 #endif
-	
+
 	htcleo_init_mmc(0);
 	platform_device_register(&htcleo_timed_gpios);
 
-	
+
 	/* Blink the camera LED shortly to show that we're alive! */
 #ifdef CONFIG_HTCLEO_BLINK_AT_BOOT
 	bank6_in = (unsigned int*)(MSM_GPIO1_BASE + 0x0864);
@@ -1078,7 +1092,7 @@ static void __init htcleo_map_io(void)
 	msm_map_common_io();
 	htcleo_allocate_memory_regions();
 	msm_clock_init();
-	
+
 #if defined(CONFIG_VERY_EARLY_CONSOLE)
 // Init our consoles _really_ early
 #if defined(CONFIG_HTC_FB_CONSOLE)
