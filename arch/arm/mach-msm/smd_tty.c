@@ -78,16 +78,19 @@ static void smd_tty_work_func(struct work_struct *work)
 		ptr = NULL;
 		avail = tty_prepare_flip_string(tty, &ptr, avail);
 
-		if (smd_read(info->ch, ptr, avail) != avail) {
-			/* shouldn't be possible since we're in interrupt
-			 * context here and nobody else could 'steal' our
-			 * characters.
-			 */
-			printk(KERN_ERR "OOPS - smd_tty_buffer mismatch?!");
-		}
-		wake_lock_timeout(&info->wake_lock, HZ / 2);
-		tty->low_latency = 1;
-		tty_flip_buffer_push(tty);
+		if (avail && ptr) {
+			if (smd_read(info->ch, ptr, avail) != avail) {
+				/* shouldn't be possible since we're in interrupt
+				 * context here and nobody else could 'steal' our
+				 * characters.
+				 */
+				printk(KERN_ERR "OOPS - smd_tty_buffer mismatch?!");
+			}
+			wake_lock_timeout(&info->wake_lock, HZ / 2);
+			tty->low_latency = 1;
+			tty_flip_buffer_push(tty);
+		} else
+			printk(KERN_ERR "smd_tty_work_func: tty_prepare_flip_string fail\n");
 	}
 
 	mutex_unlock(&smd_tty_lock);
