@@ -89,8 +89,12 @@ static void smd_tty_work_func(struct work_struct *work)
 			wake_lock_timeout(&info->wake_lock, HZ / 2);
 			tty->low_latency = 1;
 			tty_flip_buffer_push(tty);
-		} else
+		} else {
 			printk(KERN_ERR "smd_tty_work_func: tty_prepare_flip_string fail\n");
+			tty->low_latency = 0;
+			tty_flip_buffer_push(tty);
+			break;
+		}
 	}
 
 	mutex_unlock(&smd_tty_lock);
