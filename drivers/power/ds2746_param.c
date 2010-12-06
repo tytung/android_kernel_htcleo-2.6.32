@@ -52,7 +52,7 @@ build flags
 
 ========================================================================================*/
 
-#define HTC_ENABLE_POWER_DEBUG  		1
+#define HTC_ENABLE_POWER_DEBUG  		0
 #define HTC_ENABLE_DUMMY_BATTERY		0
 
 /*========================================================================================
@@ -661,8 +661,10 @@ static BOOL __battery_param_udpate(struct battery_type *battery)
 	battery->discharge_mA = (battery->discharge_adc * discharge_adc_to_mv_coef / discharge_adc_to_mv_resl);
 	battery->charge_counter_mAh = (battery->charge_counter_adc * acr_adc_to_mv_coef / acr_adc_to_mv_resl) -	charge_counter_zero_base_mAh;
 	battery->current_mA = battery->current_mA - battery->discharge_mA;
+#if HTC_ENABLE_POWER_DEBUG
 	printk(DRIVER_ZONE " battery.id_adc pre clip: %d\n", battery->id_adc);
 	printk(DRIVER_ZONE " battery.temp_adc pre clip: %d\n", battery->temp_adc);
+#endif
 	/* prevent from adc out of range*/
 	if (battery->id_adc >= id_adc_resl) {
 		battery->id_adc = id_adc_resl - 1;

@@ -87,7 +87,7 @@ static struct poweralg_config_type debug_config = {0};
 #define CHARGE_FAST	2
 
 #define BATTERY_ID_UNKNOWN 0
-#define HTC_BATTERY_DS2746_DEBUG_ENABLE 1
+#define HTC_BATTERY_DS2746_DEBUG_ENABLE 0
 
 /* DS2746 I2C BUS*/
 #define DS2746_I2C_BUS_ID   	0
