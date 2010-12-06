@@ -47,6 +47,7 @@ static void smd_tty_work_func(struct work_struct *work)
 {
 	unsigned char *ptr;
 	int avail;
+	int failcnt = 0;
 
 	struct smd_tty_info *info = container_of(work,
 						struct smd_tty_info,
@@ -90,10 +91,11 @@ static void smd_tty_work_func(struct work_struct *work)
 			tty->low_latency = 1;
 			tty_flip_buffer_push(tty);
 		} else {
+			failcnt++;
 			printk(KERN_ERR "smd_tty_work_func: tty_prepare_flip_string fail\n");
-			tty->low_latency = 0;
-			tty_flip_buffer_push(tty);
-			break;
+			if(failcnt > 2) {
+				break;
+			}
 		}
 	}
 
