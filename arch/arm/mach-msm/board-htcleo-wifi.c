@@ -87,6 +87,7 @@ static struct wifi_platform_data htcleo_wifi_control = {
 	.set_reset      = htcleo_wifi_reset,
 	.set_carddetect = htcleo_wifi_set_carddetect,
 	.mem_prealloc   = htcleo_wifi_mem_prealloc,
+	.dot11n_enable  = 1,
 };
 
 static struct platform_device htcleo_wifi_device = {
