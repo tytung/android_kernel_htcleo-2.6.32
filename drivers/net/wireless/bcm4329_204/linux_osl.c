@@ -360,8 +360,7 @@ osl_pktfree_static(osl_t *osh, void *p, bool send)
 	
 	for (i = 0; i < MAX_STATIC_PKT_NUM*2; i++)
 	{
-		if ( (i < MAX_STATIC_PKT_NUM && p == bcm_static_skb->skb_4k[i]) || 
-		     (i >= MAX_STATIC_PKT_NUM && p == bcm_static_skb->skb_8k[i-MAX_STATIC_PKT_NUM]) )
+		if (p == bcm_static_skb->skb_4k[i])
 		{
 			down(&bcm_static_skb->osl_pkt_sem);
 			bcm_static_skb->pkt_use[i] = 0;

@@ -99,6 +99,14 @@ int wifi_get_dot11n_enable(void)
         return 0;
 }
 
+int wifi_get_cscan_enable(void)
+{
+        if (wifi_control_data && wifi_control_data->cscan_enable) {
+                return wifi_control_data->cscan_enable;
+        }
+        return 0;
+}
+
 int wifi_set_carddetect(int on)
 {
 	myprintf("%s = %d\n", __FUNCTION__, on);
@@ -853,6 +861,8 @@ _dhd_sysioc_thread(void *data)
 		}
 		dhd_os_wake_unlock(&dhd->pub);
 	}
+
+	myprintf("%s exit\n", __func__);
 	complete_and_exit(&dhd->sysioc_exited, 0);
 }
 
@@ -864,6 +874,14 @@ dhd_set_mac_address(struct net_device *dev, void *addr)
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
 	struct sockaddr *sa = (struct sockaddr *)addr;
 	int ifidx;
+
+	myprintf("enter %s\n", __func__);
+
+	/* BRCM: anthony, add for debug, reject if down */
+	if ( !dhd->pub.up || (dhd->pub.busstate == DHD_BUS_DOWN)) {
+		printk("%s: dhd is down. skip it.\n", __func__);
+		return -ENODEV;
+	}
 
 	ifidx = dhd_net2idx(dhd, dev);
 	if (ifidx == DHD_BAD_IF)
@@ -882,6 +900,15 @@ dhd_set_multicast_list(struct net_device *dev)
 {
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
 	int ifidx;
+
+
+	myprintf("enter %s\n", __func__);
+
+	/* BRCM: anthoy, add for debug, reject if down */
+	if ( !dhd->pub.up || (dhd->pub.busstate == DHD_BUS_DOWN) ) {
+		printk("%s: dhd is down. skip it.\n", __func__);
+		return;
+	}
 
 	ifidx = dhd_net2idx(dhd, dev);
 	if (ifidx == DHD_BAD_IF)
@@ -1208,7 +1235,7 @@ dhd_watchdog_thread(void *data)
 		else
 			break;
 	}
-
+	myprintf("%s exit\n", __func__);
 	complete_and_exit(&dhd->watchdog_exited, 0);
 }
 
@@ -1277,7 +1304,7 @@ dhd_dpc_thread(void *data)
 		else
 			break;
 	}
-
+	myprintf("%s exit\n", __func__);
 	complete_and_exit(&dhd->dpc_exited, 0);
 }
 
@@ -1524,6 +1551,13 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 	uint driver = 0;
 	int ifidx;
 	bool is_set_key_cmd;
+
+
+	/* BRCM: anthoy, add for debug, reject if down */
+	if ( !dhd->pub.up || (dhd->pub.busstate == DHD_BUS_DOWN)){
+		myprintf("%s: dhd is down. skip it.\n", __func__);
+		return -ENODEV;
+	}
 
 	ifidx = dhd_net2idx(dhd, net);
 	DHD_TRACE(("%s: ifidx %d, cmd 0x%04x\n", __FUNCTION__, ifidx, cmd));
@@ -2417,6 +2451,11 @@ dhd_os_wd_timer(void *bus, uint wdtick)
 	dhd_pub_t *pub = bus;
 	dhd_info_t *dhd = (dhd_info_t *)pub->info;
 	static uint save_dhd_watchdog_ms = 0;
+
+	/* BRCM: anthony: stop timer, if bus down. */
+	if (pub->busstate == DHD_BUS_DOWN) {
+		return;
+	}
 
 	/* Totally stop the timer */
 	if (!wdtick && dhd->wd_timer_valid == TRUE) {

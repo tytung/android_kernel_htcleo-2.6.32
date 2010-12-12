@@ -52,10 +52,11 @@ typedef const struct si_pub  si_t;
 #include <dngl_stats.h>
 #include <dhd.h>
 #define WL_ERROR(x) myprintf x
-#define WL_TRACE(x)
+#define WL_TRACE(x) //myprintf x
 #define WL_ASSOC(x)
 #define WL_INFORM(x)
 #define WL_WSEC(x)
+#define WL_SCAN(x) //myprintf x
 
 #include <wl_iw.h>
 
@@ -100,6 +101,21 @@ static bool ap_cfg_running = FALSE;
 static bool ap_fw_loaded = FALSE;
 static int ap_mode = 0;
 #endif
+
+#ifdef SOFTAP_PROTECT
+#define AP_PROTECT_TIME 		5000
+#define AP_MAX_FAIL_COUNT		2
+typedef struct ap_info {
+	struct timer_list timer;
+	uint32 timer_on;
+	long ap_pid;
+	struct semaphore ap_sem;
+	struct completion ap_exited;
+} ap_info_t;
+ap_info_t *g_ap_protect = NULL;
+static void wl_iw_ap_restart(void);
+#endif
+
 static struct net_device *priv_dev;
 
 #ifdef WLAN_AUTO_RSSI
@@ -122,7 +138,7 @@ extern bool wl_iw_conn_status_str(uint32 event_type, uint32 status,
 extern void dhd_customer_gpio_wlan_ctrl(int onoff);
 extern uint dhd_dev_reset(struct net_device *dev, uint8 flag);
 extern void dhd_dev_init_ioctl(struct net_device *dev);
-
+extern int wifi_get_cscan_enable(void);
 uint wl_msg_level = WL_ERROR_VAL;
 
 #define MAX_WLIW_IOCTL_LEN 1024
@@ -225,12 +241,15 @@ typedef struct iscan_info {
 
 	uint32 scan_flag;
 
-	char ioctlbuf[WLC_IOCTL_SMLEN];
+	char ioctlbuf[WLC_IOCTL_MEDLEN];
+	wl_iscan_params_t *iscan_ex_params_p;
+	int iscan_ex_param_size;
 } iscan_info_t;
 
 static void wl_iw_bt_flag_set(struct net_device *dev, bool set);
 static void wl_iw_bt_release(void);
 static int wl_iw_fixed_scan(struct net_device *dev);
+static int wl_iw_combined_scan_set(struct net_device *dev, wlc_ssid_t* ssids_local, int nssid, int nchan);
 
 typedef enum bt_coex_status {
 	BT_DHCP_IDLE = 0,
@@ -450,6 +469,10 @@ dev_wlc_ioctl(
 #ifdef WLAN_PROTECT
 void wl_iw_set_busdown(int busdown)
 {
+#ifdef CONFIG_BCM4329_SOFTAP
+	if (ap_mode) /* handle by ap recover */
+		return;
+#endif
 	wl_iw_busdown = busdown;
 }
 #endif
@@ -785,7 +808,13 @@ wl_iw_del_pfn(
 		return 0;
 	}
 
-	strncpy(ssid, extra + ssid_offset+1,
+	if (ssid_size > 32) {
+		WL_ERROR(("%s: ssid too long: %s\n", __FUNCTION__,
+					(char *)extra + ssid_offset + 1));
+		return 0;
+	}
+
+	strncpy(ssid, extra + ssid_offset + 1,
 			MIN(ssid_size, sizeof(ssid)));
 
 	WL_ERROR(("%s: remove ssid: %s\n", __FUNCTION__, ssid));
@@ -793,6 +822,57 @@ wl_iw_del_pfn(
 
 	p += snprintf(p, MAX_WX_STRING, "OK");
 	wrqu->data.length = p - extra + 1;
+
+	return 0;
+}
+#endif
+
+#ifdef WLAN_LOW_RSSI_IND
+static int
+wl_iw_low_rssi_set(
+	struct net_device *dev,
+	struct iw_request_info *info,
+	union iwreq_data *wrqu,
+	char *extra
+)
+{
+	char *p = extra;
+	int low_rssi_trigger;
+	int low_rssi_duration;
+	int trigger_offset;
+	int duration_offset;
+	char tran_buf[16] = {0};
+	char *pp;
+	int err = 0;
+	WL_TRACE(("%s\n", __FUNCTION__));
+
+	trigger_offset = strcspn(extra, " ");
+	duration_offset = strcspn(extra+trigger_offset + 1, " ");
+
+	// myprintf("%s: %s, t_off: %d, dur: %d\n", __func__, extra, trigger_offset, duration_offset);
+
+	pp = extra+trigger_offset+1;
+
+	memcpy(tran_buf, pp, duration_offset);
+	low_rssi_trigger = bcm_strtoul(tran_buf, NULL, 10);
+
+	err |= dev_wlc_intvar_set(dev, "low_rssi_trigger", low_rssi_trigger);
+
+	memset(tran_buf, 0, 16);
+	pp = extra+trigger_offset+duration_offset+2;
+	memcpy(tran_buf, pp, strlen(extra) - (trigger_offset+duration_offset+1));
+	low_rssi_duration = bcm_strtoul(tran_buf, NULL, 10);
+	err |= dev_wlc_intvar_set(dev, "low_rssi_duration", low_rssi_duration);
+
+	myprintf("set low rssi trigger %d, duration %d\n",low_rssi_trigger, low_rssi_duration);
+
+	if (err) {
+		WL_ERROR(("set low rssi ind fail!\n"));
+		p += snprintf(p, MAX_WX_STRING, "FAIL");
+	} else
+		p += snprintf(p, MAX_WX_STRING, "OK");
+	wrqu->data.length = p - extra + 1;
+
 
 	return 0;
 }
@@ -960,6 +1040,8 @@ static int btcoex_dhcp_timer_start(struct net_device *dev)
 
 
 extern int dhdcdc_power_active_while_plugin;
+extern int dhdcdc_wifiLock;
+
 static int
 wl_iw_set_power_mode(
 	struct net_device *dev,
@@ -1030,6 +1112,21 @@ wl_iw_set_power_mode(
 			dhdhtc_set_power_control(1, DHDHTC_POWER_CTRL_USER_CONFIG);
 			dhdhtc_update_wifi_power_mode(screen_off);
 			break;
+
+		case 87: /* For wifilock release*/
+			myprintf("wifilock release\n");
+			dhdcdc_wifiLock = 0;
+			dhdhtc_update_wifi_power_mode(screen_off);
+			dhdhtc_update_dtim_listen_interval(screen_off);
+			break;
+
+		case 88: /* For wifilock lock*/
+			myprintf("wifilock accquire\n");
+			dhdcdc_wifiLock = 1;
+			dhdhtc_update_wifi_power_mode(screen_off);
+			dhdhtc_update_dtim_listen_interval(screen_off);
+			break;
+
 		case 99: /* For debug. power active or not while usb plugin */
 			dhdcdc_power_active_while_plugin = !dhdcdc_power_active_while_plugin;
 			dhdhtc_update_wifi_power_mode(screen_off);
@@ -1090,6 +1187,23 @@ wl_iw_get_power_mode(
 
 	myprintf("getpower: %s\n", extra);
 	return error;
+}
+
+static int
+wl_iw_get_wifilock_mode(
+	struct net_device *dev,
+	struct iw_request_info *info,
+	union iwreq_data *wrqu,
+	char *extra
+)
+{
+	char *p = extra;
+
+	p += snprintf(p, MAX_WX_STRING, "%d", dhdcdc_wifiLock);
+	wrqu->data.length = p - extra + 1;
+
+	myprintf("dhdcdc_wifiLock: %s\n", extra);
+	return 0;
 }
 
 static int wl_iw_wifi_call = 0;
@@ -1540,11 +1654,13 @@ _wl_control_sysioc_thread_wl_off(void *data)
 		dhd_dev_reset(wl_ctl->dev, 1);
 
 #if defined(WL_IW_USE_ISCAN)
+    if(!wifi_get_cscan_enable())
+    {
 		wl_iw_free_ss_cache();
 		wl_iw_run_ss_cache_timer(0);
 		memset(g_scan, 0, G_SCAN_RESULTS);
-
 		g_ss_cache_ctrl.m_link_down = 1;
+    }
 		g_scan_specified_ssid = 0;
 
 		g_first_broadcast_scan = BROADCAST_SCAN_FIRST_IDLE;
@@ -1661,8 +1777,11 @@ wl_iw_control_wl_off(
 		dhd_dev_reset(dev, 1);
 
 #if defined(WL_IW_USE_ISCAN)
+    if(!wifi_get_cscan_enable())
+    {
 		wl_iw_free_ss_cache();
 		wl_iw_run_ss_cache_timer(0);
+    }
 		memset(g_scan, 0, G_SCAN_RESULTS);
 
 		g_ss_cache_ctrl.m_link_down = 1;
@@ -2805,26 +2924,25 @@ wl_iw_iscan(iscan_info_t *iscan, wlc_ssid_t *ssid, uint16 action)
 		return -EINVAL;
 	}
 
-	if (ssid && ssid->SSID_len) {
-		params_size += sizeof(wlc_ssid_t);
+  if (ssid && ssid->SSID_len) {
+		  params_size += sizeof(wlc_ssid_t);
 	}
-	params = (wl_iscan_params_t*)kmalloc(params_size, GFP_KERNEL);
+	  params = (wl_iscan_params_t*)kmalloc(params_size, GFP_KERNEL);
 	if (params == NULL) {
 		return -ENOMEM;
 	}
 	memset(params, 0, params_size);
 	ASSERT(params_size < WLC_IOCTL_SMLEN);
+  if(!wifi_get_cscan_enable()){
+	  err = wl_iw_iscan_prep(&params->params, ssid);
 
-	err = wl_iw_iscan_prep(&params->params, ssid);
-
-	if (!err) {
-		params->version = htod32(ISCAN_REQ_VERSION);
-		params->action = htod16(action);
-		params->scan_duration = htod16(0);
-
+	  if (!err) {
+		  params->version = htod32(ISCAN_REQ_VERSION);
+		  params->action = htod16(action);
+		  params->scan_duration = htod16(0);
 
 iscan_retry:
-		err = dev_iw_iovar_setbuf(iscan->dev, "iscan", params, params_size,
+		  err = dev_iw_iovar_setbuf(iscan->dev, "iscan", params, params_size,
 			iscan->ioctlbuf, WLC_IOCTL_SMLEN);
 		if (err&&(retry < 2)) {
 			retry++;
@@ -2835,10 +2953,38 @@ iscan_retry:
 
 		if (err)
 			WL_ERROR(("iscan fail!\n"));
-	}
+	 }
+   }
+   else{
+	    iscan->iscan_ex_params_p->version = htod32(ISCAN_REQ_VERSION);
+	    iscan->iscan_ex_params_p->action = htod16(action);
+	    iscan->iscan_ex_params_p->scan_duration = htod16(0);
 
-	kfree(params);
-	return err;
+	    WL_SCAN(("%s : nprobes=%d\n", __FUNCTION__, iscan->iscan_ex_params_p->params.nprobes));
+	    WL_SCAN(("active_time=%d\n", iscan->iscan_ex_params_p->params.active_time));
+	    WL_SCAN(("passive_time=%d\n", iscan->iscan_ex_params_p->params.passive_time));
+	    WL_SCAN(("home_time=%d\n", iscan->iscan_ex_params_p->params.home_time));
+	    WL_SCAN(("scan_type=%d\n", iscan->iscan_ex_params_p->params.scan_type));
+	    WL_SCAN(("bss_type=%d\n", iscan->iscan_ex_params_p->params.bss_type));
+	    WL_SCAN(("channel_num=%d\n", iscan->iscan_ex_params_p->params.channel_num&WL_SCAN_PARAMS_COUNT_MASK));
+
+
+
+cscan_retry:
+	    err = dev_iw_iovar_setbuf(iscan->dev, "iscan", iscan->iscan_ex_params_p, \
+	    iscan->iscan_ex_param_size, iscan->ioctlbuf, sizeof(iscan->ioctlbuf));
+	    if (err&&(retry < 2)) {
+		  retry++;
+		  WL_ERROR(("iscan retry!\n"));
+		  bcm_mdelay(500);
+		  goto cscan_retry;
+	 }
+
+	if (err)
+		WL_ERROR(("iscan fail!\n"));
+  }
+	  kfree(params);
+	  return err;
 }
 
 static void
@@ -2865,6 +3011,19 @@ static void wl_iw_set_event_mask(struct net_device *dev)
 		iovbuf, sizeof(iovbuf));
 }
 
+static void wl_iw_set_event_mask_deauth(struct net_device *dev)
+{
+	char eventmask[WL_EVENTING_MASK_LEN];
+	char iovbuf[WL_EVENTING_MASK_LEN + 12];
+
+	WL_SOFTAP(("set deauth event!\n"));
+	dev_iw_iovar_getbuf(dev, "event_msgs", "", 0, iovbuf, sizeof(iovbuf));
+	bcopy(iovbuf, eventmask, WL_EVENTING_MASK_LEN);
+	setbit(eventmask, WLC_E_DEAUTH);
+	dev_iw_iovar_setbuf(dev, "event_msgs", eventmask, WL_EVENTING_MASK_LEN,
+		iovbuf, sizeof(iovbuf));
+}
+
 static uint32
 wl_iw_iscan_get(iscan_info_t *iscan)
 {
@@ -2874,6 +3033,7 @@ wl_iw_iscan_get(iscan_info_t *iscan)
 	wl_iscan_results_t list;
 	wl_scan_results_t *results;
 	uint32 status;
+	int res = 0;
 
 	mutex_lock(&wl_cache_lock);
 	if (iscan->list_cur) {
@@ -2908,20 +3068,28 @@ wl_iw_iscan_get(iscan_info_t *iscan)
 
 	memset(&list, 0, sizeof(list));
 	list.results.buflen = htod32(WLC_IW_ISCAN_MAXLEN);
-	(void) dev_iw_iovar_getbuf(
+	res = dev_iw_iovar_getbuf(
 		iscan->dev,
 		"iscanresults",
 		&list,
 		WL_ISCAN_RESULTS_FIXED_SIZE,
 		buf->iscan_buf,
 		WLC_IW_ISCAN_MAXLEN);
-	results->buflen = dtoh32(results->buflen);
-	results->version = dtoh32(results->version);
-	results->count = dtoh32(results->count);
-	WL_TRACE(("results->count = %d\n", results->count));
+	if (res == 0) {
+		results->buflen = dtoh32(results->buflen);
+		results->version = dtoh32(results->version);
+		results->count = dtoh32(results->count);
+		WL_TRACE(("results->count = %d\n", results->count));
 
-	WL_TRACE(("results->buflen = %d\n", results->buflen));
-	status = dtoh32(list_buf->status);
+		WL_TRACE(("results->buflen = %d\n", results->buflen));
+		status = dtoh32(list_buf->status);
+	}
+	else {
+		WL_ERROR(("%s returns error %d\n", __FUNCTION__, res));
+
+		status = WL_SCAN_RESULTS_NO_MEM;
+	}
+
 	mutex_unlock(&wl_cache_lock);
 	return status;
 }
@@ -2949,6 +3117,7 @@ static void wl_iw_send_scan_complete(iscan_info_t *iscan)
 	if (g_first_broadcast_scan == BROADCAST_SCAN_FIRST_STARTED)
 		g_first_broadcast_scan = BROADCAST_SCAN_FIRST_RESULT_READY;
 	WL_TRACE(("Send Event ISCAN complete\n"));
+	printk (KERN_INFO"[WLAN] Send Event ISCAN complete\n");
 #endif
 }
 
@@ -3022,14 +3191,21 @@ _iscan_sysioc_thread(void *data)
 				iscan->timer_on = 1;
 				break;
 			case WL_SCAN_RESULTS_ABORTED:
-				WL_TRACE(("iscanresults aborted\n"));
+				WL_ERROR(("iscanresults aborted\n"));
 				iscan->iscan_state = ISCAN_STATE_IDLE;
+#if 0
 				if (g_scan_specified_ssid == 0)
 					wl_iw_send_scan_complete(iscan);
 				else {
 					iscan_pass_abort = TRUE;
 					wl_iw_force_specific_scan(iscan);
 				}
+#else
+				/* scan again
+				 */
+				iscan_pass_abort = TRUE;
+				wl_iw_force_specific_scan(iscan);
+#endif
 				break;
 			case WL_SCAN_RESULTS_NO_MEM:
 				WL_TRACE(("iscanresults can't alloc memory: skip\n"));
@@ -3221,6 +3397,8 @@ wl_iw_add_bss_to_ss_cache(wl_scan_results_t *ss_list)
 		leaf = kmalloc(WLC_IW_SS_CACHE_MAXLEN, GFP_KERNEL);
 		if (!leaf) {
 			mutex_unlock(&wl_cache_lock);
+			WL_ERROR(("Memory alloc failure %d\n", \
+				bi->length + WLC_IW_SS_CACHE_CTRL_FIELD_MAXLEN));
 			return -ENOMEM;
 		}
 
@@ -3322,6 +3500,11 @@ wl_iw_set_scan(
 	int ret, retry = 0;
 	WL_TRACE(("%s dev:%s: SIOCSIWSCAN : SCAN\n", __FUNCTION__, dev->name));
 
+  if(wifi_get_cscan_enable()){
+		WL_ERROR(("%s: Scan from SIOCGIWSCAN not supported (Using CSCAN)\n", __FUNCTION__));
+		return -EINVAL;
+  }
+
 #if defined(CONFIG_BCM4329_SOFTAP)
 	if (ap_cfg_running) {
 		WL_TRACE(("\n>%s: Not executed, reason -'SOFTAP is active'\n", __FUNCTION__));
@@ -3384,6 +3567,154 @@ specific_retry:
 	return 0;
 }
 
+int
+wl_iw_CSCAN_first(struct net_device *dev)
+{
+	int res = -1;
+	iscan_info_t *iscan = g_iscan;
+	int nssid = 0;
+	int nchan = 0,datalength;
+	cscan_tlv_t *cscan_tlv_temp;
+	wlc_ssid_t ssids_local[WL_SCAN_PARAMS_SSID_MAX];
+	char type;
+	char *str_ptr;
+	int tlv_size_left;
+	char *temp;
+	char tlv_in_firstscan[] = {	'C', 'S', 'C', 'A', 'N', ' ', \
+							0x53, 0x01, 0x00, 0x00,
+							'S',0x00,
+							'C',0x01,'C',0x02,'C',0x03,'C',0x04,'C',0x05,'C',0x06,'C',0x07,'C',0x08,'C',0x09,
+							'C',0x10,'C',0x11
+							};
+	datalength = sizeof(tlv_in_firstscan);
+
+  if (!(temp = kmalloc(datalength, GFP_KERNEL)))
+	    return -ENOMEM;
+
+	if (g_onoff == G_WLAN_SET_OFF) {
+		WL_TRACE(("%s: driver is not up yet after START\n", __FUNCTION__));
+		return -1;
+	}
+
+	memcpy(temp, tlv_in_firstscan, sizeof(tlv_in_firstscan));
+
+	str_ptr = temp;
+	str_ptr +=  strlen(CSCAN_COMMAND);
+	tlv_size_left = datalength - strlen(CSCAN_COMMAND);
+
+	cscan_tlv_temp = (cscan_tlv_t *)str_ptr;
+	memset(ssids_local, 0, sizeof(ssids_local));
+
+	if ((cscan_tlv_temp->prefix == CSCAN_TLV_PREFIX) && \
+		(cscan_tlv_temp->version == CSCAN_TLV_VERSION) && \
+		(cscan_tlv_temp->subver == CSCAN_TLV_SUBVERSION))
+	{
+		str_ptr += sizeof(cscan_tlv_t);
+		tlv_size_left  -= sizeof(cscan_tlv_t);
+
+
+		if ((nssid = wl_iw_parse_ssid_list_tlv(&str_ptr, ssids_local, \
+				WL_SCAN_PARAMS_SSID_MAX, &tlv_size_left)) <= 0) {
+			WL_ERROR(("SSID is not presented or corrupted ret=%d\n", nssid));
+			goto exit_proc;
+		}
+		else {
+
+			memset(iscan->iscan_ex_params_p, 0, iscan->iscan_ex_param_size);
+
+
+			wl_iw_iscan_prep(&iscan->iscan_ex_params_p->params, NULL);
+			iscan->iscan_ex_params_p->version = htod32(ISCAN_REQ_VERSION);
+			iscan->iscan_ex_params_p->action = htod16(WL_SCAN_ACTION_START);
+			iscan->iscan_ex_params_p->scan_duration = htod16(0);
+
+
+			while (tlv_size_left > 0)
+			{
+			type = str_ptr[0];
+			switch (type) {
+				case CSCAN_TLV_TYPE_CHANNEL_IE:
+
+					if ((nchan = wl_iw_parse_channel_list_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.channel_list[0], \
+					WL_NUMCHANNELS, &tlv_size_left)) == -1) {
+					WL_ERROR(("%s missing channel list\n", \
+						 __FUNCTION__));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_NPROBE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+						&iscan->iscan_ex_params_p->params.nprobes, \
+						sizeof(iscan->iscan_ex_params_p->params.nprobes), \
+						type, sizeof(char), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+							__FUNCTION__, res));
+							goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_ACTIVE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.active_time, \
+					sizeof(iscan->iscan_ex_params_p->params.active_time), \
+					type, sizeof(short), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_PASSIVE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.passive_time, \
+					sizeof(iscan->iscan_ex_params_p->params.passive_time), \
+					type, sizeof(short), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_HOME_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.home_time, \
+					sizeof(iscan->iscan_ex_params_p->params.home_time), \
+					type, sizeof(short), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_STYPE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.scan_type, \
+					sizeof(iscan->iscan_ex_params_p->params.scan_type), \
+					type, sizeof(char), &tlv_size_left)) == -1) {
+					WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+
+				default :
+					WL_ERROR(("%s get unkwown type %X\n", \
+						__FUNCTION__, type));
+					goto exit_proc;
+				break;
+				}
+			}
+			}
+		}
+		else {
+			WL_ERROR(("%s get wrong TLV command\n", __FUNCTION__));
+			goto exit_proc;
+		}
+
+		res = wl_iw_combined_scan_set(dev, ssids_local, nssid, nchan);
+
+exit_proc:
+
+	return res;
+}
+
 #ifdef WL_IW_USE_ISCAN
 int
 wl_iw_iscan_set_scan_broadcast_prep(struct net_device *dev, uint flag)
@@ -3415,13 +3746,18 @@ wl_iw_iscan_set_scan_broadcast_prep(struct net_device *dev, uint flag)
 	if (flag)
 		rtnl_lock();
 #endif
-
+  if(!wifi_get_cscan_enable()){
 	dev_wlc_ioctl(dev, WLC_SET_PASSIVE_SCAN, &iscan->scan_flag, sizeof(iscan->scan_flag));
 	wl_iw_set_event_mask(dev);
 
 	WL_TRACE(("+++: Set Broadcast ISCAN\n"));
 
 	ret = wl_iw_iscan(iscan, &ssid, WL_SCAN_ACTION_START);
+  }else
+  {
+   printk(KERN_INFO"Try to do scan first (CSCAN) !");
+   ret=wl_iw_CSCAN_first(dev);
+  }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 	if (flag)
@@ -3448,6 +3784,11 @@ wl_iw_iscan_set_scan(
 	int isup;
 
 	WL_TRACE(("%s: SIOCSIWSCAN : ISCAN\n", dev->name));
+
+  if(wifi_get_cscan_enable()){
+	WL_ERROR(("%s: Scan from SIOCGIWSCAN not supported (Due to Using CSCAN)\n", __FUNCTION__));
+	return -EINVAL;
+  }
 
 	if (dev_wlc_ioctl_off) {
 		WL_ERROR(("%s: wl driver going down!\n", __FUNCTION__));
@@ -3498,11 +3839,13 @@ wl_iw_iscan_set_scan(
 		if (wrqu->data.flags & IW_SCAN_THIS_ESSID) {
 			int as = 0;
 			struct iw_scan_req *req = (struct iw_scan_req *)extra;
+    if(!wifi_get_cscan_enable()){
 			if (g_first_broadcast_scan < BROADCAST_SCAN_FIRST_RESULT_CONSUMED) {
 				WL_TRACE(("%s First ISCAN in progress : ignoring SC = %s\n", \
 					 __FUNCTION__, req->essid));
 				return -EBUSY;
 			}
+    }
 			ssid.SSID_len = MIN(sizeof(ssid.SSID), req->essid_len);
 			memcpy(ssid.SSID, req->essid, ssid.SSID_len);
 			ssid.SSID_len = htod32(ssid.SSID_len);
@@ -3824,8 +4167,13 @@ wl_iw_get_scan(
 	if ((error = dev_wlc_ioctl(dev, WLC_GET_CHANNEL, &ci, sizeof(ci))))
 		return error;
 	ci.scan_channel = dtoh32(ci.scan_channel);
-	if (ci.scan_channel)
+	if (ci.scan_channel) {
+      if(!wifi_get_cscan_enable()){
+		WL_ERROR(("%s: scan is running. channel: %d\n", __func__, ci.scan_channel));
+		wl_iw_fixed_scan(dev);
+      }
 		return -EAGAIN;
+	}
 
 	if (g_ss_cache_ctrl.m_timer_expired) {
 		wl_iw_free_ss_cache();
@@ -3879,12 +4227,12 @@ wl_iw_get_scan(
 		wl_iw_fixed_scan(dev);
 		return -EINVAL;
 	}
+  if(!wifi_get_cscan_enable()){
+	  if (g_scan_specified_ssid) {
 
-	if (g_scan_specified_ssid) {
-
-		wl_iw_add_bss_to_ss_cache(list);
-		kfree(list);
-	}
+		  wl_iw_add_bss_to_ss_cache(list);
+		  kfree(list);
+	  }
 
 	mutex_lock(&wl_cache_lock);
 #if defined(WL_IW_USE_ISCAN)
@@ -3915,9 +4263,38 @@ wl_iw_get_scan(
 	len_ret += merged_len;
 	wl_iw_run_ss_cache_timer(0);
 	wl_iw_run_ss_cache_timer(1);
+  }else
+  {
 
+    if (g_scan_specified_ssid) {
+		WL_TRACE(("%s: Specified scan APs in the list =%d\n", __FUNCTION__, list->count));
+		len_ret = (__u16) wl_iw_get_scan_prep(list, info, extra, buflen_from_user);
+		kfree(list);
 #if defined(WL_IW_USE_ISCAN)
+		p_buf = iscan->list_hdr;
 
+		while (p_buf != iscan->list_cur) {
+			list_merge = &((wl_iscan_results_t*)p_buf->iscan_buf)->results;
+			WL_TRACE(("%s: Bcast APs list=%d\n", __FUNCTION__, list_merge->count));
+			if (list_merge->count > 0)
+				len_ret += (__u16) wl_iw_get_scan_prep(list_merge, info,
+				    extra+len_ret, buflen_from_user -len_ret);
+			p_buf = p_buf->next;
+		}
+#else
+		list_merge = (wl_scan_results_t *) g_scan;
+		WL_TRACE(("%s: Bcast APs list=%d\n", __FUNCTION__, list_merge->count));
+		if (list_merge->count > 0)
+			len_ret += (__u16) wl_iw_get_scan_prep(list_merge, info, extra+len_ret,
+				buflen_from_user -len_ret);
+#endif
+    }
+    else {
+		list = (wl_scan_results_t *) g_scan;
+		len_ret = (__u16) wl_iw_get_scan_prep(list, info, extra, buflen_from_user);
+    }
+  }
+#if defined(WL_IW_USE_ISCAN)
 	g_scan_specified_ssid = 0;
 #endif
 
@@ -4030,6 +4407,7 @@ wl_iw_iscan_get_scan(
 	uint32  counter = 0;
 	__u16 merged_len = 0;
 	uint buflen_from_user = dwrq->length;
+	uint8   channel;
 
 	WL_TRACE(("%s %s buflen_from_user %d:\n", dev->name, __FUNCTION__, dwrq->length));
 
@@ -4049,18 +4427,18 @@ wl_iw_iscan_get_scan(
 		WL_ERROR(("%s: wl driver going down!\n", __FUNCTION__));
 		return -EINVAL;
 	}
-
+  if(!wifi_get_cscan_enable()){
 	if (g_first_broadcast_scan < BROADCAST_SCAN_FIRST_RESULT_READY) {
-		WL_TRACE(("%s %s: first ISCAN results are NOT ready yet \n", \
-			 dev->name, __FUNCTION__));
+		WL_ERROR(("%s %s: first ISCAN results are NOT ready yet \n", \
+			 dev->name, __func__));
 		return -EAGAIN;
 	}
-
+  }
 	if ((!iscan) || (iscan->sysioc_pid < 0)) {
 		WL_TRACE(("%ssysioc_pid\n", __FUNCTION__));
 		return wl_iw_get_scan(dev, info, dwrq, extra);
 	}
-
+  if(!wifi_get_cscan_enable()){
 	if (g_ss_cache_ctrl.m_timer_expired) {
 		wl_iw_free_ss_cache();
 		g_ss_cache_ctrl.m_timer_expired ^= 1;
@@ -4080,7 +4458,7 @@ wl_iw_iscan_get_scan(
 		g_ss_cache_ctrl.m_prev_scan_mode = g_scan_specified_ssid;
 		g_ss_cache_ctrl.m_cons_br_scan_cnt++;
 	}
-
+  }
 	WL_TRACE(("%s: SIOCGIWSCAN GET broadcast results\n", dev->name));
 	apcnt = 0;
 	p_buf = iscan->list_hdr;
@@ -4131,6 +4509,7 @@ wl_iw_iscan_get_scan(
 
 
 		iwe.cmd = SIOCGIWFREQ;
+    if(!wifi_get_cscan_enable()){
 #ifdef  CUSTOMER_HW2
 		if (dtoh32(bi->version) != 107 && bi->n_cap)
 		{
@@ -4142,6 +4521,13 @@ wl_iw_iscan_get_scan(
 		iwe.u.freq.m = wf_channel2mhz(CHSPEC_CHANNEL(bi->chanspec),
 			CHSPEC_CHANNEL(bi->chanspec) <= CH_MAX_2G_CHANNEL ?
 			WF_CHAN_FACTOR_2_4_G : WF_CHAN_FACTOR_5_G);
+    }else
+    {
+		  channel = (bi->ctl_ch == 0) ? CHSPEC_CHANNEL(bi->chanspec) : bi->ctl_ch;
+		  iwe.u.freq.m = wf_channel2mhz(channel,
+			channel <= CH_MAX_2G_CHANNEL ?
+			WF_CHAN_FACTOR_2_4_G : WF_CHAN_FACTOR_5_G);
+    }
 		iwe.u.freq.e = 6;
 		event = IWE_STREAM_ADD_EVENT(info, event, end, &iwe, IW_EV_FREQ_LEN);
 
@@ -4186,15 +4572,15 @@ wl_iw_iscan_get_scan(
 
 	dwrq->length = event - extra;
 	dwrq->flags = 0;
+  if(!wifi_get_cscan_enable()){
+	  wl_iw_merge_scan_cache(info, event, buflen_from_user - dwrq->length, &merged_len);
+	  dwrq->length += merged_len;
+	  wl_iw_run_ss_cache_timer(0);
+	  wl_iw_run_ss_cache_timer(1);
 
-	wl_iw_merge_scan_cache(info, event, buflen_from_user - dwrq->length, &merged_len);
-	dwrq->length += merged_len;
-	wl_iw_run_ss_cache_timer(0);
-	wl_iw_run_ss_cache_timer(1);
-
-	g_first_broadcast_scan = BROADCAST_SCAN_FIRST_RESULT_CONSUMED;
-
-	WL_TRACE(("%s return to WE %d bytes APs=%d\n", __FUNCTION__, dwrq->length, counter));
+	  g_first_broadcast_scan = BROADCAST_SCAN_FIRST_RESULT_CONSUMED;
+  }
+	myprintf("[WLAN] %s return to WE %d bytes APs=%d\n", __func__, dwrq->length, counter);
 
 	if (!dwrq->length)
 		return -EAGAIN;
@@ -5620,6 +6006,405 @@ int get_user_params(char *user_params, struct iw_point *dwrq)
 	return ret;
 }
 
+#if defined(CSCAN)
+
+
+
+static int
+wl_iw_combined_scan_set(struct net_device *dev, wlc_ssid_t* ssids_local, int nssid, int nchan)
+{
+	int params_size = WL_SCAN_PARAMS_FIXED_SIZE + WL_NUMCHANNELS * sizeof(uint16);
+	int err = 0;
+	char *p;
+	int i;
+	iscan_info_t *iscan = g_iscan;
+
+	WL_TRACE(("%s nssid=%d nchan=%d\n", __FUNCTION__, nssid, nchan));
+
+	if ((!dev) && (!g_iscan) && (!iscan->iscan_ex_params_p)) {
+		WL_ERROR(("%s error exit\n", __FUNCTION__));
+		err = -1;
+	}
+
+	params_size += WL_SCAN_PARAMS_SSID_MAX * sizeof(wlc_ssid_t);
+
+
+	if (nssid > 0) {
+		i = OFFSETOF(wl_scan_params_t, channel_list) + nchan * sizeof(uint16);
+		i = ROUNDUP(i, sizeof(uint32));
+		if (i + nssid * sizeof(wlc_ssid_t) > params_size) {
+			printk(KERN_INFO"additional ssids exceed params_size\n");
+			err = -1;
+			goto exit;
+		}
+
+		p = ((char*)&iscan->iscan_ex_params_p->params) + i;
+		memcpy(p, ssids_local, nssid * sizeof(wlc_ssid_t));
+		p += nssid * sizeof(wlc_ssid_t);
+	} else {
+		p = (char*)iscan->iscan_ex_params_p->params.channel_list + nchan * sizeof(uint16);
+	}
+
+
+	iscan->iscan_ex_params_p->params.channel_num = \
+		htod32((nssid << WL_SCAN_PARAMS_NSSID_SHIFT) | \
+					(nchan & WL_SCAN_PARAMS_COUNT_MASK));
+
+	nssid = \
+	(uint)((iscan->iscan_ex_params_p->params.channel_num >> WL_SCAN_PARAMS_NSSID_SHIFT) & \
+		               WL_SCAN_PARAMS_COUNT_MASK);
+
+
+	params_size = (int) (p - (char*)iscan->iscan_ex_params_p + nssid * sizeof(wlc_ssid_t));
+	iscan->iscan_ex_param_size = params_size;
+
+	iscan->list_cur = iscan->list_hdr;
+	iscan->iscan_state = ISCAN_STATE_SCANING;
+	wl_iw_set_event_mask(dev);
+	mod_timer(&iscan->timer, jiffies + iscan->timer_ms*HZ/1000);
+
+	iscan->timer_on = 1;
+
+#define SCAN_DUMP 0
+#ifdef SCAN_DUMP
+	{
+		int i;
+		WL_SCAN(("\n### List of SSIDs to scan ###\n"));
+		for (i = 0; i < nssid; i++) {
+			if (!ssids_local[i].SSID_len)
+				WL_SCAN(("%d: Broadcast scan\n", i));
+			else
+			WL_SCAN(("%d: scan  for  %s size =%d\n", i, \
+				ssids_local[i].SSID, ssids_local[i].SSID_len));
+		}
+		WL_SCAN(("### List of channels to scan ###\n"));
+		for (i = 0; i < nchan; i++)
+		{
+			WL_SCAN(("%d ", iscan->iscan_ex_params_p->params.channel_list[i]));
+		}
+		WL_SCAN(("\nnprobes=%d\n", iscan->iscan_ex_params_p->params.nprobes));
+		WL_SCAN(("active_time=%d\n", iscan->iscan_ex_params_p->params.active_time));
+		WL_SCAN(("passive_time=%d\n", iscan->iscan_ex_params_p->params.passive_time));
+		WL_SCAN(("home_time=%d\n", iscan->iscan_ex_params_p->params.home_time));
+		WL_SCAN(("scan_type=%d\n", iscan->iscan_ex_params_p->params.scan_type));
+		WL_SCAN(("\n###################\n"));
+	}
+#endif
+
+	if (params_size > WLC_IOCTL_MEDLEN) {
+		printk (KERN_INFO"[WLAN] error1\n");
+			WL_ERROR(("Set ISCAN for %s due to params_size=%d  \n", \
+				__FUNCTION__, params_size));
+			err = -1;
+	}
+
+	if ((err = dev_iw_iovar_setbuf(dev, "iscan", iscan->iscan_ex_params_p, \
+			iscan->iscan_ex_param_size, \
+			iscan->ioctlbuf, sizeof(iscan->ioctlbuf)))) {
+				printk (KERN_INFO"[WLAN] error2\n");
+			WL_TRACE(("Set ISCAN for %s failed with %d\n", __FUNCTION__, err));
+			err = -1;
+	}
+
+exit:
+
+	return err;
+}
+
+
+static int iwpriv_set_cscan(struct net_device *dev, struct iw_request_info *info, \
+				union iwreq_data *wrqu, char *ext)
+{
+	int res = 0;
+	char  *extra = NULL;
+	iscan_info_t *iscan = g_iscan;
+	wlc_ssid_t ssids_local[WL_SCAN_PARAMS_SSID_MAX];
+	int nssid = 0;
+	int nchan = 0;
+
+
+	WL_TRACE(("\%s: info->cmd:%x, info->flags:%x, u.data=0x%p, u.len=%d\n",
+		__FUNCTION__, info->cmd, info->flags,
+		wrqu->data.pointer, wrqu->data.length));
+
+	if (g_onoff == G_WLAN_SET_OFF) {
+		WL_TRACE(("%s: driver is not up yet after START\n", __FUNCTION__));
+		return -1;
+	}
+
+	if (wrqu->data.length != 0) {
+
+		char *str_ptr;
+
+		if (!iscan->iscan_ex_params_p) {
+			return -EFAULT;
+		}
+
+		if (!(extra = kmalloc(wrqu->data.length+1, GFP_KERNEL)))
+			return -ENOMEM;
+
+		if (copy_from_user(extra, wrqu->data.pointer, wrqu->data.length)) {
+			kfree(extra);
+			return -EFAULT;
+		}
+
+		extra[wrqu->data.length] = 0;
+		WL_ERROR(("Got str param in iw_point:\n %s\n", extra));
+
+		str_ptr = extra;
+
+
+		if (strncmp(str_ptr, GET_SSID, strlen(GET_SSID))) {
+			WL_ERROR(("%s Error: extracting SSID='' string\n", __FUNCTION__));
+			goto exit_proc;
+		}
+		str_ptr += strlen(GET_SSID);
+		nssid = wl_iw_parse_ssid_list(&str_ptr, ssids_local, nssid, \
+						WL_SCAN_PARAMS_SSID_MAX);
+
+		if (nssid == -1) {
+			WL_ERROR(("%s wrong ssid list", __FUNCTION__));
+			return -1;
+		}
+
+		memset(iscan->iscan_ex_params_p, 0, iscan->iscan_ex_param_size);
+		ASSERT(iscan->iscan_ex_param_size < WLC_IOCTL_MAXLEN);
+
+
+		wl_iw_iscan_prep(&iscan->iscan_ex_params_p->params, NULL);
+		iscan->iscan_ex_params_p->version = htod32(ISCAN_REQ_VERSION);
+		iscan->iscan_ex_params_p->action = htod16(WL_SCAN_ACTION_START);
+		iscan->iscan_ex_params_p->scan_duration = htod16(0);
+
+
+		if ((nchan = wl_iw_parse_channel_list(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.channel_list[0], \
+					WL_NUMCHANNELS)) == -1) {
+			WL_ERROR(("%s missing channel list\n", __FUNCTION__));
+			return -1;
+		}
+
+
+		get_parmeter_from_string(&str_ptr, \
+				GET_NPROBE, PTYPE_INTDEC, \
+				&iscan->iscan_ex_params_p->params.nprobes, 2);
+
+		get_parmeter_from_string(&str_ptr, GET_ACTIVE_ASSOC_DWELL, PTYPE_INTDEC, \
+						&iscan->iscan_ex_params_p->params.active_time, 4);
+
+		get_parmeter_from_string(&str_ptr, GET_PASSIVE_ASSOC_DWELL, PTYPE_INTDEC, \
+						&iscan->iscan_ex_params_p->params.passive_time, 4);
+
+		get_parmeter_from_string(&str_ptr, GET_HOME_DWELL, PTYPE_INTDEC, \
+					&iscan->iscan_ex_params_p->params.home_time, 4);
+
+		get_parmeter_from_string(&str_ptr, GET_SCAN_TYPE, PTYPE_INTDEC, \
+					&iscan->iscan_ex_params_p->params.scan_type, 1);
+
+
+		res = wl_iw_combined_scan_set(dev, ssids_local, nssid, nchan);
+
+	} else {
+
+		  WL_ERROR(("IWPRIV argument len = 0 \n"));
+		  return -1;
+	}
+
+exit_proc:
+
+	kfree(extra);
+
+	return res;
+}
+
+
+static int
+wl_iw_set_cscan(
+	struct net_device *dev,
+	struct iw_request_info *info,
+	union iwreq_data *wrqu,
+	char *extra
+)
+{
+	int res = -1;
+	iscan_info_t *iscan = g_iscan;
+	wlc_ssid_t ssids_local[WL_SCAN_PARAMS_SSID_MAX];
+	int nssid = 0;
+	int nchan = 0;
+	cscan_tlv_t *cscan_tlv_temp;
+	char type;
+	char *str_ptr;
+	int tlv_size_left;
+#ifdef TLV_DEBUG
+	int i;
+	char tlv_in_example[] = {			'C', 'S', 'C', 'A', 'N', ' ', \
+							0x53, 0x01, 0x00, 0x00,
+							'S',
+							0x00,
+							'S',
+							0x04,
+							'B', 'R', 'C', 'M',
+							'C',
+							0x06,
+							//0x00,
+							//'P',
+							'A',
+							0x94,
+							0x11,
+							'T',
+							//0x01
+							0x00
+							};
+#endif
+	WL_SCAN(("\n### %s: info->cmd:%x, info->flags:%x, u.data=0x%p, u.len=%d\n",
+		__FUNCTION__, info->cmd, info->flags,
+		wrqu->data.pointer, wrqu->data.length));
+
+	if (g_onoff == G_WLAN_SET_OFF) {
+		WL_TRACE(("%s: driver is not up yet after START\n", __FUNCTION__));
+		return -1;
+	}
+
+
+	if (wrqu->data.length < (strlen(CSCAN_COMMAND) + sizeof(cscan_tlv_t))) {
+		WL_ERROR(("%s aggument=%d  less %d\n", __FUNCTION__, \
+			wrqu->data.length, strlen(CSCAN_COMMAND) + sizeof(cscan_tlv_t)));
+		return -1;
+	}
+
+#ifdef TLV_DEBUG
+	memcpy(extra, tlv_in_example, sizeof(tlv_in_example));
+	wrqu->data.length = sizeof(tlv_in_example);
+	for (i = 0; i < wrqu->data.length; i++)
+		printk(KERN_INFO"%02X ", extra[i]);
+	printk(KERN_INFO"--\n");
+#endif
+
+	str_ptr = extra;
+	str_ptr +=  strlen(CSCAN_COMMAND);
+	tlv_size_left = wrqu->data.length - strlen(CSCAN_COMMAND);
+
+	cscan_tlv_temp = (cscan_tlv_t *)str_ptr;
+	memset(ssids_local, 0, sizeof(ssids_local));
+
+	if ((cscan_tlv_temp->prefix == CSCAN_TLV_PREFIX) && \
+		(cscan_tlv_temp->version == CSCAN_TLV_VERSION) && \
+		(cscan_tlv_temp->subver == CSCAN_TLV_SUBVERSION))
+	{
+		str_ptr += sizeof(cscan_tlv_t);
+		tlv_size_left  -= sizeof(cscan_tlv_t);
+
+
+		if ((nssid = wl_iw_parse_ssid_list_tlv(&str_ptr, ssids_local, \
+				WL_SCAN_PARAMS_SSID_MAX, &tlv_size_left)) <= 0) {
+			WL_ERROR(("SSID is not presented or corrupted ret=%d\n", nssid));
+			goto exit_proc;
+		}
+		else {
+
+			memset(iscan->iscan_ex_params_p, 0, iscan->iscan_ex_param_size);
+
+
+			wl_iw_iscan_prep(&iscan->iscan_ex_params_p->params, NULL);
+			iscan->iscan_ex_params_p->version = htod32(ISCAN_REQ_VERSION);
+			iscan->iscan_ex_params_p->action = htod16(WL_SCAN_ACTION_START);
+			iscan->iscan_ex_params_p->scan_duration = htod16(0);
+
+
+			while (tlv_size_left > 0)
+			{
+			type = str_ptr[0];
+			switch (type) {
+				case CSCAN_TLV_TYPE_CHANNEL_IE:
+
+					if ((nchan = wl_iw_parse_channel_list_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.channel_list[0], \
+					WL_NUMCHANNELS, &tlv_size_left)) == -1) {
+					WL_ERROR(("%s missing channel list\n", \
+						 __FUNCTION__));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_NPROBE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+						&iscan->iscan_ex_params_p->params.nprobes, \
+						sizeof(iscan->iscan_ex_params_p->params.nprobes), \
+						type, sizeof(char), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+							__FUNCTION__, res));
+							goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_ACTIVE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.active_time, \
+					sizeof(iscan->iscan_ex_params_p->params.active_time), \
+					type, sizeof(short), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_PASSIVE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.passive_time, \
+					sizeof(iscan->iscan_ex_params_p->params.passive_time), \
+					type, sizeof(short), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_HOME_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.home_time, \
+					sizeof(iscan->iscan_ex_params_p->params.home_time), \
+					type, sizeof(short), &tlv_size_left)) == -1) {
+						WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+				case CSCAN_TLV_TYPE_STYPE_IE:
+					if ((res = wl_iw_parse_data_tlv(&str_ptr, \
+					&iscan->iscan_ex_params_p->params.scan_type, \
+					sizeof(iscan->iscan_ex_params_p->params.scan_type), \
+					type, sizeof(char), &tlv_size_left)) == -1) {
+					WL_ERROR(("%s return %d\n", \
+						__FUNCTION__, res));
+						goto exit_proc;
+					}
+				break;
+
+				default :
+					WL_ERROR(("%s get unkwown type %X\n", \
+						__FUNCTION__, type));
+					goto exit_proc;
+				break;
+				}
+			}
+			}
+		}
+		else {
+			WL_ERROR(("%s get wrong TLV command\n", __FUNCTION__));
+			goto exit_proc;
+		}
+
+		//if (g_first_broadcast_scan < BROADCAST_SCAN_FIRST_RESULT_CONSUMED) {
+		//	WL_ERROR(("%s First ISCAN in progress : ignoring\n",  __FUNCTION__));
+		//	return -EBUSY;
+		//}
+
+
+		res = wl_iw_combined_scan_set(dev, ssids_local, nssid, nchan);
+
+exit_proc:
+
+	return res;
+}
+
+#endif
+
 
 #ifdef CONFIG_BCM4329_SOFTAP
 
@@ -5850,9 +6635,9 @@ get_channel_retry:
 	res |= dev_wlc_ioctl(dev, WLC_SET_VAR, buf, iolen);
 #endif
 #ifdef AP_ONLY
+		ap_mode = 1;
 		res |= wl_iw_set_ap_security(dev, &my_ap);
 		wl_iw_send_priv_event(dev, "ASCII_CMD=AP_BSS_START");
-		ap_mode = 1;
 
 #else
 	if (res != 0) {
@@ -5877,6 +6662,8 @@ get_channel_retry:
 		ap_mode = 1;
 	}
 #endif
+	wl_iw_set_event_mask_deauth(dev);
+
 	return res;
 }
 
@@ -6194,7 +6981,7 @@ int get_parmeter_from_string(
 	char  *param_str_end;
 	char  *orig_str = *str_ptr;
 
-	if (!strncmp(*str_ptr, token, strlen(token))) {
+	if ((*str_ptr) && !strncmp(*str_ptr, token, strlen(token))) {
 
 		strsep(str_ptr, "=,");
 		param_str_begin = *str_ptr;
@@ -6305,6 +7092,13 @@ static int iwpriv_softap_stop(struct net_device *dev,
 #ifdef AP_ONLY
 	res = wl_iw_softap_deassoc_stations(dev);
 	ap_mode = 0;
+	wl_iw_send_priv_event(priv_dev, "AP_DOWN");
+#ifdef SOFTAP_PROTECT
+	if (g_ap_protect&&g_ap_protect->timer_on) {
+		g_ap_protect->timer_on = 0;
+		del_timer_sync(&g_ap_protect->timer);
+	}
+#endif
 #else
 	res = wl_iw_softap_deassoc_stations(ap_net_dev);
 
@@ -6759,6 +7553,10 @@ static int wl_iw_set_priv(
 			ret = wl_iw_set_country(dev, info, (union iwreq_data *)dwrq, extra);
 		else if (strnicmp(extra, "STOP", strlen("STOP")) == 0)
 			ret = wl_iw_control_wl_off(dev, info);
+#if defined(CSCAN)
+	  else if (strnicmp(extra, CSCAN_COMMAND, strlen(CSCAN_COMMAND)) == 0)
+	  	ret = wl_iw_set_cscan(dev, info, (union iwreq_data *)dwrq, extra);
+#endif
 #ifdef CUSTOMER_HW2
 		else if (strnicmp(extra, "POWERMODE", strlen("POWERMODE")) == 0)
 			ret = wl_iw_set_power_mode(dev, info, (union iwreq_data *)dwrq, extra);
@@ -6766,12 +7564,14 @@ static int wl_iw_set_priv(
 		/*  DD: we ignore command here. due to BCM embedded coexisted behavior
 		 *	in "POWERMODE" command.
 		 */
-/*
+		/*
 		else if (strnicmp(extra, "BTCOEXMODE", strlen("BTCOEXMODE")) == 0)
 			ret = wl_iw_set_btcoex_dhcp(dev, info, (union iwreq_data *)dwrq, extra);
-*/
+		*/
 		else if (strnicmp(extra, "GETPOWER", strlen("GETPOWER")) == 0)
 			ret = wl_iw_get_power_mode(dev, info, (union iwreq_data *)dwrq, extra);
+		else if (strnicmp(extra, "GETWIFILOCK", strlen("GETWIFILOCK")) == 0)
+			ret = wl_iw_get_wifilock_mode(dev, info, (union iwreq_data *)dwrq, extra);
 		else if (strnicmp(extra, "WIFICALL", strlen("WIFICALL")) == 0)
 			ret = wl_iw_set_wifi_call(dev, info, (union iwreq_data *)dwrq, extra);
 #else
@@ -6801,6 +7601,12 @@ static int wl_iw_set_priv(
 		else if (strnicmp(extra, "AP_MAC_LIST_SET", strlen("AP_MAC_LIST_SET")) == 0) {
 			WL_SOFTAP(("set AP_MAC_LIST_SET\n"));
 			set_ap_mac_list(dev, (extra + PROFILE_OFFSET));
+		}
+#endif
+#ifdef WLAN_LOW_RSSI_IND
+		else if (strnicmp(extra, "LOW_RSSI_IND_SET", strlen("LOW_RSSI_IND_SET")) == 0) {
+			WL_TRACE(("set LOW_RSSI_IND_SET\n"));
+			wl_iw_low_rssi_set(dev, info, (union iwreq_data *)dwrq, extra);
 		}
 #endif
 		/* for packet filter rule
@@ -6951,7 +7757,10 @@ static const iw_handler wl_iw_priv_handler[] = {
 
 	NULL,
 	(iw_handler)iwpriv_fw_reload,
-
+#if defined(CSCAN)
+	NULL,
+	(iw_handler)iwpriv_set_cscan,
+#endif
 	NULL,
 	(iw_handler)iwpriv_settxpower
 
@@ -7057,6 +7866,14 @@ static const struct iw_priv_args wl_iw_priv_args[] = {
 		IW_PRIV_TYPE_CHAR | 256,
 		0,
 		"AP_TX_POWER"
+	},
+#endif
+#if defined(CSCAN)
+	{
+		WL_COMBO_SCAN,
+		IW_PRIV_TYPE_CHAR | 1024,
+		0,
+		"CSCAN"
 	},
 #endif
 };
@@ -7372,6 +8189,7 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 	case WLC_E_DEAUTH_IND:
 	case WLC_E_DISASSOC_IND:
 #if defined(CONFIG_BCM4329_SOFTAP)
+	case WLC_E_DEAUTH:
 		WL_SOFTAP(("STA disconnect received %d\n", event_type));
 		if (ap_mode) {
 			//wl_iw_send_priv_event(priv_dev, "STA_LEAVE");
@@ -7385,11 +8203,15 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 			wl_iw_send_priv_event(priv_dev, mac_buf);
 			return;
 		}
+		if (event_type != WLC_E_DEAUTH) {
 #endif
 		cmd = SIOCGIWAP;
 		bzero(wrqu.addr.sa_data, ETHER_ADDR_LEN);
 		wrqu.addr.sa_family = ARPHRD_ETHER;
 		bzero(&extra, ETHER_ADDR_LEN);
+#if defined(CONFIG_BCM4329_SOFTAP)
+		}
+#endif
 		break;
 	case WLC_E_LINK:
 	case WLC_E_NDIS_LINK:
@@ -7403,6 +8225,12 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 #endif
 				WL_SOFTAP(("AP DOWN %d\n", event_type));
 				wl_iw_send_priv_event(priv_dev, "AP_DOWN");
+#ifdef SOFTAP_PROTECT
+				if (g_ap_protect&&g_ap_protect->timer_on) {
+					g_ap_protect->timer_on = 0;
+					del_timer_sync(&g_ap_protect->timer);
+				}
+#endif
 			} else {
 				WL_TRACE(("STA_Link Down\n"));
 				if (g_ss_cache_ctrl.last_rssi == 0)
@@ -7433,6 +8261,13 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 #endif
 				WL_SOFTAP(("AP UP %d\n", event_type));
 				wl_iw_send_priv_event(priv_dev, "AP_UP");
+#ifdef SOFTAP_PROTECT
+				if (g_ap_protect->timer_on == 0) {
+					g_ap_protect->timer_on = 1;
+					mod_timer(&g_ap_protect->timer, jiffies + AP_PROTECT_TIME*HZ/1000);
+					WL_SOFTAP(("%s Start AP Timer\n", __FUNCTION__));
+				}
+#endif
 			} else
 #endif
 			{
@@ -7544,6 +8379,14 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 			//strncpy(pfn_ssid, ssid->SSID, pfn_ssid_len);
 			//up(&g_iscan->sysioc_sem);
 		}
+		break;
+	}
+#endif
+#ifdef WLAN_LOW_RSSI_IND
+	case WLC_E_RSSI_LOW:
+	{
+		myprintf("Recevied RSSI LOW event!\n");
+		wl_iw_send_priv_event(priv_dev, "LOW_RSSI");
 		break;
 	}
 #endif
@@ -7832,8 +8675,139 @@ wl_iw_bt_init(struct net_device *dev)
 	return 0;
 }
 
+#ifdef SOFTAP_PROTECT
+static void
+wl_iw_ap_timerfunc(ulong data)
+{
+	ap_info_t  *ap_local = (ap_info_t *)data;
+	ap_local->timer_on = 0;
+	WL_TRACE(("%s\n", __FUNCTION__));
+
+	up(&ap_local->ap_sem);
+}
+
+static int ap_fail_count = 0;
+static int
+_ap_protect_sysioc_thread(void *data)
+{
+	int isup;
+	int ret = 0;
+	DAEMONIZE("ap_sysioc");
+
+	while (down_interruptible(&g_ap_protect->ap_sem) == 0) {
+
+		net_os_wake_lock(priv_dev);
+
+		if (g_ap_protect->timer_on) {
+			g_ap_protect->timer_on = 0;
+			del_timer_sync(&g_ap_protect->timer);
+		}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
+	rtnl_lock();
+#endif
+		if ((ret = dev_wlc_ioctl(priv_dev, WLC_GET_UP, &isup, sizeof(isup))) != 0)
+				ap_fail_count++;
+		else
+				ap_fail_count = 0;
+
+		if (ap_fail_count == AP_MAX_FAIL_COUNT) {
+			wl_iw_restart(priv_dev);
+			wl_iw_ap_restart();
+		}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
+	rtnl_unlock();
+#endif
+		mod_timer(&g_ap_protect->timer, jiffies + AP_PROTECT_TIME*HZ/1000);
+		g_ap_protect->timer_on = 1;
+
+		net_os_wake_unlock(priv_dev);
+	}
+
+	if (g_ap_protect->timer_on) {
+		g_ap_protect->timer_on = 0;
+		del_timer_sync(&g_ap_protect->timer);
+	}
+
+	complete_and_exit(&g_ap_protect->ap_exited, 0);
+}
+
+static int
+wl_iw_ap_init(void)
+{
+	ap_info_t *ap_protect = NULL;
+
+	ap_protect = kmalloc(sizeof(ap_info_t), GFP_KERNEL);
+	if (!ap_protect)
+		return -ENOMEM;
+
+	memset(ap_protect, 0, sizeof(ap_info_t));
+	ap_protect->ap_pid = -1;
+	g_ap_protect = ap_protect;
+
+
+	init_timer(&ap_protect->timer);
+	ap_protect->timer.data = (ulong)ap_protect;
+	ap_protect->timer.function = wl_iw_ap_timerfunc;
+	ap_protect->timer_on = 0;
+
+	sema_init(&ap_protect->ap_sem, 0);
+	init_completion(&ap_protect->ap_exited);
+	ap_protect->ap_pid = kernel_thread(_ap_protect_sysioc_thread, ap_protect, 0);
+	if (ap_protect->ap_pid < 0) {
+		WL_ERROR(("Failed in %s\n", __FUNCTION__));
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+
+static void
+wl_iw_ap_release(void)
+{
+	ap_info_t *ap_local = g_ap_protect;
+
+	if (!ap_local) {
+		return;
+	}
+
+	if (ap_local->ap_pid >= 0) {
+		KILL_PROC(ap_local->ap_pid, SIGTERM);
+		wait_for_completion(&ap_local->ap_exited);
+	}
+	kfree(ap_local);
+	g_ap_protect = NULL;
+}
+
+
+static void wl_iw_ap_restart(void)
+{
+	WL_SOFTAP(("Enter %s...\n",	__FUNCTION__));
+
+	ap_mode = 0;
+	ap_cfg_running = FALSE;
+	ap_net_dev = NULL;
+
+	set_ap_cfg(priv_dev, &my_ap);
+
+	WL_SOFTAP(("SOFTAP - ENABLE BSS \n"));
+
+#ifndef AP_ONLY
+		if (ap_net_dev == NULL) {
+			printk("ERROR: SOFTAP net_dev* is NULL !!!\n");
+		} else {
+			iwpriv_en_ap_bss(ap_net_dev, NULL, NULL, NULL);
+		}
+#endif
+}
+
+#endif
+
 int wl_iw_attach(struct net_device *dev, void * dhdp)
 {
+	int params_size;
 	wl_iw_t *iw;
 #if defined(WL_IW_USE_ISCAN)
 	iscan_info_t *iscan = NULL;
@@ -7846,10 +8820,24 @@ int wl_iw_attach(struct net_device *dev, void * dhdp)
 	if (!dev)
 		return 0;
 
+
+  if(wifi_get_cscan_enable()){
+	  params_size = (WL_SCAN_PARAMS_FIXED_SIZE + OFFSETOF(wl_iscan_params_t, params)) +
+	    (WL_NUMCHANNELS * sizeof(uint16)) + WL_SCAN_PARAMS_SSID_MAX * sizeof(wlc_ssid_t);
+  }else{
+	  params_size = (WL_SCAN_PARAMS_FIXED_SIZE + OFFSETOF(wl_iscan_params_t, params));
+  }
+
 	iscan = kmalloc(sizeof(iscan_info_t), GFP_KERNEL);
 	if (!iscan)
 		return -ENOMEM;
 	memset(iscan, 0, sizeof(iscan_info_t));
+  if(wifi_get_cscan_enable()){
+	  iscan->iscan_ex_params_p = (wl_iscan_params_t*)kmalloc(params_size, GFP_KERNEL);
+	if (!iscan->iscan_ex_params_p)
+		return -ENOMEM;
+	iscan->iscan_ex_param_size = params_size;
+  }
 	iscan->sysioc_pid = -1;
 
 	g_iscan = iscan;
@@ -7881,10 +8869,14 @@ int wl_iw_attach(struct net_device *dev, void * dhdp)
 	memset(g_scan, 0, G_SCAN_RESULTS);
 	g_scan_specified_ssid = 0;
 
-	wl_iw_init_ss_cache_ctrl();
+  if(!wifi_get_cscan_enable()){
+	  wl_iw_init_ss_cache_ctrl();
+  }
 
 	wl_iw_bt_init(dev);
-
+#ifdef SOFTAP_PROTECT
+	wl_iw_ap_init();
+#endif
 	// perf_lock_init(&wl_wificall_perf_lock, PERF_LOCK_HIGHEST, "wifi-call");
 	mutex_init(&wl_wificall_mutex);
 
@@ -7910,6 +8902,9 @@ void wl_iw_detach(void)
 		kfree(iscan->list_hdr);
 		iscan->list_hdr = buf;
 	}
+  if(wifi_get_cscan_enable())
+	kfree(iscan->iscan_ex_params_p);
+
 	kfree(iscan);
 	g_iscan = NULL;
 	mutex_unlock(&wl_cache_lock);
@@ -7919,8 +8914,13 @@ void wl_iw_detach(void)
 		kfree(g_scan);
 
 	g_scan = NULL;
+  if(!wifi_get_cscan_enable()){
 	wl_iw_release_ss_cache_ctrl();
+  }
 	wl_iw_bt_release();
+#ifdef SOFTAP_PROTECT
+	wl_iw_ap_release();
+#endif
 #ifdef CONFIG_BCM4329_SOFTAP
 	if (ap_mode) {
 		WL_TRACE(("\n%s AP is going down\n", __FUNCTION__));

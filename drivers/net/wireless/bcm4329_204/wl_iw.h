@@ -34,6 +34,17 @@
 #include <proto/ethernet.h>
 #include <wlioctl.h>
 
+#define WL_SCAN_PARAMS_SSID_MAX 	10
+#define GET_SSID			"SSID="
+#define GET_CHANNEL			"CH="
+#define GET_NPROBE 			"NPROBE="
+#define GET_ACTIVE_ASSOC_DWELL  	"ACTIVE="
+#define GET_PASSIVE_ASSOC_DWELL  	"PASSIVE="
+#define GET_HOME_DWELL  		"HOME="
+#define GET_SCAN_TYPE			"TYPE="
+
+#define BAND_GET_CMD				"BANDGET"
+#define BAND_SET_CMD				"BANDSET"
 
 #define	WL_IW_RSSI_MINVAL	-200
 #define	WL_IW_RSSI_NO_SIGNAL	-91
@@ -61,12 +72,9 @@
 #define AP_LPB_CMD              (SIOCIWFIRSTPRIV+23)
 #define WL_AP_STOP              (SIOCIWFIRSTPRIV+25)
 #define WL_FW_RELOAD            (SIOCIWFIRSTPRIV+27)
-#if 0
-#define WL_AP_SPARE2            (SIOCIWFIRSTPRIV+29)
-#else
-#define WL_SET_AP_TXPWR      (SIOCIWFIRSTPRIV+29)
-#endif
-#define WL_AP_SPARE3            (SIOCIWFIRSTPRIV+31)
+#define WL_COMBO_SCAN            (SIOCIWFIRSTPRIV+29)
+//#define WL_AP_SPARE2            (SIOCIWFIRSTPRIV+29)
+#define WL_SET_AP_TXPWR      (SIOCIWFIRSTPRIV+31)
 #define G_SCAN_RESULTS		(8*1024)
 #define WE_ADD_EVENT_FIX	0x80
 #define G_WLAN_SET_ON		0
@@ -195,5 +203,41 @@ extern int net_os_wake_lock_timeout_enable(struct net_device *dev);
 #define IWE_STREAM_ADD_POINT(info, stream, ends, iwe, extra) \
 	iwe_stream_add_point(stream, ends, iwe, extra)
 #endif
+
+#if defined(CSCAN)
+
+typedef struct cscan_tlv {
+	char prefix;
+	char version;
+	char subver;
+	char reserved;
+} cscan_tlv_t;
+
+#define CSCAN_COMMAND				"CSCAN "
+#define CSCAN_TLV_PREFIX 			'S'
+#define CSCAN_TLV_VERSION			1
+#define CSCAN_TLV_SUBVERSION			0
+#define CSCAN_TLV_TYPE_SSID_IE          'S'
+#define CSCAN_TLV_TYPE_CHANNEL_IE   'C'
+#define CSCAN_TLV_TYPE_NPROBE_IE     'N'
+#define CSCAN_TLV_TYPE_ACTIVE_IE      'A'
+#define CSCAN_TLV_TYPE_PASSIVE_IE    'P'
+#define CSCAN_TLV_TYPE_HOME_IE         'H'
+#define CSCAN_TLV_TYPE_STYPE_IE        'T'
+
+extern int wl_iw_parse_channel_list_tlv(char** list_str, uint16* channel_list, \
+					int channel_num, int *bytes_left);
+
+extern int wl_iw_parse_data_tlv(char** list_str, void  *dst, int dst_size, \
+					const char token, int input_size, int *bytes_left);
+
+extern int wl_iw_parse_ssid_list_tlv(char** list_str, wlc_ssid_t* ssid, \
+					int max, int *bytes_left);
+
+extern int wl_iw_parse_ssid_list(char** list_str, wlc_ssid_t* ssid, int idx, int max);
+
+extern int wl_iw_parse_channel_list(char** list_str, uint16* channel_list, int channel_num);
+
+#endif 
 
 #endif

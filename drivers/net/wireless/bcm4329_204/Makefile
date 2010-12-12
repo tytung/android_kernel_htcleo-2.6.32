@@ -5,7 +5,7 @@ DHDCFLAGS = -DLINUX -DBCMDRIVER -DBCMDONGLEHOST -DDHDTHREAD -DBCMWPA2         \
 	-DSHOW_EVENTS -DBCMSDIO -DDHD_GPL -DBCMLXSDMMC -DBCMPLATFORM_BUS      \
 	-Wall -Wstrict-prototypes -Werror -DOOB_INTR_ONLY -DCUSTOMER_HW2      \
 	-DDHD_USE_STATIC_BUF -DMMC_SDIO_ABORT -DWLAN_PFN -DWLAN_PROTECT       \
-	-DBCMWAPI_WPI \
+	-DBCMWAPI_WPI -DWLAN_LOW_RSSI_IND -DCSCAN -DSOFTAP_PROTECT\
 	-Idrivers/net/wireless/bcm4329_204 -Idrivers/net/wireless/bcm4329_204/include
 
 DHDOFILES = dhd_linux.o linux_osl.o bcmutils.o dhd_common.o dhd_custom_gpio.o \
