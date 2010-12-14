@@ -1082,11 +1082,11 @@ config HTCLEO_OVERCLOCK
   help
 		add overclock ability to 1.190GHz.
 config HTCLEO_EXOVERCLOCK
-  bool "Support overclock to 1.305GHz"
+  bool "Support overclock to 1.536GHz"
 	depends on HTCLEO_OVERCLOCK
 	default n
   help
-		add overclock ability to 1.305GHz.
+		add overclock ability to 1.536GHz.
 
 
 config HTC_FB_CONSOLE
