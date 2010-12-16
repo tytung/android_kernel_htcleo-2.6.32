@@ -603,26 +603,10 @@ static void __init acpuclk_init(void)
 	 */
 	speed = acpu_freq_tbl;
 	for (;;) {
-#ifdef	CONFIG_HTCLEO_EXOVERCLOCK
-		if (speed->acpu_khz == 998400)
-			break;
-#elif CONFIG_HTCLEO_OVERCLOCK
 		if (speed->acpu_khz == 768000)
 			break;
-#else
-		if (speed->acpu_khz == 768000)
-			break;
-#endif
-#ifdef	CONFIG_HTCLEO_EXOVERCLOCK
-		if (speed->acpu_khz == 0) {
-			pr_err("acpuclk_init: cannot find 998.4MHz\n");
-#elif CONFIG_HTCLEO_OVERCLOCK
 		if (speed->acpu_khz == 0) {
 			pr_err("acpuclk_init: cannot find 768MHz\n");
-#else
-		if (speed->acpu_khz == 0) {
-			pr_err("acpuclk_init: cannot find 768MHz\n");
-#endif
 		BUG();
 		}
 		speed++;
