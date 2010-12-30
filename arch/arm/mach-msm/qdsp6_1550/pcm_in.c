@@ -24,7 +24,7 @@
 
 #include <linux/msm_audio.h>
 
-#include <mach/msm_qdsp6_audio.h>
+#include <mach/msm_qdsp6_audio_1550.h>
 
 #define BUFSZ (4096)
 #define DMASZ (BUFSZ * 2)

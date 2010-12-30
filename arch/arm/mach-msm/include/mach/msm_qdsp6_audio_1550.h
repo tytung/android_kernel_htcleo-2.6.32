@@ -33,7 +33,9 @@ struct audio_client {
 	int dsp_buf;	/* next buffer the DSP will touch */
 	int running;
 	int session;
-
+	
+	int open_done;
+	int open_status;
 	wait_queue_head_t wait;
 	struct dal_client *client;
 
@@ -91,6 +93,7 @@ int q6audio_set_tx_mute(int mute);
 int q6audio_reinit_acdb(char* filename);
 int q6audio_update_acdb(uint32_t id_src, uint32_t id_dst);
 int q6audio_set_rx_volume(int level);
+int q6audio_set_rx_mute(int mute);
 int q6audio_set_stream_volume(struct audio_client *ac, int vol);
 
 struct q6audio_analog_ops {

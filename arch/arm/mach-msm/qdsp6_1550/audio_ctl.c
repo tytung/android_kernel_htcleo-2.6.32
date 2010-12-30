@@ -20,7 +20,7 @@
 #include <linux/uaccess.h>
 #include <linux/msm_audio.h>
 
-#include <mach/msm_qdsp6_audio.h>
+#include <mach/msm_qdsp6_audio_1550.h>
 #include <mach/htc_acoustic_qsd.h>
 
 #define BUFSZ (0)

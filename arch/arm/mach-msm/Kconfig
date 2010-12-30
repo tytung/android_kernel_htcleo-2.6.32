@@ -282,6 +282,13 @@ config MACH_HTCLEO
 	help
 	  Select this to support the HTC Leo device
 
+config USING_BRAVOS_DSP
+	depends on MACH_HTCLEO
+	default n
+	bool "Bravos DSP for Leo"
+	help
+	  Enable this if you use Bravos DSP on a Leo
+
 config HTCLEO_BLINK_AT_BOOT
        depends on MACH_HTCLEO
        default n

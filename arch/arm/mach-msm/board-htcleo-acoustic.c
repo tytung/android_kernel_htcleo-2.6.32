@@ -28,7 +28,11 @@
 #include <mach/msm_rpcrouter.h>
 #include <mach/msm_iomap.h>
 #include <mach/htc_acoustic_qsd.h>
+#if defined(CONFIG_USING_BRAVOS_DSP)
 #include <mach/msm_qdsp6_audio.h>
+#else
+#include <mach/msm_qdsp6_audio_1550.h>
+#endif
 
 #include "smd_private.h"
 #include "dex_comm.h"

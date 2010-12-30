@@ -168,7 +168,12 @@
 // but is required to make early_ramconsole work.
 // These values must match the values used in
 // the defconfig.
+
 #define MSM_RAM_CONSOLE_BASE	IOMEM(0xF9100000)
+#if defined(CONFIG_USING_BRAVOS_DSP)
+#define MSM_RAM_CONSOLE_PHYS	0x2E7C0000
+#else
 #define MSM_RAM_CONSOLE_PHYS	0x2FFC0000
+#endif
 #define MSM_RAM_CONSOLE_SIZE	0x00040000
 

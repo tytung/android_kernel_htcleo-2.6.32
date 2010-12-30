@@ -19,6 +19,12 @@
 
 struct dal_client;
 
+struct dal_info {
+	uint32_t size;
+	uint32_t version;
+	char name[32];
+};
+
 typedef void (*dal_event_func_t)(void *data, int len, void *cookie);
 
 struct dal_client *dal_attach(uint32_t device_id, const char *name, dal_event_func_t func, void *cookie);

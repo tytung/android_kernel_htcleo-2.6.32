@@ -24,7 +24,7 @@
 
 #include <linux/msm_audio.h>
 
-#include <mach/msm_qdsp6_audio.h>
+#include <mach/msm_qdsp6_audio_1550.h>
 #include "dal_audio.h"
 
 #define BUFSZ (8192)

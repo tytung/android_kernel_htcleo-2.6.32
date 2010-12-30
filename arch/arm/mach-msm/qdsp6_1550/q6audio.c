@@ -31,7 +31,7 @@
 #include "dal_audio_format.h"
 #include "dal_acdb.h"
 #include "dal_adie.h"
-#include <mach/msm_qdsp6_audio.h>
+#include <mach/msm_qdsp6_audio_1550.h>
 #include <linux/msm_audio.h>
 #include <mach/htc_acoustic_qsd.h>
 #include <mach/msm_audio_qcp.h>

@@ -59,7 +59,11 @@ obj-$(CONFIG_MSM_ADSP) += qdsp5/
 obj-$(CONFIG_MSM_ADSP_COMP) += qdsp5_comp/
 obj-$(CONFIG_MSM7KV2_AUDIO) += qdsp5v2/
 ifdef CONFIG_MSM_AMSS_VERSION_1550
+ifdef CONFIG_USING_BRAVOS_DSP
+obj-$(CONFIG_QSD_AUDIO) += qdsp6/
+else
 obj-$(CONFIG_QSD_AUDIO) += qdsp6_1550/
+endif
 else
 obj-$(CONFIG_QSD_AUDIO) += qdsp6/
 endif

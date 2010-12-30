@@ -22,7 +22,7 @@
 #include <linux/wait.h>
 #include <linux/uaccess.h>
 #include <linux/msm_audio.h>
-#include <mach/msm_qdsp6_audio.h>
+#include <mach/msm_qdsp6_audio_1550.h>
 #include <mach/msm_audio_qcp.h>
 
 #define BUFSZ (734)

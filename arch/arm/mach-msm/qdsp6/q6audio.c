@@ -342,7 +342,9 @@ static int audio_ioctl(struct audio_client *ac, void *ptr, uint32_t len)
 	hdr->src = AUDIO_ADDR(ac->session, 0, AUDIO_DOMAIN_MODEM);
 	hdr->context = ac->session;
 	ac->cb_status = -EBUSY;
+	pr_info("DAL CALL OPCODE: %d\n", hdr->opcode);
 	r = dal_call(ac->client, AUDIO_OP_CONTROL, 5, ptr, len, &tmp, sizeof(tmp));
+	pr_info("DAL CALL RET: %d\n", r);
 	if (r != 4)
 		return -EIO;
 	if (!wait_event_timeout(ac->wait, (ac->cb_status != -EBUSY), 5*HZ)) {

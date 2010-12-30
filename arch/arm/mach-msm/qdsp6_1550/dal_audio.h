@@ -31,7 +31,7 @@
 
 #include "dal_audio_format.h"
 #include "dal.h"
-#include <mach/msm_qdsp6_audio.h>
+#include <mach/msm_qdsp6_audio_1550.h>
 
 #define AUDIO_DAL_DEVICE 0x02000028
 #define AUDIO_DAL_PORT "DSP_DAL_AQ_AUD"
