@@ -46,7 +46,7 @@
 #include "board-htcleo.h"
 
 static uint32_t microp_als_kadc;
-static int als_power_control;
+static int als_power_control=0;
 static DEFINE_MUTEX(capella_cm3602_lock);
 
 
