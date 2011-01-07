@@ -19,20 +19,20 @@
 #include <linux/keyboard.h>
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
+#include <linux/workqueue.h>
+#include <linux/delay.h>
+#include <linux/timer.h>
+
 
 static int BUTTON_BACKLIGHT_GPIO = 48;
 static int OFF_SEC = 10;
 static int auto_off_enabled = 1;
 
-static struct delayed_off
-{
-    struct delayed_work work;
-} btn_off_work;
+struct timer_list btn_off_timer;
 
 static DEFINE_MUTEX(htcleo_btn_manager_lock);
 
 ////////////////////////////////////////////////////
-
 
 // off_sec sysfs
 static ssize_t htcleo_manager_offsec_get(struct device *dev,struct device_attribute *attr, char *buf)
@@ -98,8 +98,9 @@ static ssize_t htcleo_manager_auto_off_set(struct device *dev,struct device_attr
 static DEVICE_ATTR(auto_off, 0666,  htcleo_manager_auto_off_get, htcleo_manager_auto_off_set);
 
 
-static void btn_delayed_off_function(struct work_struct *work){
+static void btn_delayed_off_function(unsigned long function_parameter){
     gpio_set_value(BUTTON_BACKLIGHT_GPIO, 0);
+    del_timer(&btn_off_timer);
 }
 
 int buttons_notify(struct notifier_block *nblock, unsigned long code, void *_param) {
@@ -108,26 +109,25 @@ int buttons_notify(struct notifier_block *nblock, unsigned long code, void *_par
 
     if (code == KBD_KEYCODE) {
 
-        mutex_lock(&htcleo_btn_manager_lock);
-
         keycode = param->value;
 
         //printk(KERN_DEBUG "BTN-BCKM: KEYLOGGER %i %s\n", param->value, (param->down ? "down" : "up"));
 
         // Turn backlight on only if pressed = Dial, home, winkey, back, end button
-        if (keycode==231 || keycode==102 || keycode==139 || keycode==158 || keycode==107){
+        if (keycode==231 || keycode==102 || keycode==139 || keycode==158 || keycode==107 ){
 
             gpio_set_value(BUTTON_BACKLIGHT_GPIO, 1);
 
             // If auto off enabled then buttons will turn off after declared amount of time, else screen backlight will turn them off
             if (auto_off_enabled){
-                cancel_delayed_work_sync(&btn_off_work.work);
-                schedule_delayed_work(&btn_off_work.work, msecs_to_jiffies(OFF_SEC*1000));
+                del_timer(&btn_off_timer);
+                init_timer(&btn_off_timer);
+                btn_off_timer.expires = jiffies + OFF_SEC*HZ;
+                btn_off_timer.function = btn_delayed_off_function;
+                add_timer(&btn_off_timer);
             }
-
         }
 
-        mutex_unlock(&htcleo_btn_manager_lock);
     };
 
     return 0;
@@ -146,7 +146,6 @@ static int htcleo_btn_backlight_manager_probe(struct platform_device *pdev)
     register_keyboard_notifier(&nb);
     rc = device_create_file(&pdev->dev, &dev_attr_off_seconds);
     rc = device_create_file(&pdev->dev, &dev_attr_auto_off);
-    INIT_DELAYED_WORK(&btn_off_work.work, btn_delayed_off_function);
 
     return 0;
 }
