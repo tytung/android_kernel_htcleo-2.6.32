@@ -24,6 +24,9 @@
 #include <linux/proc_fs.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/blktrans.h>
+#include <mach/msm_iomap.h>
+#include <linux/crc32.h>
+#include <linux/io.h>
 
 #define NVS_MAX_SIZE		0x800U
 #define NVS_MACADDR_SIZE	0x1AU
@@ -34,9 +37,8 @@
 //------------------------------------------
 
 
-static unsigned char wifi_nvs_ram[NVS_MAX_SIZE];
 static struct proc_dir_entry *wifi_calibration;
-static unsigned char *nvs_mac_addr = "macaddr=00:11:22:33:44:55\n";
+static unsigned char nvs_mac_addr[NVS_MACADDR_SIZE];
 static unsigned char *hardcoded_nvs = 
   "sromrev=3\n"\
   "vendid=0x14e4\n"\
@@ -116,55 +118,17 @@ EXPORT_SYMBOL(get_wifi_nvs_ram);
 
 static int parse_tag_msm_wifi(void)
 {
-	unsigned size;
-#ifdef NVS_MSM_WIFI_DEBUG
-	unsigned i;
-#endif
-	int devnum = 0;
-	int ret = 0;
-	char* maddr=wifi_nvs_ram;
-	struct mtd_info *mtd;
-
-	DEBUG(MTD_DEBUG_LEVEL0, "MTD_open\n");
-	mtd = get_mtd_device(NULL, devnum);
-
-	if (IS_ERR(mtd)) {
-		ret = PTR_ERR(mtd);
-		goto out;
-	}
-
-	if (MTD_ABSENT == mtd->type) {
-		put_mtd_device(mtd);
-		ret = -ENODEV;
-		goto out;
-	}
-
-	if(mtd->read(mtd, (0x7e40 * NVS_MAX_SIZE), NVS_MAX_SIZE, &size, wifi_nvs_ram)) {
-		put_mtd_device(mtd);
-		ret = 1;
-		goto out;
-	}
-	
-	put_mtd_device(mtd);
-	while(memcmp(maddr, "macaddr=", 8)!=0) { 
-		if((char*)++maddr>(char*)(wifi_nvs_ram+NVS_MAX_SIZE-NVS_MACADDR_SIZE))
-			break;
-		else
-			maddr++;
-	}
-	if (!user_mac_address)
-		if((char*)maddr<(char*)(wifi_nvs_ram+NVS_MAX_SIZE-NVS_MACADDR_SIZE)) nvs_mac_addr = maddr;
-	
-	
-#ifdef NVS_MSM_WIFI_DEBUG
-	printk("WiFi Data size = %d \n", size);
-	for(i=0;( i < size );i++) {
-		printk("%02x ", wifi_nvs_ram[i]);
-	}
-#endif	
+	uint32_t id1, id2, id3, sid1, sid2, sid3;
+	uint32_t id_base = 0xef260;
+	id1 = readl(MSM_SHARED_RAM_BASE + id_base + 0x0);
+	id2 = readl(MSM_SHARED_RAM_BASE + id_base + 0x4);	
+	id3 = readl(MSM_SHARED_RAM_BASE + id_base + 0x8);
+	sid1 = crc32(~0, &id1, 4);
+	sid2 = crc32(~0, &id2, 4);
+	sid3 = crc32(~0, &id3, 4);
+	sprintf(nvs_mac_addr, "macaddr=00:90:4c:%2x:%2x:%2x\n", sid1 % 0xff, sid2 % 0xff, sid3 % 0xff);
+	pr_info("Device Wifi Mac Address: %s\n", nvs_mac_addr);
 	return 0;
-out:
-	return ret;
 }
 
 static unsigned wifi_get_nvs_size( void )
