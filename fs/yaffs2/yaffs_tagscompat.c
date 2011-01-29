@@ -19,35 +19,10 @@
 
 static void yaffs_handle_rd_data_error(struct yaffs_dev *dev, int nand_chunk);
 
-static const char yaffs_count_bits_table[256] = {
-	0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
-	1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-	1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-	2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-	1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-	2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-	2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-	3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-	1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-	2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-	2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-	3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-	2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-	3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-	3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-	4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8
-};
-
-int yaffs_count_bits(u8 x)
-{
-	int ret_val;
-	ret_val = yaffs_count_bits_table[x];
-	return ret_val;
-}
 
 /********** Tags ECC calculations  *********/
 
-void yaffs_calc_ecc(const u8 * data, struct yaffs_spare *spare)
+void yaffs_calc_ecc(const u8 *data, struct yaffs_spare *spare)
 {
 	yaffs_ecc_cacl(data, spare->ecc1);
 	yaffs_ecc_cacl(&data[256], spare->ecc2);
@@ -56,7 +31,6 @@ void yaffs_calc_ecc(const u8 * data, struct yaffs_spare *spare)
 void yaffs_calc_tags_ecc(struct yaffs_tags *tags)
 {
 	/* Calculate an ecc */
-
 	unsigned char *b = ((union yaffs_tags_union *)tags)->as_bytes;
 	unsigned i, j;
 	unsigned ecc = 0;
@@ -71,9 +45,7 @@ void yaffs_calc_tags_ecc(struct yaffs_tags *tags)
 				ecc ^= bit;
 		}
 	}
-
 	tags->ecc = ecc;
-
 }
 
 int yaffs_check_tags_ecc(struct yaffs_tags *tags)
@@ -101,7 +73,6 @@ int yaffs_check_tags_ecc(struct yaffs_tags *tags)
 		/* TODO Need to do somethiong here */
 		return -1;	/* unrecovered error */
 	}
-
 	return 0;
 }
 
@@ -153,13 +124,13 @@ static void yaffs_spare_init(struct yaffs_spare *spare)
 }
 
 static int yaffs_wr_nand(struct yaffs_dev *dev,
-			 int nand_chunk, const u8 * data,
+			 int nand_chunk, const u8 *data,
 			 struct yaffs_spare *spare)
 {
 	if (nand_chunk < dev->param.start_block * dev->param.chunks_per_block) {
-		T(YAFFS_TRACE_ERROR,
-		  (TSTR("**>> yaffs chunk %d is not valid" TENDSTR),
-		   nand_chunk));
+		yaffs_trace(YAFFS_TRACE_ERROR,
+			"**>> yaffs chunk %d is not valid",
+			nand_chunk);
 		return YAFFS_FAIL;
 	}
 
@@ -168,7 +139,7 @@ static int yaffs_wr_nand(struct yaffs_dev *dev,
 
 static int yaffs_rd_chunk_nand(struct yaffs_dev *dev,
 			       int nand_chunk,
-			       u8 * data,
+			       u8 *data,
 			       struct yaffs_spare *spare,
 			       enum yaffs_ecc_result *ecc_result,
 			       int correct_errors)
@@ -176,7 +147,7 @@ static int yaffs_rd_chunk_nand(struct yaffs_dev *dev,
 	int ret_val;
 	struct yaffs_spare local_spare;
 
-	if (!spare && data) {
+	if (!spare) {
 		/* If we don't have a real spare, then we use a local one. */
 		/* Need this for the calculation of the ecc */
 		spare = &local_spare;
@@ -200,30 +171,26 @@ static int yaffs_rd_chunk_nand(struct yaffs_dev *dev,
 					      calc_ecc);
 
 			if (ecc_result1 > 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>yaffs ecc error fix performed on chunk %d:0"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>yaffs ecc error fix performed on chunk %d:0",
+					nand_chunk);
 				dev->n_ecc_fixed++;
 			} else if (ecc_result1 < 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>yaffs ecc error unfixed on chunk %d:0"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>yaffs ecc error unfixed on chunk %d:0",
+					nand_chunk);
 				dev->n_ecc_unfixed++;
 			}
 
 			if (ecc_result2 > 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>yaffs ecc error fix performed on chunk %d:1"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>yaffs ecc error fix performed on chunk %d:1",
+					nand_chunk);
 				dev->n_ecc_fixed++;
 			} else if (ecc_result2 < 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>yaffs ecc error unfixed on chunk %d:1"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>yaffs ecc error unfixed on chunk %d:1",
+					nand_chunk);
 				dev->n_ecc_unfixed++;
 			}
 
@@ -252,27 +219,23 @@ static int yaffs_rd_chunk_nand(struct yaffs_dev *dev,
 		memcpy(spare, &nspare, sizeof(struct yaffs_spare));
 		if (data && correct_errors) {
 			if (nspare.eccres1 > 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>mtd ecc error fix performed on chunk %d:0"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>mtd ecc error fix performed on chunk %d:0",
+					nand_chunk);
 			} else if (nspare.eccres1 < 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>mtd ecc error unfixed on chunk %d:0"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>mtd ecc error unfixed on chunk %d:0",
+					nand_chunk);
 			}
 
 			if (nspare.eccres2 > 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>mtd ecc error fix performed on chunk %d:1"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>mtd ecc error fix performed on chunk %d:1",
+					nand_chunk);
 			} else if (nspare.eccres2 < 0) {
-				T(YAFFS_TRACE_ERROR,
-				  (TSTR
-				   ("**>>mtd ecc error unfixed on chunk %d:1"
-				    TENDSTR), nand_chunk));
+				yaffs_trace(YAFFS_TRACE_ERROR,
+					"**>>mtd ecc error unfixed on chunk %d:1",
+					nand_chunk);
 			}
 
 			if (nspare.eccres1 || nspare.eccres2) {
@@ -301,11 +264,11 @@ static void yaffs_handle_rd_data_error(struct yaffs_dev *dev, int nand_chunk)
 	int flash_block = nand_chunk / dev->param.chunks_per_block;
 
 	/* Mark the block for retirement */
-	yaffs_get_block_info(dev,
-			     flash_block + dev->block_offset)->needs_retiring =
-	    1;
-	T(YAFFS_TRACE_ERROR | YAFFS_TRACE_BAD_BLOCKS,
-	  (TSTR("**>>Block %d marked for retirement" TENDSTR), flash_block));
+	yaffs_get_block_info(dev, flash_block + dev->block_offset)->
+		needs_retiring = 1;
+	yaffs_trace(YAFFS_TRACE_ERROR | YAFFS_TRACE_BAD_BLOCKS,
+		"**>>Block %d marked for retirement",
+		flash_block);
 
 	/* TODO:
 	 * Just do a garbage collection on the affected block
@@ -316,7 +279,7 @@ static void yaffs_handle_rd_data_error(struct yaffs_dev *dev, int nand_chunk)
 
 int yaffs_tags_compat_wr(struct yaffs_dev *dev,
 			 int nand_chunk,
-			 const u8 * data, const struct yaffs_ext_tags *ext_tags)
+			 const u8 *data, const struct yaffs_ext_tags *ext_tags)
 {
 	struct yaffs_spare spare;
 	struct yaffs_tags tags;
@@ -350,13 +313,11 @@ int yaffs_tags_compat_wr(struct yaffs_dev *dev,
 
 int yaffs_tags_compat_rd(struct yaffs_dev *dev,
 			 int nand_chunk,
-			 u8 * data, struct yaffs_ext_tags *ext_tags)
+			 u8 *data, struct yaffs_ext_tags *ext_tags)
 {
-
 	struct yaffs_spare spare;
 	struct yaffs_tags tags;
 	enum yaffs_ecc_result ecc_result = YAFFS_ECC_RESULT_UNKNOWN;
-
 	static struct yaffs_spare spare_ff;
 	static int init;
 
@@ -365,12 +326,13 @@ int yaffs_tags_compat_rd(struct yaffs_dev *dev,
 		init = 1;
 	}
 
-	if (yaffs_rd_chunk_nand(dev, nand_chunk, data, &spare, &ecc_result, 1)) {
+	if (yaffs_rd_chunk_nand(dev, nand_chunk,
+					data, &spare, &ecc_result, 1)) {
 		/* ext_tags may be NULL */
 		if (ext_tags) {
 
 			int deleted =
-			    (yaffs_count_bits(spare.page_status) < 7) ? 1 : 0;
+			    (hweight8(spare.page_status) < 7) ? 1 : 0;
 
 			ext_tags->is_deleted = deleted;
 			ext_tags->ecc_result = ecc_result;
@@ -404,7 +366,6 @@ int yaffs_tags_compat_rd(struct yaffs_dev *dev,
 
 int yaffs_tags_compat_mark_bad(struct yaffs_dev *dev, int flash_block)
 {
-
 	struct yaffs_spare spare;
 
 	memset(&spare, 0xff, sizeof(struct yaffs_spare));
@@ -417,15 +378,13 @@ int yaffs_tags_compat_mark_bad(struct yaffs_dev *dev, int flash_block)
 		      NULL, &spare);
 
 	return YAFFS_OK;
-
 }
 
 int yaffs_tags_compat_query_block(struct yaffs_dev *dev,
 				  int block_no,
 				  enum yaffs_block_state *state,
-				  u32 * seq_number)
+				  u32 *seq_number)
 {
-
 	struct yaffs_spare spare0, spare1;
 	static struct yaffs_spare spare_ff;
 	static int init;
@@ -443,7 +402,7 @@ int yaffs_tags_compat_query_block(struct yaffs_dev *dev,
 	yaffs_rd_chunk_nand(dev, block_no * dev->param.chunks_per_block + 1,
 			    NULL, &spare1, &dummy, 1);
 
-	if (yaffs_count_bits(spare0.block_status & spare1.block_status) < 7)
+	if (hweight8(spare0.block_status & spare1.block_status) < 7)
 		*state = YAFFS_BLOCK_STATE_DEAD;
 	else if (memcmp(&spare_ff, &spare0, sizeof(spare_ff)) == 0)
 		*state = YAFFS_BLOCK_STATE_EMPTY;

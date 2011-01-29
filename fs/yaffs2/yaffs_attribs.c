@@ -39,9 +39,9 @@ void yaffs_load_current_time(struct yaffs_obj *obj, int do_a, int do_c)
 {
 	obj->yst_mtime = Y_CURRENT_TIME;
 	if (do_a)
-		obj->yst_atime = obj->yst_atime;
+		obj->yst_atime = obj->yst_mtime;
 	if (do_c)
-		obj->yst_ctime = obj->yst_atime;
+		obj->yst_ctime = obj->yst_mtime;
 }
 
 void yaffs_attribs_init(struct yaffs_obj *obj, u32 gid, u32 uid, u32 rdev)
@@ -64,7 +64,7 @@ loff_t yaffs_get_file_size(struct yaffs_obj *obj)
 		alias = obj->variant.symlink_variant.alias;
 		if (!alias)
 			return 0;
-		return yaffs_strnlen(alias, YAFFS_MAX_ALIAS_LENGTH);
+		return strnlen(alias, YAFFS_MAX_ALIAS_LENGTH);
 	default:
 		return 0;
 	}
