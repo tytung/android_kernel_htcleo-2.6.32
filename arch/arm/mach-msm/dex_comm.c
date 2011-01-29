@@ -263,14 +263,15 @@ static struct irqaction dex_callback_irq =
 // Initialize DEX registers
 int init_dex_comm()
 {
+	printk(KERN_INFO "%s: WinCE DEX init.\n", __func__);
 	unsigned long flags;
-
-	setup_irq(INT_A9_M2A_4, &dex_callback_irq);
 
 	if(machine_is_htcleo())
 		base = (unsigned)(MSM_SHARED_RAM_BASE + 0xefe00);
 	else
 		base = (unsigned)(MSM_SHARED_RAM_BASE + 0xfc100);
+
+	setup_irq(INT_A9_M2A_4, &dex_callback_irq);
 
 	spin_lock_irqsave(&dex_comm_lock, flags);
 
