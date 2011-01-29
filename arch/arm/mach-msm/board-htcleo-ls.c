@@ -39,6 +39,7 @@ user may be able to adjust time in future
 #include <mach/board-htcleo-microp.h>
 
 #include "board-htcleo.h"
+struct early_suspend early_suspend;
 
 
 //#define CFG_LSENSOR_TYPE 
@@ -47,7 +48,7 @@ user may be able to adjust time in future
 //#define LSENSOR_ABLK_ONLY       2
 
 
-#define LSENSOR_POLL_PROMESHUTOK   5000
+#define LSENSOR_POLL_PROMESHUTOK   1000
 
 #define D(x...) pr_debug(x)
 // pr_info(x)
@@ -274,6 +275,18 @@ struct miscdevice lightsensor_misc =
 	.fops = &lightsensor_fops
 };
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void lightsensor_suspend(struct early_suspend *h)
+{
+	lightsensor_disable();
+}
+
+static void lightsensor_resume(struct early_suspend *h)
+{
+	lightsensor_enable();
+}
+#endif
+
 //////////////////////////////////////////////////////////////////////////
 
 static int lsensor_probe(struct platform_device *pdev)
@@ -328,6 +341,15 @@ static int lsensor_probe(struct platform_device *pdev)
 	the_data.enabled=0;
 	the_data.opened=0;
 	INIT_DELAYED_WORK(&the_data.work, lightsensor_poll_function);
+	lightsensor_enable();
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	early_suspend.level =
+			EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
+	early_suspend.suspend = lightsensor_suspend;
+	early_suspend.resume = lightsensor_resume;
+	register_early_suspend(&early_suspend);
+#endif
 
 	if (!ret)
 		goto done;

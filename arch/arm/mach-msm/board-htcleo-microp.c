@@ -34,7 +34,6 @@
 #include <linux/jiffies.h>
 #include <linux/wakelock.h>
 #include <linux/earlysuspend.h>
-#include <linux/capella_cm3602.h>
 #include <linux/bma150.h>
 #include <asm/uaccess.h>
 #include <asm/mach-types.h>
@@ -331,7 +330,7 @@ int microp_read_gpo_status(uint16_t *status)
 }
 EXPORT_SYMBOL(microp_read_gpo_status);
 
-int microp_gpo_enable(uint16_t interrupt_mask)
+int microp_gpo_enable(uint16_t gpo_mask)
 {
 	uint8_t data[2];
 	int ret = -1;
@@ -339,17 +338,17 @@ int microp_gpo_enable(uint16_t interrupt_mask)
 
 	client = private_microp_client;
 
-	data[0] = interrupt_mask >> 8;
-	data[1] = interrupt_mask & 0xFF;
+	data[0] = gpo_mask >> 8;
+	data[1] = gpo_mask & 0xFF;
 	ret = i2c_write_block(client, MICROP_I2C_WCMD_GPO_LED_STATUS_EN, data, 2);
 
 	if (ret < 0)
-		dev_err(&client->dev, "%s: enable 0x%x interrupt failed\n", __func__, interrupt_mask);
+		dev_err(&client->dev, "%s: enable 0x%x interrupt failed\n", __func__, gpo_mask);
 	return ret;
 }
 EXPORT_SYMBOL(microp_gpo_enable);
 
-int microp_gpo_disable(uint16_t interrupt_mask)
+int microp_gpo_disable(uint16_t gpo_mask)
 {
 	uint8_t data[2];
 	int ret = -1;
@@ -357,35 +356,15 @@ int microp_gpo_disable(uint16_t interrupt_mask)
 
 	client = private_microp_client;
 
-	data[0] = interrupt_mask >> 8;
-	data[1] = interrupt_mask & 0xFF;
+	data[0] = gpo_mask >> 8;
+	data[1] = gpo_mask & 0xFF;
 	ret = i2c_write_block(client, MICROP_I2C_WCMD_GPO_LED_STATUS_DIS, data, 2);
 
 	if (ret < 0)
-		dev_err(&client->dev, "%s: disable 0x%x interrupt failed\n", __func__, interrupt_mask);
+		dev_err(&client->dev, "%s: disable 0x%x interrupt failed\n", __func__, gpo_mask);
 	return ret;
 }
 EXPORT_SYMBOL(microp_gpo_disable);
-
-/*
- * CM3602 Power for LS and Proximity
-*/
-int __capella_cm3602_power(int on)
-{
-	int rc;
-	pr_debug("%s: Turn the capella_cm3602 power %s\n",
-		__func__, (on) ? "on" : "off");
-	if (on) {
-		rc = microp_gpo_enable(GPO_CM3602);
-		if (rc < 0)
-			return -EIO;
-	} else {
-		rc = microp_gpo_disable(GPO_CM3602);
-		if (rc < 0)
-			return -EIO;
-	}
-	return 0;
-}
 
 
 int capella_cm3602_power(int pwr_device, uint8_t enable)
@@ -396,6 +375,7 @@ int capella_cm3602_power(int pwr_device, uint8_t enable)
 	mutex_lock(&capella_cm3602_lock);
 	if(pwr_device==PS_PWR_ON) { // Switch the Proximity IRQ
 		if(enable) {
+			microp_gpo_enable(PS_PWR_ON);
 			ret = microp_interrupt_get_status(&interrupts);
 			if (ret < 0) {
 				pr_err("%s: read interrupt status fail\n", __func__);
@@ -407,13 +387,13 @@ int capella_cm3602_power(int pwr_device, uint8_t enable)
 		else {
 			interrupts |= IRQ_PROXIMITY;
 			ret = microp_interrupt_disable(interrupts);
+			microp_gpo_disable(PS_PWR_ON);
 		}
 		if (ret < 0) {
 			pr_err("%s: failed to enable gpi irqs\n", __func__);
 			return ret;
 		}
 	}
-
 	old_status = als_power_control;
 	if (enable)
 		als_power_control |= pwr_device;
@@ -422,10 +402,9 @@ int capella_cm3602_power(int pwr_device, uint8_t enable)
 
 	on = als_power_control ? 1 : 0;
 	if (old_status == 0 && on)
-		ret = __capella_cm3602_power(1);
+		microp_gpo_enable(LS_PWR_ON);
 	else if (!on)
-		ret = __capella_cm3602_power(0);
-
+		microp_gpo_disable(LS_PWR_ON);
 	mutex_unlock(&capella_cm3602_lock);
 	return ret;
 }
@@ -472,7 +451,6 @@ static void microp_i2c_intr_work_func(struct work_struct *work)
 		dev_err(&client->dev, "%s: clear interrupt status fail\n",
 			 __func__);
 	}
-	pr_info("intr_status=0x%02x\n", intr_status);
 
 	if (intr_status & IRQ_PROXIMITY) {
 		p_sensor_irq_handler();

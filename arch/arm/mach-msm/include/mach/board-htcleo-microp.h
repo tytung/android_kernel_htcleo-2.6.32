@@ -47,6 +47,8 @@ struct microp_i2c_client_data {
 	uint8_t enable_reset_button;
 	int microp_is_suspend;
 	uint32_t microp_als_kadc;
+	struct hrtimer gen_irq_timer;
+	uint16_t intr_status;
 };
 
 #define MICROP_I2C_NAME "htcleo-microp"
@@ -122,9 +124,14 @@ struct microp_i2c_client_data {
 #define READ_GPI_STATE_HPIN			(1<<2)
 #define READ_GPI_STATE_SDCARD			(1<<0)
 
-#define GPO_CM3602   				0x3
-#define LS_PWR_ON				(1 << 0)
-#define PS_PWR_ON				(1 << 1)
+#define PS_PWR_ON				(1 << 0)
+#define LS_PWR_ON				(1 << 1)
+
+#define CAPELLA_CM3602_IOCTL_MAGIC 'c'
+#define CAPELLA_CM3602_IOCTL_GET_ENABLED \
+		_IOR(CAPELLA_CM3602_IOCTL_MAGIC, 1, int *)
+#define CAPELLA_CM3602_IOCTL_ENABLE \
+		_IOW(CAPELLA_CM3602_IOCTL_MAGIC, 2, int *)
 
 int microp_i2c_read(uint8_t addr, uint8_t *data, int length);
 int microp_i2c_write(uint8_t addr, uint8_t *data, int length);

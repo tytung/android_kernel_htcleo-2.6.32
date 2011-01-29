@@ -19,7 +19,6 @@
 #include <linux/earlysuspend.h>
 #include <asm/mach-types.h>
 #include <mach/board-htcleo-microp.h>
-#include <linux/capella_cm3602.h>
 #include <linux/input.h>
 #include <linux/uaccess.h>
 #include <linux/miscdevice.h>
@@ -30,7 +29,6 @@
 #include "board-htcleo.h"
 
 #define INT_PSENSOR	(1<<4)
-#define GPO_PROXIMITY   0x3
 
 #define D(x...) pr_debug(x)
 
