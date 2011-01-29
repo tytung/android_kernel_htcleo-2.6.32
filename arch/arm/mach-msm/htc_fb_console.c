@@ -382,5 +382,7 @@ int __init htc_fb_console_init(void)
 	return 0;
 }
 
+#if !defined(CONFIG_VERY_EARLY_CONSOLE)	
 console_initcall(htc_fb_console_init);
+#endif
 
