@@ -197,6 +197,7 @@ static struct akm8973_platform_data compass_platform_data =
 
 static struct bma150_platform_data htcleo_g_sensor_pdata = {
 	.microp_new_cmd = 0,
+	.chip_layout = 1,
 };
 
 static struct platform_device microp_devices[] = {

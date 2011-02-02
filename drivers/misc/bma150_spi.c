@@ -32,6 +32,9 @@ static struct bma150_platform_data *this_pdata;
 static struct mutex gsensor_RW_mutex;
 static struct mutex gsensor_set_mode_mutex;
 
+static atomic_t PhoneOn_flag = ATOMIC_INIT(0);
+#define DEVICE_ACCESSORY_ATTR(_name, _mode, _show, _store) \
+struct device_attribute dev_attr_##_name = __ATTR(_name, _mode, _show, _store)
 static int spi_microp_enable(uint8_t on)
 {
 	int ret;
@@ -219,7 +222,7 @@ static int spi_bma150_TransRBuff(short *rbuf)
 
 static int __spi_bma150_set_mode(char mode)
 {
-	char buffer[2];
+	char buffer[2] = "";
 	int ret;
 	mutex_lock(&gsensor_set_mode_mutex);
 	if (mode == BMA_MODE_NORMAL) {
@@ -263,20 +266,26 @@ static int spi_bma150_ioctl(struct inode *inode, struct file *file, unsigned int
 	   unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
-	char rwbuf[8];
+	char rwbuf[8] = "";
 	char *toRbuf;
 	int ret = -1;
 	short buf[8], temp;
+	int kbuf = 0;
 
 	switch (cmd) {
 	case BMA_IOCTL_READ:
 	case BMA_IOCTL_WRITE:
 	case BMA_IOCTL_SET_MODE:
+	case BMA_IOCTL_SET_CALI_MODE:
 		if (copy_from_user(&rwbuf, argp, sizeof(rwbuf)))
 			return -EFAULT;
 		break;
 	case BMA_IOCTL_READ_ACCELERATION:
 		if (copy_from_user(&buf, argp, sizeof(buf)))
+			return -EFAULT;
+		break;
+	case BMA_IOCTL_WRITE_CALI_VALUE:
+		if (copy_from_user(&kbuf, argp, sizeof(kbuf)))
 			return -EFAULT;
 		break;
 	default:
@@ -304,10 +313,24 @@ static int spi_bma150_ioctl(struct inode *inode, struct file *file, unsigned int
 		if (ret < 0)
 			return ret;
 		break;
+	case BMA_IOCTL_WRITE_CALI_VALUE:
+		this_pdata->gs_kvalue = kbuf;
+		break;
 	case BMA_IOCTL_READ_ACCELERATION:
 		ret = spi_bma150_TransRBuff(&buf[0]);
 		if (ret < 0)
 			return ret;
+		break;
+	case BMA_IOCTL_READ_CALI_VALUE:
+		if ((this_pdata->gs_kvalue & (0x67 << 24)) != (0x67 << 24)) {
+			rwbuf[0] = 0;
+			rwbuf[1] = 0;
+			rwbuf[2] = 0;
+		} else {
+			rwbuf[0] = (this_pdata->gs_kvalue >> 16) & 0xFF;
+			rwbuf[1] = (this_pdata->gs_kvalue >>  8) & 0xFF;
+			rwbuf[2] =  this_pdata->gs_kvalue        & 0xFF;
+		}
 		break;
 	case BMA_IOCTL_SET_MODE:
 		/*printk(KERN_DEBUG
@@ -324,6 +347,14 @@ static int spi_bma150_ioctl(struct inode *inode, struct file *file, unsigned int
 		if (this_pdata)
 			temp = this_pdata->chip_layout;
 		break;
+	case BMA_IOCTL_GET_CALI_MODE:
+		if (this_pdata)
+			temp = this_pdata->calibration_mode;
+		break;
+	case BMA_IOCTL_SET_CALI_MODE:
+		if (this_pdata)
+			this_pdata->calibration_mode = rwbuf[0];
+		break;
 	default:
 		return -ENOTTY;
 	}
@@ -338,11 +369,19 @@ static int spi_bma150_ioctl(struct inode *inode, struct file *file, unsigned int
 		if (copy_to_user(argp, &buf, sizeof(buf)))
 			return -EFAULT;
 		break;
+	case BMA_IOCTL_READ_CALI_VALUE:
+		if (copy_to_user(argp, &rwbuf, sizeof(rwbuf)))
+			return -EFAULT;
+		break;
 	case BMA_IOCTL_GET_INT:
 		if (copy_to_user(argp, &temp, sizeof(temp)))
 			return -EFAULT;
 		break;
 	case BMA_IOCTL_GET_CHIP_LAYOUT:
+		if (copy_to_user(argp, &temp, sizeof(temp)))
+			return -EFAULT;
+		break;
+	case BMA_IOCTL_GET_CALI_MODE:
 		if (copy_to_user(argp, &temp, sizeof(temp)))
 			return -EFAULT;
 		break;
@@ -369,7 +408,10 @@ static struct miscdevice spi_bma_device = {
 static void bma150_early_suspend(struct early_suspend *handler)
 {
 	int ret = 0;
+	if (!atomic_read(&PhoneOn_flag)) {
 	ret = __spi_bma150_set_mode(BMA_MODE_SLEEP);
+	} else
+		printk(KERN_DEBUG "bma150_early_suspend: PhoneOn_flag is set\n");
 
 	/*printk(KERN_DEBUG
 		"%s: spi_bma150_set_mode returned = %d!\n",
@@ -381,6 +423,74 @@ static void bma150_early_resume(struct early_suspend *handler)
 	/*printk(KERN_DEBUG
 		"%s: spi_bma150_set_mode returned = %d!\n",
 			__func__, ret);*/
+}
+static ssize_t spi_bma150_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	char *s = buf;
+	s += sprintf(s, "%d\n", atomic_read(&PhoneOn_flag));
+	return (s - buf);
+}
+
+static ssize_t spi_bma150_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	if (count == (strlen("enable") + 1) &&
+	   strncmp(buf, "enable", strlen("enable")) == 0) {
+		atomic_set(&PhoneOn_flag, 1);
+		printk(KERN_DEBUG "spi_bma150_store: PhoneOn_flag=%d\n", atomic_read(&PhoneOn_flag));
+		return count;
+	}
+	if (count == (strlen("disable") + 1) &&
+	   strncmp(buf, "disable", strlen("disable")) == 0) {
+		atomic_set(&PhoneOn_flag, 0);
+		printk(KERN_DEBUG "spi_bma150_store: PhoneOn_flag=%d\n", atomic_read(&PhoneOn_flag));
+		return count;
+	}
+	printk(KERN_ERR "spi_bma150_store: invalid argument\n");
+	return -EINVAL;
+
+}
+
+static DEVICE_ACCESSORY_ATTR(PhoneOnOffFlag, 0666, \
+	spi_bma150_show, spi_bma150_store);
+
+int spi_bma150_registerAttr(void)
+{
+	int ret;
+	struct class *htc_accelerometer_class;
+	struct device *accelerometer_dev;
+
+	htc_accelerometer_class = class_create(THIS_MODULE, "htc_accelerometer");
+	if (IS_ERR(htc_accelerometer_class)) {
+		ret = PTR_ERR(htc_accelerometer_class);
+		htc_accelerometer_class = NULL;
+		goto err_create_class;
+	}
+
+	accelerometer_dev = device_create(htc_accelerometer_class,
+				NULL, 0, "%s", "accelerometer");
+	if (unlikely(IS_ERR(accelerometer_dev))) {
+		ret = PTR_ERR(accelerometer_dev);
+		accelerometer_dev = NULL;
+		goto err_create_accelerometer_device;
+	}
+
+	/* register the attributes */
+	ret = device_create_file(accelerometer_dev, &dev_attr_PhoneOnOffFlag);
+	if (ret)
+		goto err_create_accelerometer_device_file;
+
+	return 0;
+
+err_create_accelerometer_device_file:
+	device_unregister(accelerometer_dev);
+err_create_accelerometer_device:
+	class_destroy(htc_accelerometer_class);
+err_create_class:
+
+	return ret;
 }
 
 static int spi_gsensor_initial(void)
@@ -429,8 +539,14 @@ static int spi_gsensor_initial(void)
 	bma_early_suspend.resume = bma150_early_resume;
 	register_early_suspend(&bma_early_suspend);
 
+	ret = spi_bma150_registerAttr();
+	if (ret) {
+		printk(KERN_ERR "%s: set spi_bma150_registerAttr fail!\n", __func__);
+		goto err_registerAttr;
+	}
 	return 0;
 
+err_registerAttr:
 err_set_mode:
 	spi_microp_enable(0);
 err_spi_enable:
@@ -441,10 +557,15 @@ err_spi_enable:
 
 static int  spi_bma150_probe(struct platform_device *pdev)
 {
+  
+	unsigned int gs_kvalue=0;
 	printk(KERN_INFO "%s: G-sensor connect with microP: "
-			"start initial\n", __func__);
+			"start initial, kvalue = 0x%x\n", __func__, gs_kvalue);
 
 	this_pdata = pdev->dev.platform_data;
+
+	this_pdata->gs_kvalue = gs_kvalue;
+
 /*
 	printk(KERN_DEBUG "%s: this_pdata->microp_new_cmd = %d\n",
 			__func__, this_pdata->microp_new_cmd);
