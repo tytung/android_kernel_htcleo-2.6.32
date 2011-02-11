@@ -1,82 +1,208 @@
-The io_mapping functions in linux/io-mapping.h provide an abstraction for
-efficiently mapping small regions of an I/O device to the CPU. The initial
-usage is to support the large graphics aperture on 32-bit processors where
-ioremap_wc cannot be used to statically map the entire aperture to the CPU
-as it would consume too much of the kernel address space.
+[ NOTE: The virt_to_bus() and bus_to_virt() functions have been
+	superseded by the functionality provided by the PCI DMA interface
+	(see Documentation/PCI/PCI-DMA-mapping.txt).  They continue
+	to be documented below for historical purposes, but new code
+	must not use them. --davidm 00/12/12 ]
 
-A mapping object is created during driver initialization using
+[ This is a mail message in response to a query on IO mapping, thus the
+  strange format for a "document" ]
 
-	struct io_mapping *io_mapping_create_wc(unsigned long base,
-						unsigned long size)
+The AHA-1542 is a bus-master device, and your patch makes the driver give the
+controller the physical address of the buffers, which is correct on x86
+(because all bus master devices see the physical memory mappings directly). 
 
-		'base' is the bus address of the region to be made
-		mappable, while 'size' indicates how large a mapping region to
-		enable. Both are in bytes.
+However, on many setups, there are actually _three_ different ways of looking
+at memory addresses, and in this case we actually want the third, the
+so-called "bus address". 
 
-		This _wc variant provides a mapping which may only be used
-		with the io_mapping_map_atomic_wc or io_mapping_map_wc.
+Essentially, the three ways of addressing memory are (this is "real memory",
+that is, normal RAM--see later about other details): 
 
-With this mapping object, individual pages can be mapped either atomically
-or not, depending on the necessary scheduling environment. Of course, atomic
-maps are more efficient:
+ - CPU untranslated.  This is the "physical" address.  Physical address 
+   0 is what the CPU sees when it drives zeroes on the memory bus.
 
-	void *io_mapping_map_atomic_wc(struct io_mapping *mapping,
-				       unsigned long offset)
+ - CPU translated address. This is the "virtual" address, and is 
+   completely internal to the CPU itself with the CPU doing the appropriate
+   translations into "CPU untranslated". 
 
-		'offset' is the offset within the defined mapping region.
-		Accessing addresses beyond the region specified in the
-		creation function yields undefined results. Using an offset
-		which is not page aligned yields an undefined result. The
-		return value points to a single page in CPU address space.
+ - bus address. This is the address of memory as seen by OTHER devices, 
+   not the CPU. Now, in theory there could be many different bus 
+   addresses, with each device seeing memory in some device-specific way, but
+   happily most hardware designers aren't actually actively trying to make
+   things any more complex than necessary, so you can assume that all 
+   external hardware sees the memory the same way. 
 
-		This _wc variant returns a write-combining map to the
-		page and may only be used with mappings created by
-		io_mapping_create_wc
+Now, on normal PCs the bus address is exactly the same as the physical
+address, and things are very simple indeed. However, they are that simple
+because the memory and the devices share the same address space, and that is
+not generally necessarily true on other PCI/ISA setups. 
 
-		Note that the task may not sleep while holding this page
-		mapped.
+Now, just as an example, on the PReP (PowerPC Reference Platform), the 
+CPU sees a memory map something like this (this is from memory):
 
-	void io_mapping_unmap_atomic(void *vaddr)
+	0-2 GB		"real memory"
+	2 GB-3 GB	"system IO" (inb/out and similar accesses on x86)
+	3 GB-4 GB 	"IO memory" (shared memory over the IO bus)
 
-		'vaddr' must be the the value returned by the last
-		io_mapping_map_atomic_wc call. This unmaps the specified
-		page and allows the task to sleep once again.
+Now, that looks simple enough. However, when you look at the same thing from
+the viewpoint of the devices, you have the reverse, and the physical memory
+address 0 actually shows up as address 2 GB for any IO master.
 
-If you need to sleep while holding the lock, you can use the non-atomic
-variant, although they may be significantly slower.
+So when the CPU wants any bus master to write to physical memory 0, it 
+has to give the master address 0x80000000 as the memory address.
 
-	void *io_mapping_map_wc(struct io_mapping *mapping,
-				unsigned long offset)
+So, for example, depending on how the kernel is actually mapped on the 
+PPC, you can end up with a setup like this:
 
-		This works like io_mapping_map_atomic_wc except it allows
-		the task to sleep while holding the page mapped.
+ physical address:	0
+ virtual address:	0xC0000000
+ bus address:		0x80000000
 
-	void io_mapping_unmap(void *vaddr)
+where all the addresses actually point to the same thing.  It's just seen 
+through different translations..
 
-		This works like io_mapping_unmap_atomic, except it is used
-		for pages mapped with io_mapping_map_wc.
+Similarly, on the Alpha, the normal translation is
 
-At driver close time, the io_mapping object must be freed:
+ physical address:	0
+ virtual address:	0xfffffc0000000000
+ bus address:		0x40000000
 
-	void io_mapping_free(struct io_mapping *mapping)
+(but there are also Alphas where the physical address and the bus address
+are the same). 
 
-Current Implementation:
+Anyway, the way to look up all these translations, you do
 
-The initial implementation of these functions uses existing mapping
-mechanisms and so provides only an abstraction layer and no new
-functionality.
+	#include <asm/io.h>
 
-On 64-bit processors, io_mapping_create_wc calls ioremap_wc for the whole
-range, creating a permanent kernel-visible mapping to the resource. The
-map_atomic and map functions add the requested offset to the base of the
-virtual address returned by ioremap_wc.
+	phys_addr = virt_to_phys(virt_addr);
+	virt_addr = phys_to_virt(phys_addr);
+	 bus_addr = virt_to_bus(virt_addr);
+	virt_addr = bus_to_virt(bus_addr);
 
-On 32-bit processors with HIGHMEM defined, io_mapping_map_atomic_wc uses
-kmap_atomic_pfn to map the specified page in an atomic fashion;
-kmap_atomic_pfn isn't really supposed to be used with device pages, but it
-provides an efficient mapping for this usage.
+Now, when do you need these?
 
-On 32-bit processors without HIGHMEM defined, io_mapping_map_atomic_wc and
-io_mapping_map_wc both use ioremap_wc, a terribly inefficient function which
-performs an IPI to inform all processors about the new mapping. This results
-in a significant performance penalty.
+You want the _virtual_ address when you are actually going to access that 
+pointer from the kernel. So you can have something like this:
+
+	/*
+	 * this is the hardware "mailbox" we use to communicate with
+	 * the controller. The controller sees this directly.
+	 */
+	struct mailbox {
+		__u32 status;
+		__u32 bufstart;
+		__u32 buflen;
+		..
+	} mbox;
+
+		unsigned char * retbuffer;
+
+		/* get the address from the controller */
+		retbuffer = bus_to_virt(mbox.bufstart);
+		switch (retbuffer[0]) {
+			case STATUS_OK:
+				...
+
+on the other hand, you want the bus address when you have a buffer that 
+you want to give to the controller:
+
+	/* ask the controller to read the sense status into "sense_buffer" */
+	mbox.bufstart = virt_to_bus(&sense_buffer);
+	mbox.buflen = sizeof(sense_buffer);
+	mbox.status = 0;
+	notify_controller(&mbox);
+
+And you generally _never_ want to use the physical address, because you can't
+use that from the CPU (the CPU only uses translated virtual addresses), and
+you can't use it from the bus master. 
+
+So why do we care about the physical address at all? We do need the physical
+address in some cases, it's just not very often in normal code.  The physical
+address is needed if you use memory mappings, for example, because the
+"remap_pfn_range()" mm function wants the physical address of the memory to
+be remapped as measured in units of pages, a.k.a. the pfn (the memory
+management layer doesn't know about devices outside the CPU, so it
+shouldn't need to know about "bus addresses" etc).
+
+NOTE NOTE NOTE! The above is only one part of the whole equation. The above
+only talks about "real memory", that is, CPU memory (RAM). 
+
+There is a completely different type of memory too, and that's the "shared
+memory" on the PCI or ISA bus. That's generally not RAM (although in the case
+of a video graphics card it can be normal DRAM that is just used for a frame
+buffer), but can be things like a packet buffer in a network card etc. 
+
+This memory is called "PCI memory" or "shared memory" or "IO memory" or
+whatever, and there is only one way to access it: the readb/writeb and
+related functions. You should never take the address of such memory, because
+there is really nothing you can do with such an address: it's not
+conceptually in the same memory space as "real memory" at all, so you cannot
+just dereference a pointer. (Sadly, on x86 it _is_ in the same memory space,
+so on x86 it actually works to just deference a pointer, but it's not
+portable). 
+
+For such memory, you can do things like
+
+ - reading:
+	/*
+	 * read first 32 bits from ISA memory at 0xC0000, aka
+	 * C000:0000 in DOS terms
+	 */
+	unsigned int signature = isa_readl(0xC0000);
+
+ - remapping and writing:
+	/*
+	 * remap framebuffer PCI memory area at 0xFC000000,
+	 * size 1MB, so that we can access it: We can directly
+	 * access only the 640k-1MB area, so anything else
+	 * has to be remapped.
+	 */
+	char * baseptr = ioremap(0xFC000000, 1024*1024);
+
+	/* write a 'A' to the offset 10 of the area */
+	writeb('A',baseptr+10);
+
+	/* unmap when we unload the driver */
+	iounmap(baseptr);
+
+ - copying and clearing:
+	/* get the 6-byte Ethernet address at ISA address E000:0040 */
+	memcpy_fromio(kernel_buffer, 0xE0040, 6);
+	/* write a packet to the driver */
+	memcpy_toio(0xE1000, skb->data, skb->len);
+	/* clear the frame buffer */
+	memset_io(0xA0000, 0, 0x10000);
+
+OK, that just about covers the basics of accessing IO portably.  Questions?
+Comments? You may think that all the above is overly complex, but one day you
+might find yourself with a 500 MHz Alpha in front of you, and then you'll be
+happy that your driver works ;)
+
+Note that kernel versions 2.0.x (and earlier) mistakenly called the
+ioremap() function "vremap()".  ioremap() is the proper name, but I
+didn't think straight when I wrote it originally.  People who have to
+support both can do something like:
+ 
+	/* support old naming silliness */
+	#if LINUX_VERSION_CODE < 0x020100                                     
+	#define ioremap vremap
+	#define iounmap vfree                                                     
+	#endif
+ 
+at the top of their source files, and then they can use the right names
+even on 2.0.x systems. 
+
+And the above sounds worse than it really is.  Most real drivers really
+don't do all that complex things (or rather: the complexity is not so
+much in the actual IO accesses as in error handling and timeouts etc). 
+It's generally not hard to fix drivers, and in many cases the code
+actually looks better afterwards:
+
+	unsigned long signature = *(unsigned int *) 0xC0000;
+		vs
+	unsigned long signature = readl(0xC0000);
+
+I think the second version actually is more readable, no?
+
+		Linus
+
