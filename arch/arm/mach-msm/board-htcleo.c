@@ -62,6 +62,7 @@
 #include "proc_comm.h"
 #include "dex_comm.h"
 
+
 #define ATAG_MAGLDR_BOOT    0x4C47414D 
 struct tag_magldr_entry
 {
@@ -191,6 +192,27 @@ static struct akm8973_platform_data compass_platform_data =
 	.intr = HTCLEO_GPIO_COMPASS_INT_N,
 };
 
+
+///////////////////////////////////////////////////////////////////////
+// LED Driver (drivers/leds/leds-microp.c - Atmega microp driver
+///////////////////////////////////////////////////////////////////////
+
+static struct microp_led_config led_config[] = {
+        {
+                .name = "amber",
+                .type = LED_RGB,
+        },
+        {
+                .name = "green",
+                .type = LED_RGB,
+        },
+};
+
+static struct microp_led_platform_data microp_leds_data = {
+        .num_leds       = ARRAY_SIZE(led_config),
+        .led_config     = led_config,
+};
+
 ///////////////////////////////////////////////////////////////////////
 // Microp
 ///////////////////////////////////////////////////////////////////////
@@ -216,8 +238,12 @@ static struct platform_device microp_devices[] = {
 		.id = -1,
 	},
 	{
-		.name = "htcleo-leds",
+		.name = "leds-microp",
 		.id = -1,
+		.dev = { 
+			.platform_data = &microp_leds_data,
+		},
+		                                                                        
 	},
 	{
 		.name = "htcleo-lsensor",

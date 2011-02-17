@@ -30,7 +30,7 @@ obj-$(CONFIG_LEDS_DA903X)		+= leds-da903x.o
 obj-$(CONFIG_LEDS_WM831X_STATUS)	+= leds-wm831x-status.o
 obj-$(CONFIG_LEDS_WM8350)		+= leds-wm8350.o
 obj-$(CONFIG_LEDS_PWM)			+= leds-pwm.o
-obj-$(CONFIG_MICROP_COMMON)		+= leds-microp.o
+obj-$(CONFIG_MACH_HTCLEO)		+= leds-microp.o
 obj-$(CONFIG_LEDS_PM8058)		+= leds-pm8058.o
 
 # LED SPI Drivers

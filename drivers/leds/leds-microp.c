@@ -1,6 +1,7 @@
 /* include/asm/mach-msm/leds-microp.c
  *
  * Copyright (C) 2009 HTC Corporation.
+ * Copyright (C) 2010 Danijel Posilovic - dan1j3l
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -13,7 +14,6 @@
  *
  */
 
-#ifdef CONFIG_MICROP_COMMON
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/leds.h>
@@ -22,42 +22,106 @@
 #include <linux/platform_device.h>
 #include <mach/atmega_microp.h>
 
-static int microp_write_led_mode(struct led_classdev *led_cdev,
-				uint8_t mode, uint16_t off_timer)
-{
+int gl_state = 0; // Green led last state
+int al_state = 0; // Amber led last state
+
+static int microp_write_led_mode(struct led_classdev *led_cdev,uint8_t mode, uint16_t off_timer){
+
 	struct microp_led_data *ldata;
 	uint8_t data[7];
 	int ret;
 
 	ldata = container_of(led_cdev, struct microp_led_data, ldev);
 
+	//pr_warning("LEDS: set led: %s, mode: %d, brightness:%d\n", ldata->ldev.name, mode,ldata->brightness);
+
 	if (!strcmp(ldata->ldev.name, "green")) {
-		data[0] = 0x01;
-		data[1] = mode;
-		data[2] = off_timer >> 8;
-		data[3] = off_timer & 0xFF;
-		data[4] = 0x00;
-		data[5] = 0x00;
-		data[6] = 0x00;
+
+		switch (mode){
+			case 0:
+			case 1:
+				if (ldata->brightness){
+					//pr_warning("LEDS: turning on green\n");
+					data[1] = 0x01;
+					gl_state = 1;
+					al_state = 0;
+				}else{
+
+					if (gl_state !=0){ // Only reset led if green is on, and vice versa
+						//pr_warning("LEDS: turning off green\n");
+						data[1] = 0x00;
+						gl_state = 0;
+					}else{
+						//pr_warning("LEDS: braking green\n");
+						return 0;
+					}
+				}
+			break;
+			
+			case 2:	// Slow blink
+				data[1] = 0x03;
+				gl_state = 1;
+				al_state = 0;
+			break;
+
+			case 3: // Fast blink
+				data[1] = 0x04;
+				gl_state = 1;
+				al_state = 0;
+			break;
+
+			case 4: // Green / Amber
+				data[0] = 0x10;
+				data[1] = 0x10;
+				gl_state = 1;
+				al_state = 0;
+			break;
+		}
 	} else if (!strcmp(ldata->ldev.name, "amber")) {
-		data[0] = 0x02;
-		data[1] = 0x00;
-		data[2] = 0x00;
-		data[3] = 0x00;
-		data[4] = mode;
-		data[5] = off_timer >> 8;
-		data[6] = off_timer & 0xFF;
-	} else if (!strcmp(ldata->ldev.name, "blue")) {
-		data[0] = 0x04;
-		data[1] = mode;
-		data[2] = off_timer >> 8;
-		data[3] = off_timer & 0xFF;
-		data[4] = 0x00;
-		data[5] = 0x00;
-		data[6] = 0x00;
+
+		switch (mode){
+			case 0:
+			case 1:
+				if (ldata->brightness){
+					data[1] = 0x02;
+					al_state = 1;
+					gl_state = 0;
+					//pr_warning("LEDS: turning on amber\n");
+				}else{
+					if (al_state !=0){
+						//pr_warning("LEDS: turning off amber\n");
+						data[1] = 0x00;
+						al_state = 0;
+					}else{
+						//pr_warning("LEDS: breaking amber\n");
+						return 0;
+					}
+				}
+			break;
+			
+			case 2:	// Amber fast flash
+				data[1] = 0x05;
+				al_state = 1;
+				gl_state = 0;
+			break;
+
+			case 3: // Green / Amber
+				data[0] = 0x10;
+				data[1] = 0x10;
+				al_state = 1;
+				gl_state = 0;
+			break;
+		}
 	}
 
-	ret = microp_i2c_write(MICROP_I2C_WCMD_LED_MODE, data, 7);
+		// Other default settings
+		data[2] = off_timer >> 8;
+		data[3] = off_timer & 0xFF;
+		data[4] = 0x00;
+		data[5] = 0x00;
+		data[6] = 0x00;
+
+	ret = microp_i2c_write(MICROP_I2C_WCMD_LED_CTRL, data, 7);
 	if (ret == 0) {
 		mutex_lock(&ldata->led_data_mutex);
 		if (mode > 1)
@@ -68,9 +132,8 @@ static int microp_write_led_mode(struct led_classdev *led_cdev,
 	return ret;
 }
 
-static void microp_led_brightness_set(struct led_classdev *led_cdev,
-			       enum led_brightness brightness)
-{
+static void microp_led_brightness_set(struct led_classdev *led_cdev,enum led_brightness brightness){
+	
 	struct microp_led_data *ldata;
 	unsigned long flags;
 	int ret;
@@ -96,9 +159,8 @@ static void microp_led_brightness_set(struct led_classdev *led_cdev,
 		pr_err("%s: led_brightness_set failed to set mode\n", __func__);
 }
 
-static void microp_led_jogball_brightness_set(struct led_classdev *led_cdev,
-			       enum led_brightness brightness)
-{
+static void microp_led_jogball_brightness_set(struct led_classdev *led_cdev,enum led_brightness brightness){
+	
 	struct microp_led_data *ldata;
 	unsigned long flags;
 	uint8_t data[3] = {0, 0, 0};
@@ -136,15 +198,12 @@ static void microp_led_jogball_brightness_set(struct led_classdev *led_cdev,
 		pr_err("%s failed on set jogball mode:0x%2.2X\n", __func__, data[0]);
 }
 
-static void microp_led_mobeam_brightness_set(struct led_classdev *led_cdev,
-			       enum led_brightness brightness)
-{
+static void microp_led_mobeam_brightness_set(struct led_classdev *led_cdev,enum led_brightness brightness){
 	;
 }
 
-static void microp_led_wimax_brightness_set(struct led_classdev *led_cdev,
-			       enum led_brightness brightness)
-{
+static void microp_led_wimax_brightness_set(struct led_classdev *led_cdev,enum led_brightness brightness){
+	
 	struct microp_led_data *ldata;
 	unsigned long flags;
 	uint8_t data[3] = {0, 0, 0};
@@ -275,24 +334,21 @@ static ssize_t microp_led_blink_store(struct device *dev,
 	ldata = container_of(led_cdev, struct microp_led_data, ldev);
 
 	mutex_lock(&ldata->led_data_mutex);
+	//pr_warning("LEDS: read blink: led: %s, value: %d",ldata->ldev.name,val);
 	switch (val) {
 	case 0: /* stop flashing */
+	case 1:
 		ldata->blink = 0;
 		if (led_cdev->brightness)
 			mode = 1;
 		else
 			mode = 0;
 		break;
-	case 1:
 	case 2:
 	case 3:
-		mode = val + 1;
-		break;
 	case 4:
-		if (!strcmp(ldata->ldev.name, "amber")) {
-			mode = val + 1;
-			break;
-		}
+		mode =  val;
+		break;
 	default:
 		mutex_unlock(&ldata->led_data_mutex);
 		return -EINVAL;
@@ -426,6 +482,8 @@ static ssize_t microp_jogball_color_store(struct device *dev,
 
 static DEVICE_ATTR(color, 0644, NULL, microp_jogball_color_store);
 
+
+#ifdef CONFIG_MICROP_COMMON
 static ssize_t microp_mobeam_read_status_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -447,7 +505,7 @@ static ssize_t microp_mobeam_download_store(struct device *dev,
 				   const char *buf, size_t count)
 {
 	int i, ret, num;
-	uint8_t data[73] ; /* Size of cbitstream array MAX 73 bytes. */
+	uint8_t data[73] ; // Size of cbitstream array MAX 73 bytes.
 
 pr_info("%s\n", __func__);
 	memset(data, 0x00, sizeof(data));
@@ -546,7 +604,7 @@ pr_info("%s\n", __func__);
 	return count;
 }
 static DEVICE_ATTR(stop_led, 0644, NULL, microp_mobeam_stop_led);
-
+#endif
 
 static int microp_led_probe(struct platform_device *pdev)
 {
@@ -634,6 +692,7 @@ static int microp_led_probe(struct platform_device *pdev)
 			break;
 	}
 
+#ifdef CONFIG_MICROP_COMMON
 	for (i = 0; i < pdata->num_leds; i++) {
 		if (pdata->led_config[i].type != LED_MOBEAM)
 			continue;
@@ -678,10 +737,12 @@ static int microp_led_probe(struct platform_device *pdev)
 		}
 		break;
 	}
+#endif
 
 	pr_info("%s: succeeded\n", __func__);
 	return 0;
-
+	
+#ifdef CONFIG_MICROP_COMMON
 err_create_mo_stop_attr_file:
 	device_remove_file(ldata[i].ldev.dev, &dev_attr_mobeam_enable);
 err_create_mo_enable_attr_file:
@@ -692,6 +753,8 @@ err_create_mo_send_attr_file:
 	device_remove_file(ldata[i].ldev.dev, &dev_attr_data_download);
 err_create_mo_download_attr_file:
 	i = pdata->num_leds;
+#endif
+
 err_register_attr_color:
 	for (i--; i >= 0; i--) {
 		if (pdata->led_config[i].type != LED_JOGBALL)
@@ -773,5 +836,4 @@ module_exit(microp_led_exit);
 
 MODULE_DESCRIPTION("Atmega MicroP led driver");
 MODULE_LICENSE("GPL");
-#endif /* end of #ifdef CONFIG_MICROP_COMMON*/
 

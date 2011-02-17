@@ -144,6 +144,7 @@ static int i2c_write_block(struct i2c_client *client, uint8_t addr,
 	return 0;
 }
 
+#ifndef CONFIG_MACH_HTCLEO
 int microp_i2c_read(uint8_t addr, uint8_t *data, int length)
 {
 	struct i2c_client *client = private_microp_client;
@@ -179,6 +180,7 @@ int microp_i2c_write(uint8_t addr, uint8_t *data, int length)
 	return 0;
 }
 EXPORT_SYMBOL(microp_i2c_write);
+#endif
 
 void microp_mobeam_enable(int enable)
 {
@@ -234,6 +236,7 @@ int microp_write_interrupt(struct i2c_client *client,
 	return ret;
 }
 
+#ifndef CONFIG_MACH_HTCLEO
 int microp_set_adc_req(uint8_t value)
 {
 	struct i2c_client *client;
@@ -274,6 +277,7 @@ int microp_get_remote_adc(uint32_t *val)
 	printk("remote adc %d\n", *val);
 	return 0;
 }
+#endif
 
 int microp_read_adc(uint8_t *data)
 {
@@ -360,6 +364,7 @@ static int microp_spi_enable(struct i2c_client *client, uint8_t enable)
 	return ret;
 }
 
+#ifndef CONFIG_MACH_HTCLEO
 int microp_spi_vote_enable(int spi_device, uint8_t enable)
 {
 	struct i2c_client *client = private_microp_client;
@@ -410,6 +415,7 @@ exit:
 }
 
 EXPORT_SYMBOL(microp_spi_vote_enable);
+#endif
 
 static void microp_reset_microp(struct i2c_client *client)
 {
