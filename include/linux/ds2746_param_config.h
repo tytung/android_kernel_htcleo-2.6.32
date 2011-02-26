@@ -46,8 +46,8 @@ UINT32 ID_RANGE[] =
   7150, 15500,   /* Sony 1300mAh (Formosa) */    /* 7.1k~15k */
   27500, 49500,   /* Sony 1300mAh (HTE) */  	  /* 28k~49.5k */
   15500, 27500,   /* Sanyo 1300mAh (HTE) */ 	  /* 16k~27k */
-  100, 7150,   /* Samsung 1230mAh */  	 /* 1k~7k */
-  0, 100,   /* HTC Extended 2300mAh */  	 /* 0k~1k */
+  100, 7150,   /* Samsung 1230mAh */  	 /* 0.1k~7k */
+  0, 100,   /* HTC Extended 2300mAh */  	 /* 0k~0.1k */
 };
 
 /*This table is calculated according to temp formula for temp mapping.

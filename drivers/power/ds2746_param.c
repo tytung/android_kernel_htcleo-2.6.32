@@ -727,6 +727,13 @@ static BOOL __battery_param_udpate(struct battery_type *battery)
 	/* calculate temperature*/
 	//    battery->temp_01c 			  = get_temp_c((float)temp_R_kohm / ((float)temp_adc_resl/battery->temp_adc - 1))*10;
 	temp_01c = get_temp_01c(battery);
+	if(temp_01c == 700)
+		{
+		FL_25[battery->id_index] = 2350;
+		battery->charge_full_real_mAh = FL_25[battery->id_index];
+		battery->charge_full_design_mAh = battery->charge_full_real_mAh;
+		temp_01c = 650 - battery->temp_adc*10;
+		}
 	if (temp_01c >= TEMP_MIN*10)
 		battery->temp_01c = temp_01c;
 	else
