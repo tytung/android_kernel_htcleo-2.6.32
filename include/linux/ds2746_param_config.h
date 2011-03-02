@@ -102,12 +102,12 @@ UINT32 *TEMP_MAP = TEMP_MAP_300K;
 
 UINT32 FL_25[] =
 {
-  1280,   /* Unknown battery */
+  2300,   /* Unknown battery */
   1280,   /* Sony 1300mAh (Formosa) */
   1280,   /* Sony 1300mAh (HTE) */
   1250,   /* Sanyo 1300mAh (HTE) */
   1230,   /* Samsung 1230mAh */
-  2350,  /* HTC Extended 2300mAh */
+  2300,  /* HTC Extended 2300mAh */
 };
 
 UINT32 PD_M_COEF[] =
@@ -159,7 +159,7 @@ UINT32 M_PARAMETER_Samsung_1230MAH_FORMOSA[] =
 UINT32 M_PARAMETER_HTC_2300MAH_FORMOSA[] =
 {
   /* capacity (in 0.01%) -> voltage (in mV)*/
-  10000, 4196, 7500, 4165, 4700, 3986, 1700, 3879, 900, 3833, 300, 3740, 0, 3420,
+  10000, 4135, 7500, 3960, 4700, 3800, 1700, 3727, 900, 3674, 300, 3640, 0, 3420,
 };
 
 

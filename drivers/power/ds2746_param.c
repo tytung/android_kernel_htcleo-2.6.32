@@ -719,17 +719,17 @@ static BOOL __battery_param_udpate(struct battery_type *battery)
 				batt_id_stable_counter = 0;
 		}
 	}
-
+	temp_01c = get_temp_01c(battery);
 	if (batt_id_index == 5)
 	{
-		battery->temp_adc = battery->temp_adc * 7;
+		//battery->temp_adc = battery->temp_adc * 7;
+		temp_01c = 650 - battery->temp_adc*10;
 	}
 	/* calculate temperature*/
 	//    battery->temp_01c 			  = get_temp_c((float)temp_R_kohm / ((float)temp_adc_resl/battery->temp_adc - 1))*10;
-	temp_01c = get_temp_01c(battery);
 	if(temp_01c == 700)
 		{
-		FL_25[battery->id_index] = 2350;
+		FL_25[battery->id_index] = 2300;
 		battery->charge_full_real_mAh = FL_25[battery->id_index];
 		battery->charge_full_design_mAh = battery->charge_full_real_mAh;
 		temp_01c = 650 - battery->temp_adc*10;
