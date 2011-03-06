@@ -105,6 +105,13 @@ config USB_EHCI_FSL
 	---help---
 	  Variation of ARC USB block used in some Freescale chips.
 
+config USB_EHCI_MSM7201
+	bool "Support for Qualcomm MSM7201/QSD8X50 on-chip EHCI USB controller"
+	depends on USB_EHCI_HCD && (ARCH_MSM7XXX || ARCH_MSM || ARCH_MSM7X00A) && (!USB_FUNCTION)
+	select USB_EHCI_ROOT_HUB_TT
+	---help---
+	  Variation of ARC USB block used in Qualcomm MSM7201/QSD8X50 chips.
+
 config USB_EHCI_HCD_PPC_OF
 	bool "EHCI support for PPC USB controller on OF platform bus"
 	depends on USB_EHCI_HCD && PPC_OF
