@@ -861,9 +861,17 @@ static void detect_panel_type(void)
 	}
 	else
 	{
-		printk(" UNKNOWN, stop system now\n");
 		htcleo_panel_type = PANELTYPE_UNKNOWN;
-		BUG();
+		extern int board_mfg_mode(void);
+		if(board_mfg_mode()==5) 
+		{
+			printk(" offmode charging, panel is off\n");
+		}
+		else
+		{
+			printk(" UNKNOWN, stop system now\n");
+			BUG();
+		}
 	}
 }
 

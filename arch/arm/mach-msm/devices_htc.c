@@ -457,6 +457,10 @@ int __init board_mfg_mode_init(char *s)
 		mfg_mode = 2;
 	else if (!strcmp(s, "charge"))
 		mfg_mode = 3;
+	else if (!strcmp(s, "power_test"))
+		mfg_mode = 4;
+	else if (!strcmp(s, "offmode_charging"))
+		mfg_mode = 5; 
 
 	return 1;
 }
