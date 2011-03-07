@@ -892,6 +892,15 @@ static int __init msm_pm_init(void)
 	register_reboot_notifier(&msm_reboot_notifier);
 	msm_pm_reset_vector = ioremap(0x0, PAGE_SIZE);
 
+#if defined(CONFIG_MACH_HTCLEO)
+	// if cLK is bootloader 0x0 is protected and not writtable but cLK changed reset vecotr to jump at address stored at 0x11800004
+	if(htcleo_is_nand_boot()==2){
+		pr_info("msm_pm: 0x00000000: %x\n", msm_pm_reset_vector[0]);
+		pr_info("msm_pm: 0x00000004: %x\n", msm_pm_reset_vector[1]);
+		msm_pm_reset_vector = ioremap(0x11800000, PAGE_SIZE);
+	}
+#endif
+
 	if (msm_pm_reset_vector == NULL) {
 		printk(KERN_ERR "msm_pm_init: failed to map reset vector\n");
 		return -ENODEV;

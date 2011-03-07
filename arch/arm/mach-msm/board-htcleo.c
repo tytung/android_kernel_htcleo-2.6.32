@@ -87,6 +87,7 @@ static int __init parse_tag_nand_boot(const struct tag *tag)
 {
 	struct tag_magldr_entry *mentry = (struct tag_magldr_entry *)(&tag->u);
 	nand_boot = !(unsigned int)mentry->fNoNandBoot;
+	if(*((unsigned*)&tag->u)==0x004b4c63) nand_boot = 2; // cLK signature
 	pr_info("Nand Boot: %d\n", nand_boot);
 	return 0;
 }
