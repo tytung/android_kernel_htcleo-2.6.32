@@ -1,4 +1,4 @@
-/* linux/arch/arm/mach-msm/board-bravo-wifi.c
+/* linux/arch/arm/mach-msm/board-htcleo-wifi.c (from board-mahimahi-wifi.c)
 */
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -18,7 +18,6 @@ int htcleo_wifi_reset(int on);
 int htcleo_wifi_set_carddetect(int on);
 
 #define PREALLOC_WLAN_NUMBER_OF_SECTIONS	4
-
 #define PREALLOC_WLAN_NUMBER_OF_BUFFERS		160
 #define PREALLOC_WLAN_SECTION_HEADER		24
 
