@@ -714,9 +714,27 @@ void msm_pm_flush_console(void)
 	release_console_sem();
 }
 
+#if defined(CONFIG_MACH_HTCLEO)
+static void htcleo_save_reset_reason()
+{
+	/* save restart_reason to be accesible in bootloader @ ramconsole - 0x1000*/
+	uint32_t *bootloader_reset_reason = ioremap(0x2FFB0000, PAGE_SIZE);
+	if(bootloader_reset_reason!=NULL)
+	{
+		printk(KERN_INFO "msm_restart saving reason %x @ 0x2FFB0000 \n", restart_reason);
+		bootloader_reset_reason[0]=restart_reason;
+		bootloader_reset_reason[1]=restart_reason^0x004b4c63; //XOR with cLK signature so we know is not trash
+	}
+}
+#endif
+
 static void msm_pm_restart(char str)
 {
 	msm_pm_flush_console();
+
+#if defined(CONFIG_MACH_HTCLEO)
+	htcleo_save_reset_reason();
+#endif
 
 	/*  always reboot device through proc comm */
 	if (restart_reason == 0x6f656d99)
