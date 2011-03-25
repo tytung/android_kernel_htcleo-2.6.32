@@ -50,6 +50,10 @@
 #include <mach/htc_usb.h>
 #include <mach/msm_flashlight.h>
 #include <mach/msm_serial_hs.h>
+#include <mach/msm_serial_debugger.h>
+#ifdef CONFIG_SERIAL_BCM_BT_LPM
+#include <mach/bcm_bt_lpm.h>
+#endif
 #include <mach/perflock.h>
 #include <mach/htc_headset_mgr.h>
 #include <mach/htc_headset_gpio.h>
@@ -555,20 +559,69 @@ __setup("bt.mac=", htcleo_bt_macaddress_setup);
 //-----------------------------------------------------
 
 #ifdef CONFIG_SERIAL_MSM_HS
-static struct msm_serial_hs_platform_data msm_uart_dm1_pdata =
-{
-	/* Chip to Device */
-	.rx_wakeup_irq = MSM_GPIO_TO_INT(HTCLEO_GPIO_BT_HOST_WAKE),
+static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
+	.rx_wakeup_irq = -1,
 	.inject_rx_on_wakeup = 0,
-	.cpu_lock_supported = 0,
+#ifdef CONFIG_SERIAL_BCM_BT_LPM
+	.exit_lpm_cb = bcm_bt_lpm_exit_lpm_locked,
+#endif
+};
 
-	/* for bcm */
-	.bt_wakeup_pin_supported = 1,
-	.bt_wakeup_pin   = HTCLEO_GPIO_BT_CHIP_WAKE,
-	.host_wakeup_pin = HTCLEO_GPIO_BT_HOST_WAKE,
+#ifdef CONFIG_SERIAL_BCM_BT_LPM
+static struct bcm_bt_lpm_platform_data bcm_bt_lpm_pdata = {
+	.gpio_wake = HTCLEO_GPIO_BT_CHIP_WAKE,
+	.gpio_host_wake = HTCLEO_GPIO_BT_HOST_WAKE,
+	.request_clock_off_locked = msm_hs_request_clock_off_locked,
+	.request_clock_on_locked = msm_hs_request_clock_on_locked,
+};
 
+struct platform_device bcm_bt_lpm_device = {
+	.name = "bcm_bt_lpm",
+	.id = 0,
+	.dev = {
+		.platform_data = &bcm_bt_lpm_pdata,
+	},
 };
 #endif
+#endif
+
+static uint32_t bt_gpio_table[] = {
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RTS, 2, GPIO_OUTPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_CTS, 2, GPIO_INPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RX, 2, GPIO_INPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_TX, 2, GPIO_OUTPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_RESET_N, 0, GPIO_OUTPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_SHUTDOWN_N, 0, GPIO_OUTPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_CHIP_WAKE, 0, GPIO_OUTPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_HOST_WAKE, 0, GPIO_INPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+};
+
+static uint32_t bt_gpio_table_rev_CX[] = {
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RTS, 2, GPIO_OUTPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_CTS, 2, GPIO_INPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_RX, 2, GPIO_INPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_UART1_TX, 2, GPIO_OUTPUT,
+		      GPIO_PULL_UP, GPIO_8MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_RESET_N, 0, GPIO_OUTPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_SHUTDOWN_N, 0, GPIO_OUTPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_CHIP_WAKE, 0, GPIO_OUTPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+	PCOM_GPIO_CFG(HTCLEO_GPIO_BT_HOST_WAKE, 0, GPIO_INPUT,
+		      GPIO_PULL_DOWN, GPIO_4MA),
+};
 
 static struct platform_device htcleo_rfkill =
 {
@@ -847,9 +900,10 @@ static struct platform_device *devices[] __initdata =
 #if !defined(CONFIG_MSM_SERIAL_DEBUGGER)
 	&msm_device_uart1,
 #endif
-#ifdef CONFIG_SERIAL_MSM_HS
-	&msm_device_uart_dm1,
+#ifdef CONFIG_SERIAL_BCM_BT_LPM
+	&bcm_bt_lpm_device,
 #endif
+	&msm_device_uart_dm1,
 	&msm_device_nand,
 	&msm_device_smd,
 	&htcleo_rfkill,
@@ -980,15 +1034,23 @@ static void __init htcleo_init(void)
 
 	perflock_init(&htcleo_perflock_data);
 
+#if defined(CONFIG_MSM_SERIAL_DEBUGGER)
+	msm_serial_debug_init(MSM_UART1_PHYS, INT_UART1,
+			      &msm_device_uart1.dev, 1, MSM_GPIO_TO_INT(139));
+#endif
+
 	init_dex_comm();
 
 #ifdef CONFIG_SERIAL_MSM_HS
-  	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
-	msm_device_uart_dm1.name = "msm_serial_hs_bcm"; /* for bcm */
-    	msm_device_uart_dm1.resource[3].end = 6;
+	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
+	msm_device_uart_dm1.name = "msm_serial_hs"; /* for bcm */
+	msm_device_uart_dm1.resource[3].end = 6;
 #endif
 
+	config_gpio_table(bt_gpio_table, ARRAY_SIZE(bt_gpio_table));
+
 	bt_export_bd_address();
+
 	htcleo_audio_init();
 
 	msm_device_i2c_init();
