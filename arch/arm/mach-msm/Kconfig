@@ -913,6 +913,11 @@ config QSD_AUDIO
 	help
 	  Provides PCM, MP3, and AAC audio playback.
 
+config QSD_AUDIO_CALLREC
+	bool "Call recording support [avs333]"
+	depends on QSD_AUDIO
+	default n
+
 config VIRTUAL_KPANIC_PSIZE
 	depends on VIRTUAL_KPANIC_PARTITION
 	int "Default kpanic partition size"

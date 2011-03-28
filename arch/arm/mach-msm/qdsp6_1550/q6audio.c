@@ -538,6 +538,9 @@ static int audio_out_open(struct audio_client *ac, uint32_t bufsz,
 }
 
 static int audio_in_open(struct audio_client *ac, uint32_t bufsz,
+#ifdef CONFIG_QSD_AUDIO_CALLREC
+			uint32_t flags,
+#endif
              uint32_t rate, uint32_t channels)
 {
     int r;
@@ -552,7 +555,14 @@ static int audio_in_open(struct audio_client *ac, uint32_t bufsz,
 
     rpc.numdev = 1;
     rpc.dev[0] = ADSP_AUDIO_DEVICE_ID_DEFAULT;
+#ifdef CONFIG_QSD_AUDIO_CALLREC
+	if (flags == AUDIO_FLAG_READ)
+		rpc.stream_context = ADSP_AUDIO_DEVICE_CONTEXT_RECORD;
+	else
+		rpc.stream_context = ADSP_AUDIO_DEVICE_CONTEXT_MIXED_RECORD;
+#else
     rpc.stream_context = ADSP_AUDIO_DEVICE_CONTEXT_RECORD;
+#endif
     rpc.buf_max_size = bufsz;
 
     rpc.format = ADSP_AUDIO_FORMAT_PCM;
@@ -1554,6 +1564,31 @@ static int audio_update_acdb(uint32_t adev, uint32_t acdb_id)
     return 0;
 }
 
+#ifdef CONFIG_QSD_AUDIO_CALLREC
+static void adie_rx_path_enable(uint32_t acdb_id)
+{
+	if (audio_rx_path_id) {
+		adie_enable();
+		adie_set_path(adie, audio_rx_path_id, ADIE_PATH_RX);
+		adie_set_path_freq_plan(adie, ADIE_PATH_RX, 48000);
+
+		adie_proceed_to_stage(adie, ADIE_PATH_RX,
+			ADIE_STAGE_DIGITAL_READY);
+		adie_proceed_to_stage(adie, ADIE_PATH_RX,
+			ADIE_STAGE_DIGITAL_ANALOG_READY);
+	}
+}
+
+static void q6_rx_path_enable(int reconf, uint32_t acdb_id)
+{
+	audio_update_acdb(audio_rx_device_id, acdb_id);
+	if (!reconf)
+		qdsp6_devchg_notify(ac_control, ADSP_AUDIO_RX_DEVICE, audio_rx_device_id);
+	qdsp6_standby(ac_control);
+	qdsp6_start(ac_control);
+}
+#endif
+
 static void _audio_rx_path_enable(int reconf, uint32_t acdb_id)
 {
     AUDIO_INFO("%s\n", __func__);
@@ -2182,20 +2217,36 @@ struct audio_client *q6audio_open_pcm(uint32_t bufsz, uint32_t rate,
         if (audio_rx_path_refcount == 1) 
         {
             _audio_rx_clk_enable();
+#ifdef CONFIG_QSD_AUDIO_CALLREC
+			q6_rx_path_enable(0, acdb_id);
+			adie_rx_path_enable(acdb_id);
+#else
 //            audio_update_acdb(audio_rx_device_id, acdb_id);
             qdsp6_devchg_notify(ac_control, ADSP_AUDIO_RX_DEVICE, audio_rx_device_id);
             qdsp6_standby(ac_control);
             qdsp6_start(ac_control);
             audio_update_acdb(audio_rx_device_id, acdb_id);
+#endif
         }
     } 
     else
     {
         /* TODO: consider concurrency with voice call */
-        tx_clk_freq = rate;
+#ifdef CONFIG_QSD_AUDIO_CALLREC
+		if (audio_tx_path_refcount > 0) {
+			tx_clk_freq = 8000;
+		} else {
+			tx_clk_freq = rate;
+		}
+#else
+		tx_clk_freq = rate;
+#endif
         audio_tx_path_refcount++;
         if (audio_tx_path_refcount == 1)
         {
+#ifdef CONFIG_QSD_AUDIO_CALLREC
+			tx_clk_freq = rate;
+#endif
             _audio_tx_clk_enable();
             _audio_tx_path_enable(0, acdb_id);
         }
@@ -2207,7 +2258,11 @@ struct audio_client *q6audio_open_pcm(uint32_t bufsz, uint32_t rate,
         if (ac->flags & AUDIO_FLAG_WRITE)
             rc = audio_out_open(ac, bufsz, rate, channels);
         else
-            rc = audio_in_open(ac, bufsz, rate, channels);
+#ifdef CONFIG_QSD_AUDIO_CALLREC
+			rc = audio_in_open(ac, bufsz, flags, rate, channels);
+#else
+			rc = audio_in_open(ac, bufsz, rate, channels);
+#endif
         if (rc == 0)
             break;
         if (retry == 0)
@@ -2236,6 +2291,7 @@ struct audio_client *q6audio_open_pcm(uint32_t bufsz, uint32_t rate,
     {
         if (audio_rx_path_refcount == 1) 
         {
+#ifndef CONFIG_QSD_AUDIO_CALLREC
             adie_enable();
             adie_set_path(adie, audio_rx_path_id, ADIE_PATH_RX);
             adie_set_path_freq_plan(adie, ADIE_PATH_RX, 48000);
@@ -2243,6 +2299,7 @@ struct audio_client *q6audio_open_pcm(uint32_t bufsz, uint32_t rate,
             adie_proceed_to_stage(adie, ADIE_PATH_RX, ADIE_STAGE_DIGITAL_READY);
             adie_proceed_to_stage(adie, ADIE_PATH_RX, ADIE_STAGE_DIGITAL_ANALOG_READY);
 
+#endif
             audio_rx_analog_enable(1);
         }
     }
