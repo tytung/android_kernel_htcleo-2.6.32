@@ -23,17 +23,8 @@
 
 #include "board-htcleo.h"
 
-#define MAX_BT_SIZE 0x6U
-
 static struct rfkill *bt_rfk;
 static const char bt_name[] = "bcm4329";
-
-/* Fix BT address for Leo */
-static unsigned char bt_bd_ram[MAX_BT_SIZE] = {0x50,0xC3,0x00,0x00,0x00,0x00};
-unsigned char *get_bt_bd_ram(void)
-{
-	return (bt_bd_ram);
-}
 
 static int bluetooth_set_power(void *data, bool blocked)
 {
