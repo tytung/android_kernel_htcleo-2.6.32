@@ -320,6 +320,21 @@ static struct platform_device usb_mass_storage_device = {
 	},
 };
 
+#ifdef CONFIG_USB_ANDROID_RNDIS
+static struct usb_ether_platform_data rndis_pdata = {
+	.vendorID	= 0x0bb4,
+	.vendorDescr	= "HTC",
+};
+
+static struct platform_device rndis_device = {
+	.name	= "rndis",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &rndis_pdata,
+	},
+};
+#endif
+
 static struct android_usb_platform_data android_usb_pdata = {
 	.vendor_id	= 0x0bb4,
 	.product_id	= 0x0c02,
@@ -350,6 +365,9 @@ static void htcleo_add_usb_devices(void)
 	gpio_set_value(HTCLEO_GPIO_USBPHY_3V3_ENABLE, 1);
 	platform_device_register(&msm_device_hsusb);
 	platform_device_register(&usb_mass_storage_device);
+#ifdef CONFIG_USB_ANDROID_RNDIS
+	platform_device_register(&rndis_device);
+#endif
 	platform_device_register(&android_usb_device);
 }
 

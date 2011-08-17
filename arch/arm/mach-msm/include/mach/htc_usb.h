@@ -25,14 +25,18 @@ static char *usb_functions_ums[] = {
 	"usb_mass_storage",
 };
 
-static char *usb_functions_adb[] = {
+static char *usb_functions_ums_adb[] = {
 	"usb_mass_storage",
 	"adb",
 };
 
 #ifdef CONFIG_USB_ANDROID_RNDIS
 static char *usb_functions_rndis[] = {
-	"ether",
+	"rndis",
+};
+static char *usb_functions_rndis_adb[] = {
+	"rndis",
+	"adb",
 };
 #endif
 
@@ -110,7 +114,7 @@ static char *usb_functions_diag_serial[] = {
 
 static char *usb_functions_all[] = {
 #ifdef CONFIG_USB_ANDROID_RNDIS
-	"ether",
+	"rndis",
 #endif
 #ifdef CONFIG_USB_ANDROID_MTP
 	"mtp",
@@ -130,14 +134,14 @@ static char *usb_functions_all[] = {
 
 static struct android_usb_product usb_products[] = {
 	{
-		 .product_id = 0x0c02, /* vary by board */
-		.num_functions	= ARRAY_SIZE(usb_functions_adb),
-		.functions	= usb_functions_adb,
-	},
-	{
-		.product_id	= 0x0ff9,
+		.product_id     = 0x0c01,
 		.num_functions	= ARRAY_SIZE(usb_functions_ums),
 		.functions	= usb_functions_ums,
+	},
+	{
+		.product_id     = 0x0c02,
+		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
+		.functions	= usb_functions_ums_adb,
 	},
 #ifdef CONFIG_USB_ANDROID_SERIAL
 	{
@@ -214,6 +218,11 @@ static struct android_usb_product usb_products[] = {
 		.product_id	= 0x0ffe,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
 		.functions	= usb_functions_rndis,
+	},
+	{
+		.product_id	= 0x0ffc,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
+		.functions	= usb_functions_rndis_adb,
 	},
 #endif
 };
