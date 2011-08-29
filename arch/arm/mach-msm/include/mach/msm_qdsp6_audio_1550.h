@@ -52,6 +52,14 @@ struct audio_client {
 
 #define Q6_HW_COUNT	6
 
+#define DEVICE_ID_HANDSET_MIC      0
+#define DEVICE_ID_SPKR_PHONE_MIC   1
+#define DEVICE_ID_HEADSET_MIC      2
+#define DEVICE_ID_TTY_HEADSET_MIC  3
+#define DEVICE_ID_BT_SCO_MIC       4
+#define DEVICE_ID_MIC_COUNT        5
+#define MAX_MIC_LEVEL              1000
+
 struct q6_hw_info {
 	int min_gain;
 	int max_gain;
@@ -95,6 +103,8 @@ int q6audio_update_acdb(uint32_t id_src, uint32_t id_dst);
 int q6audio_set_rx_volume(int level);
 int q6audio_set_rx_mute(int mute);
 int q6audio_set_stream_volume(struct audio_client *ac, int vol);
+int q6audio_set_tx_dev_volume(int device_id, int level);
+int q6audio_get_tx_dev_volume(int device_id);
 
 struct q6audio_analog_ops {
 	void (*init)(void);

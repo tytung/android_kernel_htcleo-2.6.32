@@ -31,12 +31,19 @@
 #include "proc_comm.h"
 #include "pmic.h"
 
+#include <linux/proc_fs.h>
+#include <asm/uaccess.h>
+
+#define PROCFS_MAX_SIZE     1024
+#define PROCFS_NAME         "mic_level"
 
 #if 1
 #define D(fmt, args...) printk(KERN_INFO "Audio: "fmt, ##args)
 #else
 #define D(fmt, args...) do {} while (0)
 #endif
+
+static struct proc_dir_entry* mic_gain_file;
 
 static struct mutex mic_lock;
 static struct mutex bt_sco_lock;
@@ -110,6 +117,71 @@ static struct q6_hw_info q6_audio_hw[Q6_HW_COUNT] =
 };
 
 #endif
+
+//-----------proc file interface--------------------------------
+/**
+ * This function is called then the /proc file is read
+ *
+ */
+int 
+mic_level_read(char *buffer,
+          char **buffer_location,
+          off_t offset, int buffer_length, int *eof, void *data)
+{
+    int ret;
+    char temp_buff[1024];
+    printk(KERN_INFO "mic_level_read (/proc/%s) called\n", PROCFS_NAME);
+
+    if (offset > 0) {
+        /* we have finished to read, return 0 */
+        ret  = 0;
+    } else {
+        /* fill the buffer, return the buffer size */
+        sprintf(buffer, "Usage: echo 'device_id level' > /proc/mic_level\n");
+        strcat(buffer, "Level range: 0-1000; -1 use level from acdb\n");
+        strcat(buffer, "Current levels (device_id):\n");
+        sprintf(temp_buff, "HANDSET (%d): %d\n", DEVICE_ID_HANDSET_MIC, q6audio_get_tx_dev_volume(DEVICE_ID_HANDSET_MIC));
+        strcat(buffer, temp_buff);
+        sprintf(temp_buff, "SPKR_PHONE (%d): %d\n", DEVICE_ID_SPKR_PHONE_MIC, q6audio_get_tx_dev_volume(DEVICE_ID_SPKR_PHONE_MIC));
+        strcat(buffer, temp_buff);
+        sprintf(temp_buff, "HEADSET (%d): %d\n", DEVICE_ID_HEADSET_MIC, q6audio_get_tx_dev_volume(DEVICE_ID_HEADSET_MIC));
+        strcat(buffer, temp_buff);
+        sprintf(temp_buff, "TTY_HEADSET (%d): %d\n", DEVICE_ID_TTY_HEADSET_MIC, q6audio_get_tx_dev_volume(DEVICE_ID_TTY_HEADSET_MIC));
+        strcat(buffer, temp_buff);
+        sprintf(temp_buff, "BT_SCO (%d): %d\n", DEVICE_ID_BT_SCO_MIC, q6audio_get_tx_dev_volume(DEVICE_ID_BT_SCO_MIC));
+        strcat(buffer, temp_buff);
+        ret = strlen(buffer);
+    }
+    return ret;
+}
+
+/**
+ * This function is called with the /proc file is written
+ *
+ */
+int mic_level_write(struct file *file, const char *buffer, unsigned long count,
+		   void *data)
+{
+    char temp_buff[512];
+    int device_id=0, level=0, ret, procfs_buffer_size;
+    /* get buffer size */
+    procfs_buffer_size = count;
+    if (procfs_buffer_size > 512 ) {
+        procfs_buffer_size = 512;
+    }
+
+    /* write data to the buffer */
+    if ( copy_from_user(temp_buff, buffer, procfs_buffer_size) ) {
+        return -EFAULT;
+    }
+    sscanf(temp_buff, "%d %d", &device_id, &level);
+    ret  = q6audio_set_tx_dev_volume(device_id, level);
+    if (ret<0)
+        return -EFAULT;
+    procfs_buffer_size=strlen(temp_buff);
+    return procfs_buffer_size;
+}
+//--------------------------------------------------------------
 
 void htcleo_headset_enable(int en)
 {
@@ -286,6 +358,7 @@ void htcleo_analog_init(void)
     config_gpio_table(bt_sco_disable, ARRAY_SIZE(bt_sco_disable));
     gpio_direction_output(HTCLEO_BT_PCM_OUT, 0);
     mutex_unlock(&bt_sco_lock);
+
 }
 
 int htcleo_get_rx_vol(uint8_t hw, int level)
@@ -338,6 +411,23 @@ void __init htcleo_audio_init(void)
     q6audio_register_analog_ops(&ops);
     acoustic_register_ops(&acoustic);
     hs_mic_register();
+
+    mic_gain_file = create_proc_entry(PROCFS_NAME, 0644, NULL);
+
+    if (mic_gain_file == NULL) {
+        remove_proc_entry(PROCFS_NAME, NULL);
+        printk(KERN_ALERT "Error: Could not initialize /proc/%s\n",
+            PROCFS_NAME);
+        return;
+    }
+
+    mic_gain_file->read_proc  = mic_level_read;
+    mic_gain_file->write_proc = mic_level_write;
+    //mic_gain_file->mode       = S_IFREG | S_IRUGO;
+    mic_gain_file->uid        = 0;
+    mic_gain_file->gid        = 0;
+
+    printk(KERN_INFO "/proc/%s created\n", PROCFS_NAME);
 //        q6audio_set_acdb_file("default_PMIC.acdb");
 }
 
