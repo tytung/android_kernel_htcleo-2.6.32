@@ -215,7 +215,6 @@ static char acdb_file[64] = "default.acdb";
 static uint32_t tx_acdb = 0;
 static uint32_t rx_acdb = 0;
 static int acdb_use_rpc = 0;
-static int acdb_use_map = 0;
 
 /////////////////////////////////////////////////////////////////////////////////
 // helper functions for device parameters
@@ -1232,29 +1231,11 @@ static int acdb_init(char *filename)
     const struct firmware *fw;
     int n;
 
-    //    return -ENODEV;
-    AUDIO_INFO("%s\n", __func__);
-#ifdef CONFIG_MACH_HTCLEO
-    pr_info("acdb: trying htcleo.acdb\n");
-    if(request_firmware(&fw, "htcleo.acdb", q6_control_device.this_device) < 0) {
-        pr_info("acdb: load 'htcleo.acdb' failed, trying 'default.acdb'\n");
-        acdb_use_map = 0;
-        if (request_firmware(&fw, filename, q6_control_device.this_device) < 0) {
-            pr_err("acdb: load 'default.acdb' failed...\n");
-            return -ENODEV;
-        }
-    } else {
-        pr_info("acdb: 'htcleo.acdb' found, using translation\n");
-        acdb_use_map = 1;
-    }
-#else
     pr_info("acdb: load '%s'\n", filename);
-    acd_use_map = 0;
     if (request_firmware(&fw, filename, q6_control_device.this_device) < 0) {
         pr_err("acdb: load 'default.acdb' failed...\n");
         return -ENODEV;
     }
-#endif
     db = (void*) fw->data;
 
     if (fw->size < sizeof(struct audio_config_database)) {
@@ -1465,9 +1446,6 @@ static int acdb_get_config_table(uint32_t device_id, uint32_t sample_rate)
         int n;
 
         printk("table\n");
-        // htcleo use custom table with wince values, it must be mapped
-        if(acdb_use_map)
-            device_id = map_cad_dev_to_virtual(device_id);
         db = acdb_data;
         for (n = 0; n < db->entry_count; n++) 
         {
@@ -1479,7 +1457,7 @@ static int acdb_get_config_table(uint32_t device_id, uint32_t sample_rate)
         }
 
         if (n == db->entry_count) 
-	{
+        {
             pr_err("acdb: no entry for device %d, rate %d.\n",
                    device_id, sample_rate);
             return 0;
