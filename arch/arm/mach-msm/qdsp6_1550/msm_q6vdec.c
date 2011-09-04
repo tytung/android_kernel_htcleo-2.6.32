@@ -94,7 +94,7 @@ static void allow_sleep(void)
 	}
 	mutex_unlock(&idlecount_lock);
 }
-
+#define MAX_SUPPORTED_INSTANCES 2
 
 enum {
 	VDEC_DALRPC_INITIALIZE = DAL_OP_FIRST_DEVICE_API,
@@ -447,6 +447,8 @@ static int vdec_queue(struct vdec_data *vd, void *argp)
 	rpc.size = sizeof(struct vdec_input_buf_info);
 	rpc.osize = sizeof(struct vdec_queue_status);
 
+	/* complete the writes to the buffer */
+	wmb();
 	ret = dal_call(vd->vdec_handle, VDEC_DALRPC_QUEUE, 8,
 		       &rpc, sizeof(rpc), &rpc_res, sizeof(rpc_res));
 	if (ret < 4) {
@@ -587,6 +589,22 @@ static int vdec_freebuffers(struct vdec_data *vd, void *argp)
 
 	return ret;
 }
+
+static int vdec_getversion(struct vdec_data *vd, void *argp)
+{
+	struct vdec_version ver_info;
+	int ret = 0;
+
+	ver_info.major = VDEC_GET_MAJOR_VERSION(VDEC_INTERFACE_VERSION);
+	ver_info.minor = VDEC_GET_MINOR_VERSION(VDEC_INTERFACE_VERSION);
+
+	ret = copy_to_user(((struct vdec_version *)argp),
+				&ver_info, sizeof(ver_info));
+
+	return ret;
+
+}
+
 static long vdec_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct vdec_data *vd = file->private_data;
@@ -638,6 +656,9 @@ static long vdec_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (vd->close_decode)
 			ret = -EINTR;
+		else
+			/* order the reads from the buffer */
+			rmb();
 		break;
 
 	case VDEC_IOCTL_CLOSE:
@@ -664,6 +685,16 @@ static long vdec_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			       __func__, ret);
 		break;
 
+	case VDEC_IOCTL_GETVERSION:
+		TRACE("VDEC_IOCTL_GETVERSION (pid=%d tid=%d)\n",
+			current->group_leader->pid, current->pid);
+		ret = vdec_getversion(vd, argp);
+
+		if (ret)
+			pr_err("%s: remote function failed (%d)\n",
+				__func__, ret);
+		break;
+
 	default:
 		pr_err("%s: invalid ioctl!\n", __func__);
 		ret = -EINVAL;
@@ -684,7 +715,7 @@ static void vdec_dcdone_handler(struct vdec_data *vd, void *frame,
 	unsigned long flags;
 	int found = 0;
 
-	if (frame_size != sizeof(struct vdec_frame_info)) {
+	if (frame_size < sizeof(struct vdec_frame_info)) {
 		pr_warning("%s: msg size mismatch %d != %d\n", __func__,
 			   frame_size, sizeof(struct vdec_frame_info));
 		return;
@@ -768,13 +799,14 @@ static int vdec_open(struct inode *inode, struct file *file)
 	int i;
 	struct vdec_msg_list *l;
 	struct vdec_data *vd;
+	struct dal_info version_info;
 
 	pr_info("q6vdec_open()\n");
 	mutex_lock(&vdec_ref_lock);
-	if (ref_cnt > 0) {
-		pr_err("%s: Instance alredy running\n", __func__);
+	if (ref_cnt >= MAX_SUPPORTED_INSTANCES) {
+		pr_err("%s: Max allowed instances exceeded \n", __func__);
 		mutex_unlock(&vdec_ref_lock);
-		return -ENOMEM;
+		return -EBUSY;
 	}
 	ref_cnt++;
 	mutex_unlock(&vdec_ref_lock);
@@ -813,11 +845,26 @@ static int vdec_open(struct inode *inode, struct file *file)
 		ret = -EIO;
 		goto vdec_open_err_handle_list;
 	}
+	ret = dal_call_f9(vd->vdec_handle, DAL_OP_INFO,
+				&version_info, sizeof(struct dal_info));
+
+	if (ret) {
+		pr_err("%s: failed to get version \n", __func__);
+		goto vdec_open_err_handle_version;
+	}
+
+	TRACE("q6vdec_open() interface version 0x%x\n", version_info.version);
+	if (vdec_check_version(VDEC_INTERFACE_VERSION,
+			version_info.version)) {
+		pr_err("%s: driver version mismatch !\n", __func__);
+		goto vdec_open_err_handle_version;
+	}
 
 	vd->running = 1;
 	prevent_sleep();
 	return 0;
-
+vdec_open_err_handle_version:
+	dal_detach(vd->vdec_handle);
 vdec_open_err_handle_list:
 	{
 		struct vdec_msg_list *l, *n;
@@ -827,6 +874,9 @@ vdec_open_err_handle_list:
 		}
 	}
 vdec_open_err_handle_vd:
+	mutex_lock(&vdec_ref_lock);
+	ref_cnt--;
+	mutex_unlock(&vdec_ref_lock);
 	kfree(vd);
 	return ret;
 }
