@@ -159,9 +159,9 @@
 #define MSM_SPI_PHYS          0xA1200000
 #define MSM_SPI_SIZE          SZ_4K
 
-#define MSM_TCSR_BASE  IOMEM(0xF8008000)
-#define MSM_TCSR_PHYS  0xA8700000
-#define MSM_TCSR_SIZE  SZ_4K
+#define MSM_TCSR_BASE         IOMEM(0xF8008000)
+#define MSM_TCSR_PHYS         0xA8700000
+#define MSM_TCSR_SIZE         SZ_4K
 #endif
 
 // Originally this does not need to be defined,
@@ -176,4 +176,9 @@
 #define MSM_RAM_CONSOLE_PHYS	0x2FFC0000
 #endif
 #define MSM_RAM_CONSOLE_SIZE	0x00040000
+
+// For reading the real WiFi MAC address
+#define MSM_SPLHOOD_BASE     IOMEM(0xF9200000)
+#define MSM_SPLHOOD_PHYS     0x0
+#define MSM_SPLHOOD_SIZE     SZ_1M
 
