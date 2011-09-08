@@ -33,11 +33,6 @@
 #define NVS_MAX_SIZE		0x800U
 #define NVS_MACADDR_SIZE	0x1AU
 #define WLAN_SKB_BUF_NUM	16
-//---------PATCH for mac address------------
-#define MAC_ADDRESS_LEN_C   17
-#define ETHER_ADDR_LEN		6
-//------------------------------------------
-
 
 static struct proc_dir_entry *wifi_calibration;
 static unsigned char nvs_mac_addr[NVS_MACADDR_SIZE];
@@ -80,37 +75,6 @@ static unsigned char *hardcoded_nvs =
 #include <asm/setup.h>
 
 static struct proc_dir_entry *wifi_calibration;
-
-//---------PATCH for mac address-----------------
-static char htcleo_mac_address_c[MAC_ADDRESS_LEN_C+1];
-int user_mac_address = 0; 
-static int __init htcleo_macaddress_setup(char *bootconfig) 
-{
-	int ret;
-	unsigned int tmp[ETHER_ADDR_LEN];
-
-	printk("%s: cmdline mac config=%s | %s\n",__FUNCTION__, bootconfig, __FILE__);
-	
-	strncpy(htcleo_mac_address_c, bootconfig, MAC_ADDRESS_LEN_C);
-	ret = sscanf(htcleo_mac_address_c, "%2x:%2x:%2x:%2x:%2x:%2x", tmp, tmp+1, tmp+2, tmp+3, tmp+4, tmp+5);
-	if (ret==ETHER_ADDR_LEN)
-	{
-		strcpy(nvs_mac_addr, "macaddr=");
-		strcat(nvs_mac_addr, htcleo_mac_address_c);
-		strcat(nvs_mac_addr, "\n");
-		printk("%s parsed macaddr=%s | %s\n",__FUNCTION__,nvs_mac_addr, __FILE__);
-		user_mac_address = 1;
-	}
-	printk("%s parsed mac_address=%2x:%2x:%2x:%2x:%2x:%2x | %s\n",__FUNCTION__,
-	       tmp[0], tmp[1], tmp[2],
-	       tmp[3], tmp[4], tmp[5], __FILE__);
-	
-    return 1;
-}
-__setup("wifi.mac=", htcleo_macaddress_setup);
-//------------------------------------------
-
-
 
 unsigned char *get_wifi_nvs_ram( void )
 {
