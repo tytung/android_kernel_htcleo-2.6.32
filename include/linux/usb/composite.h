@@ -101,7 +101,6 @@ struct usb_function {
 
 	struct usb_configuration	*config;
 	int				hidden;
-	int				disabled;
 
 	/* REVISIT:  bind() functions can be marked __init, which
 	 * makes trouble for section mismatch analysis.  See if
