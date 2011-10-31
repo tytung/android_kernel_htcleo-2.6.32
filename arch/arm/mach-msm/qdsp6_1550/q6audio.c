@@ -211,6 +211,7 @@ static struct q6audio_analog_ops *analog_ops = &default_analog_ops;
 static uint32_t tx_clk_freq = 8000;
 static int tx_mute_status = 0;
 static int rx_vol_level = 100;
+static int tx_vol_level = 100;
 static char acdb_file[64] = "default.acdb";
 static uint32_t tx_acdb = 0;
 static uint32_t rx_acdb = 0;
@@ -2071,6 +2072,7 @@ int q6audio_get_tx_dev_volume(int device_id)
 int q6audio_set_tx_dev_volume(int device_id, int level)
 {
     AUDIO_INFO("%s\n", __func__);
+
     if (level < -1)
         level = -1;
     if (level > MAX_MIC_LEVEL)
@@ -2089,6 +2091,28 @@ int q6audio_set_tx_dev_volume(int device_id, int level)
         mutex_unlock(&audio_path_lock);
 
     }
+
+    return 0;
+}
+
+int q6audio_set_tx_volume(int level)
+{
+    uint32_t adev;
+    int vol;
+
+    if (q6audio_init())
+        return 0;
+
+    if (level < 0 || level > 100)
+        return -EINVAL;
+
+    mutex_lock(&audio_path_lock);
+    adev = ADSP_AUDIO_DEVICE_ID_VOICE;
+    vol = q6_device_volume(audio_rx_device_id, level);
+    audio_tx_mute(ac_control, adev, 0);
+    audio_tx_volume(ac_control, adev, vol);
+    tx_vol_level = level;
+    mutex_unlock(&audio_path_lock);
 
     return 0;
 }
@@ -2198,14 +2222,14 @@ static int q6audio_init_rx_volumes()
 
     mutex_lock(&audio_path_lock);
 
-    printk("$$$ q6audio_init_rx_volumes\n");
+    AUDIO_INFO("$$$ q6audio_init_rx_volumes\n");
     while (1)
     {
         if (di->id == 0) break;
 
         vol = q6_device_volume(di->id, 100);
         audio_rx_volume(ac_control, di->id, vol);
-        printk("$$ DEV=%08X: vol is %d\n", di->id, vol);
+        AUDIO_INFO("$$ DEV=%08X: vol is %d\n", di->id, vol);
 
         di++;
     }
