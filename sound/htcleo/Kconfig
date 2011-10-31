@@ -1,0 +1,7 @@
+# HTC LEO nonsoc ALSA driver
+
+config SND_HTCLEO
+    tristate "NonSoC Audio for the HTC LEO platform"
+    depends on MACH_HTCLEO
+    help
+      To add support ALSA for HTC LEO platform.
