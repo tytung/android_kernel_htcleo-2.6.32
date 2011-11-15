@@ -261,6 +261,10 @@ config UID_STAT
 	bool "UID based statistics tracking exported to /proc/uid_stat"
 	default n
 
+config IFACE_STAT
+  bool "Persistent interface statistics tracking exported to /proc/iface_stat"
+  default n
+
 config WL127X_RFKILL
 	tristate "Bluetooth power control driver for TI wl127x"
 	depends on RFKILL
