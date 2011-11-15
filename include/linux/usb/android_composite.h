@@ -27,11 +27,6 @@ struct android_usb_function {
 };
 
 struct android_usb_product {
-	/* Vendor ID for this set of functions.
-	 * Default vendor_id in platform data will be used if this is zero.
-	 */
-	__u16 vendor_id;
-
 	/* Default product ID. */
 	__u16 product_id;
 
@@ -84,9 +79,6 @@ struct usb_mass_storage_platform_data {
 
 	/* number of LUNS */
 	int nluns;
-
-	/* bitmap of lun to indicate cdrom disk*/
-	int cdrom_lun;
 };
 
 /* Platform data for USB ethernet driver. */
@@ -96,13 +88,9 @@ struct usb_ether_platform_data {
 	const char *vendorDescr;
 };
 
-extern void android_usb_set_connected(int on);
-
 extern void android_register_function(struct android_usb_function *f);
 
 extern void android_enable_function(struct usb_function *f, int enable);
-
-extern int android_get_model_id(void);
 
 
 #endif	/* __LINUX_USB_ANDROID_H */
