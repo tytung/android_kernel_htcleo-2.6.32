@@ -198,7 +198,8 @@ extern void *nf_ct_alloc_hashtable(unsigned int *sizep, int *vmalloced, int null
 extern void nf_ct_free_hashtable(void *hash, int vmalloced, unsigned int size);
 
 extern struct nf_conntrack_tuple_hash *
-__nf_conntrack_find(struct net *net, const struct nf_conntrack_tuple *tuple);
+__nf_conntrack_find(struct net *net, u16 zone,
+		    const struct nf_conntrack_tuple *tuple);
 
 extern void nf_conntrack_hash_insert(struct nf_conn *ct);
 extern void nf_ct_delete_from_lists(struct nf_conn *ct);
@@ -260,17 +261,28 @@ extern s16 (*nf_ct_nat_offset)(const struct nf_conn *ct,
 			       u32 seq);
 
 /* Fake conntrack entry for untracked connections */
-extern struct nf_conn nf_conntrack_untracked;
+static inline struct nf_conn *nf_ct_untracked_get(void)
+{
+	extern struct nf_conn nf_conntrack_untracked;
+
+	return &nf_conntrack_untracked;
+}
+extern void nf_ct_untracked_status_or(unsigned long bits);
 
 /* Iterate over all conntracks: if iter returns true, it's deleted. */
 extern void
 nf_ct_iterate_cleanup(struct net *net, int (*iter)(struct nf_conn *i, void *data), void *data);
 extern void nf_conntrack_free(struct nf_conn *ct);
 extern struct nf_conn *
-nf_conntrack_alloc(struct net *net,
+nf_conntrack_alloc(struct net *net, u16 zone,
 		   const struct nf_conntrack_tuple *orig,
 		   const struct nf_conntrack_tuple *repl,
 		   gfp_t gfp);
+
+static inline int nf_ct_is_template(const struct nf_conn *ct)
+{
+	return test_bit(IPS_TEMPLATE_BIT, &ct->status);
+}
 
 /* It's confirmed if it is, or has been in the hash table. */
 static inline int nf_ct_is_confirmed(struct nf_conn *ct)
@@ -283,9 +295,9 @@ static inline int nf_ct_is_dying(struct nf_conn *ct)
 	return test_bit(IPS_DYING_BIT, &ct->status);
 }
 
-static inline int nf_ct_is_untracked(const struct sk_buff *skb)
+static inline int nf_ct_is_untracked(const struct nf_conn *ct)
 {
-	return (skb->nfct == &nf_conntrack_untracked.ct_general);
+	return test_bit(IPS_UNTRACKED_BIT, &ct->status);
 }
 
 extern int nf_conntrack_set_hashsize(const char *val, struct kernel_param *kp);

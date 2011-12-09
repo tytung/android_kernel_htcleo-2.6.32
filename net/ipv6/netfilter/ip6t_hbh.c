@@ -42,7 +42,7 @@ MODULE_ALIAS("ip6t_dst");
  */
 
 static bool
-hbh_mt6(const struct sk_buff *skb, const struct xt_match_param *par)
+hbh_mt6(const struct sk_buff *skb, const struct xt_action_param *par)
 {
 	struct ipv6_opt_hdr _optsh;
 	const struct ipv6_opt_hdr *oh;
@@ -160,7 +160,7 @@ hbh_mt6(const struct sk_buff *skb, const struct xt_match_param *par)
 	return false;
 }
 
-static bool hbh_mt6_check(const struct xt_mtchk_param *par)
+static int hbh_mt6_check(const struct xt_mtchk_param *par)
 {
 	const struct ip6t_opts *optsinfo = par->matchinfo;
 

@@ -11,7 +11,6 @@
  */
 
 #include <linux/module.h>
-#include <linux/moduleparam.h>
 #include <linux/skbuff.h>
 #include <linux/if_arp.h>
 #include <linux/ip.h>
@@ -437,7 +436,7 @@ ip6t_log_packet(u_int8_t pf,
 }
 
 static unsigned int
-log_tg6(struct sk_buff *skb, const struct xt_target_param *par)
+log_tg6(struct sk_buff *skb, const struct xt_action_param *par)
 {
 	const struct ip6t_log_info *loginfo = par->targinfo;
 	struct nf_loginfo li;

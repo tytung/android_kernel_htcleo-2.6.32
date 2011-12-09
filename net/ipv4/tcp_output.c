@@ -231,8 +231,6 @@ void tcp_select_initial_window(int __space, __u32 mss,
 		if (*rcv_wnd > init_cwnd * mss)
 			*rcv_wnd = init_cwnd * mss;
 	}
-	/* Lock the initial TCP window size to 64K*/
-	*rcv_wnd = 64240;
 
 	/* Set the clamp no higher than max representable value */
 	(*window_clamp) = min(65535U << (*rcv_wscale), *window_clamp);
@@ -2038,6 +2036,9 @@ void tcp_xmit_retransmit_queue(struct sock *sk)
 	u32 last_lost;
 	int mib_idx;
 	int fwd_rexmitting = 0;
+
+	if (!tp->packets_out)
+		return;
 
 	if (!tp->lost_out)
 		tp->retransmit_high = tp->snd_una;
