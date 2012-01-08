@@ -18,10 +18,18 @@
 #include <linux/earlysuspend.h>
 #include <linux/platform_device.h>
 #include <linux/leds.h>
+#include <linux/slab.h>
+#include <linux/gpio.h>
 
 #include <mach/msm_flashlight.h>
 #include <linux/adp1650_flashlight.h>
 
+#define FLT_DBG_LOG(fmt, ...) \
+		printk(KERN_DEBUG "[FLT]" fmt, ##__VA_ARGS__)
+#define FLT_INFO_LOG(fmt, ...) \
+		printk(KERN_INFO "[FLT]" fmt, ##__VA_ARGS__)
+#define FLT_ERR_LOG(fmt, ...) \
+		printk(KERN_ERR "[FLT][ERR]" fmt, ##__VA_ARGS__)
 
 #define DEBUG 1
 #define ADP1650_RETRY_COUNT 10
@@ -43,10 +51,15 @@ struct adp1650_data {
 	struct led_classdev 		fl_lcdev;
 	struct early_suspend		fl_early_suspend;
 	enum flashlight_mode_flags 	mode_status;
+	uint32_t			flash;
+	uint32_t			timeout;
+	struct hrtimer			timer;
+	spinlock_t			spin_lock;
 };
 
 static struct i2c_client *this_client;
 static struct adp1650_data *this_adp1650;
+static ktime_t ktime;
 
 static int ADP1650_I2C_RxData(char *rxData, int length)
 {
@@ -74,7 +87,7 @@ static int ADP1650_I2C_RxData(char *rxData, int length)
 	}
 
 	if (loop_i >= ADP1650_RETRY_COUNT) {
-		printk(KERN_ERR "%s retry over %d\n", __func__,
+		FLT_ERR_LOG("%s retry over %d\n", __func__,
 							ADP1650_RETRY_COUNT);
 		return -EIO;
 	}
@@ -102,7 +115,7 @@ static int ADP1650_I2C_TxData(char *txData, int length)
 	}
 
 	if (loop_i >= ADP1650_RETRY_COUNT) {
-		printk(KERN_ERR "%s retry over %d\n", __func__,
+		FLT_ERR_LOG("%s retry over %d\n", __func__,
 							ADP1650_RETRY_COUNT);
 		return -EIO;
 	}
@@ -121,7 +134,7 @@ int chip_info(uint8_t reg)
 	if (ret < 0)
 		return ret;
 
-	printk(KERN_INFO "%s: %x\n", __func__, buffer[0]);
+	FLT_INFO_LOG("%s: %x\n", __func__, buffer[0]);
 	return ret;
 }
 
@@ -171,6 +184,20 @@ static int flash_light(uint8_t i_fl, uint8_t fl_tim)
 	return 0;
 }
 
+static int enable_low_batt_support(uint8_t value)
+{
+	uint8_t buffer[2];
+	int ret;
+
+	buffer[0] = BATT_LOW_REG;
+	buffer[1] = value;
+	ret = ADP1650_I2C_TxData(buffer, 2);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int turn_off(void)
 {
 	uint8_t buffer[2];
@@ -193,6 +220,8 @@ static int turn_off(void)
 int adp1650_flashlight_control(int mode)
 {
 	int ret = 0;
+	unsigned long flag = 0;
+	uint32_t prev_mode = this_adp1650->mode_status;
 
 	switch (mode) {
 	case FL_MODE_OFF:
@@ -200,15 +229,25 @@ int adp1650_flashlight_control(int mode)
 		break;
 
 	case FL_MODE_TORCH:
-		assist_light(CUR_TOR_125MA);
+		assist_light(CUR_TOR_75MA);
 		break;
 
 	case FL_MODE_FLASH:
-		flash_light(CUR_FL_700MA, TIMER_200MS);
+		if (prev_mode == FL_MODE_FLASH) {
+			spin_lock_irqsave(&this_adp1650->spin_lock, flag);
+			hrtimer_cancel(&this_adp1650->timer);
+			spin_unlock_irqrestore(&this_adp1650->spin_lock, flag);
+		}
+
+		flash_light(CUR_FL_700MA, TIMER_600MS);
+		spin_lock_irqsave(&this_adp1650->spin_lock, flag);
+		gpio_set_value(this_adp1650->flash, 1);
+		hrtimer_start(&this_adp1650->timer, ktime, HRTIMER_MODE_REL);
+		spin_unlock_irqrestore(&this_adp1650->spin_lock, flag);
 		break;
 
 	case FL_MODE_PRE_FLASH:
-		assist_light(CUR_TOR_200MA);
+		assist_light(CUR_TOR_125MA);
 		break;
 
 	case FL_MODE_TORCH_LEVEL_1:
@@ -221,11 +260,22 @@ int adp1650_flashlight_control(int mode)
 
 	default:
 		turn_off();
-		printk(KERN_ERR "%s: unknown mode %d\n", __func__, mode);
+		FLT_ERR_LOG("%s: unknown mode %d\n", __func__, mode);
 		return -EINVAL;
 	}
 
+	if (mode != FL_MODE_FLASH) {
+		spin_lock_irqsave(&this_adp1650->spin_lock, flag);
+		if (prev_mode == FL_MODE_FLASH) {
+			if (hrtimer_cancel(&this_adp1650->timer))
+				gpio_set_value(this_adp1650->flash, 0);
+		}
+		spin_unlock_irqrestore(&this_adp1650->spin_lock, flag);
+	}
+
 	this_adp1650->mode_status = mode;
+
+	FLT_INFO_LOG("%s: mode: %d\n", FLASHLIGHT_NAME, mode);
 	return ret;
 }
 
@@ -237,7 +287,7 @@ static void fl_lcdev_brightness_set(struct led_classdev *led_cdev,
 	char *mode_name = NULL;
 
 	if (brightness < 0 || brightness > LED_FULL) {
-		printk(KERN_ERR "%s: invalid brightness %d\n",
+		FLT_ERR_LOG("%s: invalid brightness %d\n",
 						__func__, brightness);
 	}
 
@@ -250,15 +300,14 @@ static void fl_lcdev_brightness_set(struct led_classdev *led_cdev,
 	}
 
 	if (!mode_name) {
-		printk(KERN_ERR "%s: no matching brightness for %d\n",
+		FLT_ERR_LOG("%s: no matching brightness for %d\n",
 						__func__, brightness);
 		return;
 	}
 
-	printk(KERN_INFO "%s: %s\n", __func__, mode_name);
 	ret = adp1650_flashlight_control(mode);
 	if (ret) {
-		printk(KERN_ERR "%s: control failure rc:%d\n", __func__, ret);
+		FLT_ERR_LOG("%s: control failure rc:%d\n", __func__, ret);
 		return;
 	}
 
@@ -269,10 +318,19 @@ static void flashlight_early_suspend(struct early_suspend *handler)
 {
 	struct adp1650_data *fl_str = container_of(handler,
 				struct adp1650_data, fl_early_suspend);
+	unsigned long flag = 0;
+	uint32_t prev_mode = fl_str->mode_status;
+	FLT_INFO_LOG("%s\n", __func__);
 
-	printk(KERN_INFO "%s\n", __func__);
-	if (fl_str != NULL && fl_str->mode_status)
+	if (fl_str != NULL && fl_str->mode_status) {
 		turn_off();
+		spin_lock_irqsave(&fl_str->spin_lock, flag);
+		if (prev_mode == FL_MODE_FLASH) {
+			if (hrtimer_cancel(&fl_str->timer))
+				gpio_set_value(fl_str->flash, 0);
+		}
+		spin_unlock_irqrestore(&fl_str->spin_lock, flag);
+	}
 }
 
 static void flashlight_late_resume(struct early_suspend *handler)
@@ -280,13 +338,35 @@ static void flashlight_late_resume(struct early_suspend *handler)
 
 }
 
+static enum hrtimer_restart flash_gpio_timer_func(struct hrtimer *timer)
+{
+	struct adp1650_data *adp1650 = container_of(timer,
+				struct adp1650_data, timer);
+	unsigned long flag = 0;
+
+	spin_lock_irqsave(&this_adp1650->spin_lock, flag);
+	if (gpio_get_value(adp1650->flash))
+		gpio_set_value(adp1650->flash, 0);
+	spin_unlock_irqrestore(&this_adp1650->spin_lock, flag);
+
+	return HRTIMER_NORESTART;
+}
+
 static int adp1650_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
 	struct adp1650_data *adp1650;
+	struct flashlight_platform_data *pdata;
 	int err = 0;
 
-	printk(KERN_INFO "%s:\n", __func__);
+	FLT_INFO_LOG("%s:\n", __func__);
+	pdata = client->dev.platform_data;
+	if (!pdata) {
+		FLT_ERR_LOG("%s: Assign platform_data error!!\n", __func__);
+		return -EINVAL;
+	}
+	if (pdata->gpio_init)
+		pdata->gpio_init();
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		err = -ENODEV;
@@ -295,7 +375,7 @@ static int adp1650_probe(struct i2c_client *client,
 
 	adp1650 = kzalloc(sizeof(struct adp1650_data), GFP_KERNEL);
 	if (!adp1650) {
-		printk(KERN_ERR "%s: kzalloc fail !!!\n", __func__);
+		FLT_ERR_LOG("%s: kzalloc fail !!!\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -306,9 +386,19 @@ static int adp1650_probe(struct i2c_client *client,
 	adp1650->fl_lcdev.name           = client->name;
 	adp1650->fl_lcdev.brightness     = 0;
 	adp1650->fl_lcdev.brightness_set = fl_lcdev_brightness_set;
+	adp1650->flash                   = pdata->flash;
+	adp1650->timeout                 = pdata->flash_duration_ms;
+	if (adp1650->timeout <= 0)
+		adp1650->timeout = 600;
+	ktime = ktime_set(adp1650->timeout / 1000,
+			(adp1650->timeout % 1000) * 1000000);
+	hrtimer_init(&adp1650->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	adp1650->timer.function = flash_gpio_timer_func;
+	spin_lock_init(&adp1650->spin_lock);
+
 	err = led_classdev_register(&client->dev, &adp1650->fl_lcdev);
 	if (err < 0) {
-		printk(KERN_ERR "failed on led_classdev_register\n");
+		FLT_ERR_LOG("%s: failed on led_classdev_register\n", __func__);
 		goto platform_data_null;
 	}
 
@@ -321,10 +411,15 @@ static int adp1650_probe(struct i2c_client *client,
 	this_adp1650 = adp1650;
 
 	chip_info(0);
+	enable_low_batt_support(0x81);
 	return 0;
 
 
 platform_data_null:
+	if (adp1650->flash) {
+		gpio_free(adp1650->flash);
+		adp1650->flash = 0;
+	}
 	kfree(adp1650);
 check_functionality_failed:
 	return err;
@@ -334,11 +429,16 @@ static int adp1650_remove(struct i2c_client *client)
 {
 	struct adp1650_data *adp1650 = i2c_get_clientdata(client);
 
+	hrtimer_cancel(&adp1650->timer);
+	if (adp1650->flash) {
+		gpio_free(adp1650->flash);
+		adp1650->flash = 0;
+	}
 	led_classdev_unregister(&adp1650->fl_lcdev);
 	//i2c_detach_client(client);
 	kfree(adp1650);
 
-	printk(KERN_INFO "%s:\n", __func__);
+	FLT_INFO_LOG("%s:\n", __func__);
 	return 0;
 }
 
@@ -358,7 +458,7 @@ static struct i2c_driver adp1650_driver = {
 
 static int __init adp1650_init(void)
 {
-	printk(KERN_INFO "adp1650 Led Flash driver: init\n");
+	FLT_INFO_LOG("adp1650 Led Flash driver: init\n");
 	return i2c_add_driver(&adp1650_driver);
 }
 

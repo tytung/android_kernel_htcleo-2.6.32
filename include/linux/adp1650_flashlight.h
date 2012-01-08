@@ -22,6 +22,7 @@
 
 /* VREF and timer register */
 #define TIMER_200MS			(uint8_t) 0x01
+#define TIMER_600MS                     (uint8_t) 0x05
 #define TIMER_1600MS			(uint8_t) 0x0f
 
 /* Current set register */
