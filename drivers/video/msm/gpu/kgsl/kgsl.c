@@ -17,7 +17,7 @@
 */
 #include <linux/miscdevice.h>
 #include <linux/platform_device.h>
-#include <linux/slab.h> 
+#include <linux/slab.h>
 #include <linux/fb.h>
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -118,18 +118,16 @@ static void kgsl_clk_enable(void)
 {
 	clk_set_rate(kgsl_driver.ebi1_clk, 128000000);
 	clk_enable(kgsl_driver.imem_clk);
+	if (kgsl_driver.grp_pclk)
+		clk_enable(kgsl_driver.grp_pclk);
 	clk_enable(kgsl_driver.grp_clk);
-#ifdef CONFIG_ARCH_MSM7227
-	clk_enable(kgsl_driver.grp_pclk);
-#endif
 }
 
 static void kgsl_clk_disable(void)
 {
-#ifdef CONFIG_ARCH_MSM7227
-	clk_disable(kgsl_driver.grp_pclk);
-#endif
 	clk_disable(kgsl_driver.grp_clk);
+	if (kgsl_driver.grp_pclk)
+		clk_disable(kgsl_driver.grp_pclk);
 	clk_disable(kgsl_driver.imem_clk);
 	clk_set_rate(kgsl_driver.ebi1_clk, 0);
 }
@@ -169,7 +167,7 @@ static void kgsl_hw_put_locked(bool start_timer)
 {
 	if ((--kgsl_driver.active_cnt == 0) && start_timer) {
 		mod_timer(&kgsl_driver.standby_timer,
-			  jiffies + msecs_to_jiffies(512));
+			  jiffies + msecs_to_jiffies(20));
 	}
 }
 
@@ -191,6 +189,11 @@ static int kgsl_first_open_locked(void)
 	BUG_ON(kgsl_driver.active_cnt);
 
 	kgsl_clk_enable();
+
+	/* init memory apertures */
+	result = kgsl_sharedmem_init(&kgsl_driver.shmem);
+	if (result != 0)
+		goto done;
 
 	/* init devices */
 	result = kgsl_yamato_init(&kgsl_driver.yamato_device,
@@ -217,6 +220,9 @@ static int kgsl_last_release_locked(void)
 
 	/* close devices */
 	kgsl_yamato_close(&kgsl_driver.yamato_device);
+
+	/* shutdown memory apertures */
+	kgsl_sharedmem_close(&kgsl_driver.shmem);
 
 	kgsl_clk_disable();
 	kgsl_driver.active = false;
@@ -1060,9 +1066,6 @@ static void kgsl_driver_cleanup(void)
 		kgsl_driver.interrupt_num = 0;
 	}
 
-	/* shutdown memory apertures */
-	kgsl_sharedmem_close(&kgsl_driver.shmem);
-
 	if (kgsl_driver.grp_clk) {
 		clk_put(kgsl_driver.grp_clk);
 		kgsl_driver.grp_clk = NULL;
@@ -1097,9 +1100,6 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 	BUG_ON(kgsl_driver.grp_clk != NULL);
 	BUG_ON(kgsl_driver.imem_clk != NULL);
 	BUG_ON(kgsl_driver.ebi1_clk != NULL);
-#ifdef CONFIG_ARCH_MSM7227
-	BUG_ON(kgsl_driver.grp_pclk != NULL);
-#endif
 
 	kgsl_driver.pdev = pdev;
 
@@ -1113,6 +1113,13 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 		goto done;
 	}
 	kgsl_driver.grp_clk = clk;
+
+	clk = clk_get(&pdev->dev, "grp_pclk");
+	if (IS_ERR(clk)) {
+		KGSL_DRV_ERR("no grp_pclk, continuing\n");
+		clk = NULL;
+	}
+	kgsl_driver.grp_pclk = clk;
 
 	clk = clk_get(&pdev->dev, "imem_clk");
 	if (IS_ERR(clk)) {
@@ -1130,15 +1137,6 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 	}
 	kgsl_driver.ebi1_clk = clk;
 
-#ifdef CONFIG_ARCH_MSM7227
-	clk = clk_get(&pdev->dev, "grp_pclk");
-	if (IS_ERR(clk)) {
-		result = PTR_ERR(clk);
-		KGSL_DRV_ERR("clk_get(grp_pclk) returned %d\n", result);
-		goto done;
-	}
-	kgsl_driver.grp_pclk = clk;
-#endif
 	/*acquire interrupt */
 	kgsl_driver.interrupt_num = platform_get_irq(pdev, 0);
 	if (kgsl_driver.interrupt_num <= 0) {
@@ -1171,9 +1169,6 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 
 	kgsl_driver.shmem.physbase = res->start;
 	kgsl_driver.shmem.size = resource_size(res);
-
-	/* init memory apertures */
-	result = kgsl_sharedmem_init(&kgsl_driver.shmem);
 
 done:
 	if (result)

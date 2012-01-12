@@ -45,11 +45,10 @@ struct kgsl_driver {
 	int have_irq;
 
 	struct clk *grp_clk;
+	struct clk *grp_pclk;
 	struct clk *imem_clk;
 	struct clk *ebi1_clk;
-#ifdef CONFIG_ARCH_MSM7227
-	struct clk *grp_pclk;
-#endif
+
 	struct kgsl_devconfig yamato_config;
 
 	uint32_t flags_debug;
