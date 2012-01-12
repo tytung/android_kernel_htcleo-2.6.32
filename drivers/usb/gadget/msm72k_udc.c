@@ -49,7 +49,6 @@
 #ifdef CONFIG_USB_ACCESSORY_DETECT_BY_ADC
 #include <mach/htc_headset_mgr.h>
 #endif
-#include <mach/clk.h>
 
 static const char driver_name[] = "msm72k_udc";
 
@@ -82,14 +81,11 @@ static struct usb_info *the_usb_info;
 static int vbus;
 static int use_mfg_serialno;
 static char mfg_df_serialno[16];
-static int disable_charger;
 
-#if defined (CONFIG_DOCK_ACCESSORY_DETECT) || defined(CONFIG_USB_ACCESSORY_DETECT)
+#ifdef CONFIG_USB_ACCESSORY_DETECT
 #ifdef CONFIG_USB_ACCESSORY_DETECT_BY_ADC
 extern int htc_get_usb_accessory_adc_level(uint32_t *buffer);
 #endif
-
-
 static struct switch_dev dock_switch = {
 	.name = "dock",
 };
@@ -98,12 +94,6 @@ static struct switch_dev dock_switch = {
 #define DOCK_STATE_DESK         (1 << 0)
 #define DOCK_STATE_CAR          (1 << 1)
 #endif
-
-#include <linux/wakelock.h>
-#include <mach/perflock.h>
-
-static struct wake_lock vbus_idle_wake_lock;
-static struct perf_lock usb_perf_lock;
 
 struct msm_request {
 	struct usb_request req;
@@ -152,10 +142,8 @@ static void check_charger(struct work_struct *w);
 #ifdef CONFIG_USB_ACCESSORY_DETECT
 static void accessory_detect_work(struct work_struct *w);
 #endif
-#ifdef CONFIG_DOCK_ACCESSORY_DETECT
-static void dock_detect_work(struct work_struct *w);
-static void dock_detect_init(struct usb_info *ui);
-#endif
+extern int android_switch_function(unsigned func);
+extern int android_show_function(char *buf);
 extern void android_set_serialno(char *serialno);
 
 #define USB_STATE_IDLE    0
@@ -212,10 +200,6 @@ struct usb_info {
 	void (*phy_reset)(void);
 	void (*hw_reset)(bool en);
 	void (*usb_uart_switch)(int);
-	void (*serial_debug_gpios)(int);
-	void (*usb_hub_enable)(bool);
-	int (*china_ac_detect)(void);
-	void (*disable_usb_charger)(void);
 
 	/* for notification when USB is connected or disconnected */
 	void (*usb_connected)(int);
@@ -224,7 +208,6 @@ struct usb_info {
 	struct work_struct work;
 	struct delayed_work chg_work;
 	struct work_struct detect_work;
-	struct work_struct dock_work;
 	struct work_struct notifier_work;
 	unsigned phy_status;
 	unsigned phy_fail_count;
@@ -249,13 +232,10 @@ struct usb_info {
 	u8 in_lpm;
 
 	/* for accessory detection */
-	bool dock_detect;
 	u8 accessory_detect;
 	u8 mfg_usb_carkit_enable;
 	int idpin_irq;
-	int dockpin_irq;
 	int usb_id_pin_gpio;
-	int dock_pin_gpio;
 	void (*config_usb_id_gpios)(bool output_enable);
 	/* 0: none, 1: carkit, 2: usb headset */
 	u8 accessory_type;
@@ -346,7 +326,7 @@ static int ulpi_write(struct usb_info *ui, unsigned val, unsigned reg)
 	       USB_ULPI_VIEWPORT);
 
 	/* wait for completion */
-	while ((readl(USB_ULPI_VIEWPORT) & ULPI_RUN) && (--timeout)) ;
+	while((readl(USB_ULPI_VIEWPORT) & ULPI_RUN) && (--timeout)) ;
 
 	if (timeout == 0) {
 		printk(KERN_ERR "ulpi_write: timeout\n");
@@ -533,8 +513,6 @@ static void usb_ept_start(struct msm_endpoint *ept)
 {
 	struct usb_info *ui = ept->ui;
 	struct msm_request *req = ept->req;
-	int i, cnt;
-	unsigned n = 1 << ept->bit;
 
 	BUG_ON(req->live);
 
@@ -542,36 +520,14 @@ static void usb_ept_start(struct msm_endpoint *ept)
 	ept->head->next = req->item_dma;
 	ept->head->info = 0;
 
-	/* during high throughput testing it is observed that
-	 * ept stat bit is not set even thoguh all the data
-	 * structures are updated properly and ept prime bit
-	 * is set. To workaround the issue, try to check if
-	 * ept stat bit otherwise try to re-prime the ept
-	 */
-	for (i = 0; i < 5; i++) {
-		writel(n, USB_ENDPTPRIME);
-		for (cnt = 0; cnt < 3000; cnt++) {
-			if (!(readl(USB_ENDPTPRIME) & n) &&
-					(readl(USB_ENDPTSTAT) & n))
-				goto DONE;
-			udelay(1);
-		}
-	}
+	/* start the endpoint */
+	writel(1 << ept->bit, USB_ENDPTPRIME);
 
-	if (!(readl(USB_ENDPTSTAT) & n)) {
-		pr_err("Unable to prime the ept%d%s\n",
-				ept->num,
-				ept->flags & EPT_FLAG_IN ? "in" : "out");
-		return;
-	}
-
-DONE:
 	/* mark this chain of requests as live */
 	while (req) {
 		req->live = 1;
 		req = req->next;
 	}
-
 }
 
 int usb_ept_queue_xfer(struct msm_endpoint *ept, struct usb_request *_req)
@@ -801,6 +757,7 @@ static void handle_setup(struct usb_info *ui)
 			{
 				u16 temp = 0;
 
+				temp = 1 << USB_DEVICE_SELF_POWERED;
 				temp |= (ui->remote_wakeup <<
 						USB_DEVICE_REMOTE_WAKEUP);
 				memcpy(req->buf, &temp, 2);
@@ -855,10 +812,6 @@ static void handle_setup(struct usb_info *ui)
 				case J_TEST:
 				case K_TEST:
 				case SE0_NAK_TEST:
-					if (!ui->test_mode) {
-						disable_charger = 1;
-						queue_delayed_work(ui->usb_wq, &ui->chg_work, 0);
-					}
 				case TST_PKT_TEST:
 					ui->test_mode = ctl.wIndex;
 					goto ack;
@@ -1160,6 +1113,30 @@ static ssize_t show_usb_cable_connect(struct device *dev,
 
 static DEVICE_ATTR(usb_cable_connect, 0444, show_usb_cable_connect, NULL);
 
+static ssize_t show_usb_function_switch(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return android_show_function(buf);
+}
+
+static ssize_t store_usb_function_switch(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned u;
+	ssize_t  ret;
+
+	u = simple_strtoul(buf, NULL, 10);
+	ret = android_switch_function(u);
+
+	if (ret == 0)
+		return count;
+	else
+		return 0;
+}
+
+static DEVICE_ATTR(usb_function_switch, 0666,
+	show_usb_function_switch, store_usb_function_switch);
+
 static ssize_t show_usb_serial_number(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1270,27 +1247,6 @@ static ssize_t show_USB_ID_status(struct device *dev,
 static DEVICE_ATTR(USB_ID_status, 0444,
 	show_USB_ID_status, NULL);
 
-static ssize_t show_usb_car_kit_enable(struct device *dev,
-			struct device_attribute *attr,
-			char *buf)
-{
-	struct usb_info *ui = the_usb_info;
-	int value = 1;
-	unsigned length;
-
-	if (!ui)
-		return 0;
-	if (ui->accessory_detect == 0) {
-		value = 0;
-	}
-	printk(KERN_INFO "usb: USB_car_kit_enable %d\n", ui->accessory_detect);
-	length = sprintf(buf, "%d", value);
-	return length;
-}
-
-static DEVICE_ATTR(usb_car_kit_enable, 0444,
-	show_usb_car_kit_enable, NULL);/*for kar kit AP check if car kit enable*/
-
 static ssize_t show_usb_phy_setting(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -1370,16 +1326,12 @@ static ssize_t store_mfg_carkit_enable(struct device *dev,
 
 static DEVICE_ATTR(usb_mfg_carkit_enable, 0644,
 	show_mfg_carkit_enable, store_mfg_carkit_enable);
-#endif
 
-#if defined (CONFIG_DOCK_ACCESSORY_DETECT) || defined(CONFIG_USB_ACCESSORY_DETECT)
 static ssize_t dock_status_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct usb_info *ui = the_usb_info;
 	if (ui->accessory_type == 1)
-		return sprintf(buf, "online\n");
-	else if (ui->accessory_type == 3) /*desk dock*/
 		return sprintf(buf, "online\n");
 	else
 		return sprintf(buf, "offline\n");
@@ -1417,13 +1369,6 @@ static void usb_prepare(struct usb_info *ui)
 #ifdef CONFIG_USB_ACCESSORY_DETECT
 	INIT_WORK(&ui->detect_work, accessory_detect_work);
 #endif
-#ifdef CONFIG_DOCK_ACCESSORY_DETECT
-	if (ui->dock_detect) {
-		INIT_WORK(&ui->dock_work, dock_detect_work);
-		dock_detect_init(ui);
-	}
-#endif
-
 	INIT_WORK(&ui->notifier_work, send_usb_connect_notify);
 	INIT_DELAYED_WORK(&ui->chg_work, check_charger);
 
@@ -1431,6 +1376,11 @@ static void usb_prepare(struct usb_info *ui)
 		&dev_attr_usb_cable_connect);
 	if (ret != 0)
 		printk(KERN_WARNING "dev_attr_usb_cable_connect failed\n");
+
+	ret = device_create_file(&ui->pdev->dev,
+		&dev_attr_usb_function_switch);
+	if (ret != 0)
+		printk(KERN_WARNING "dev_attr_usb_function_switch failed\n");
 
 	ret = device_create_file(&ui->pdev->dev,
 		&dev_attr_usb_serial_number);
@@ -1458,11 +1408,6 @@ static void usb_prepare(struct usb_info *ui)
 	if (ret != 0)
 		printk(KERN_WARNING "dev_attr_usb_mfg_carkit_enable failed\n");
 #endif
-	ret = device_create_file(&ui->pdev->dev,
-		&dev_attr_usb_car_kit_enable);/*for kar kit AP check if car kit enable*/
-	if (ret != 0)
-		printk(KERN_WARNING "dev_attr_usb_car_kit_enable failed\n");
-
 }
 
 static int usb_wakeup_phy(struct usb_info *ui)
@@ -1605,18 +1550,6 @@ static void usb_start(struct usb_info *ui)
 
 	spin_lock_irqsave(&ui->lock, flags);
 	ui->flags |= USB_FLAG_START;
-/*if msm_hsusb_set_vbus_state set 1, but usb did not init, the ui =NULL, */
-/*it would cause reboot with usb, it did not swith to USB and ADB fail*/
-/*So when USB start, check again*/
-	if (vbus) {
-		ui->flags |= USB_FLAG_VBUS_ONLINE;
-	} else {
-		ui->flags |= USB_FLAG_VBUS_OFFLINE;
-	}
-	/* online->switch to USB, offline->switch to uart */
-	if (ui->usb_uart_switch)
-		ui->usb_uart_switch(!vbus);
-
 	queue_work(ui->usb_wq, &ui->work);
 	spin_unlock_irqrestore(&ui->lock, flags);
 }
@@ -1681,13 +1614,6 @@ static void usb_lpm_enter(struct usb_info *ui)
 	clk_set_rate(ui->ebi1clk, 0);
 	ui->in_lpm = 1;
 	spin_unlock_irqrestore(&ui->lock, iflags);
-
-	if (board_mfg_mode() == 1) {/*for MFG adb unstable in FROYO ROM*/
-		printk(KERN_INFO "usb: idle_wake_unlock and perf unlock\n");
-		wake_unlock(&vbus_idle_wake_lock);
-		if (is_perf_lock_active(&usb_perf_lock))
-			perf_unlock(&usb_perf_lock);
-	}
 }
 
 static void usb_lpm_exit(struct usb_info *ui)
@@ -1705,85 +1631,7 @@ static void usb_lpm_exit(struct usb_info *ui)
 		clk_enable(ui->otgclk);
 	usb_wakeup_phy(ui);
 	ui->in_lpm = 0;
-
-	if (board_mfg_mode() == 1) {/*for MFG adb unstable in FROYO ROM*/
-		printk(KERN_INFO "usb: idle_wake_lock and perf lock\n");
-		wake_lock(&vbus_idle_wake_lock);
-		if (!is_perf_lock_active(&usb_perf_lock))
-			perf_lock(&usb_perf_lock);
-	}
 }
-
-#ifdef CONFIG_DOCK_ACCESSORY_DETECT
-static irqreturn_t dock_interrupt(int irq, void *data)
-{
-	struct usb_info *ui = data;
-	disable_irq_nosync(ui->dockpin_irq);
-	queue_work(ui->usb_wq, &ui->dock_work);
-	return IRQ_HANDLED;
-}
-static void dock_detect_work(struct work_struct *w)
-{
-	struct usb_info *ui = container_of(w, struct usb_info, dock_work);
-	int value;
-
-	value = gpio_get_value(ui->dock_pin_gpio);
-
-	if (value == 0 && vbus) {
-		set_irq_type(ui->dockpin_irq, IRQF_TRIGGER_HIGH);
-		switch_set_state(&dock_switch, DOCK_STATE_DESK);
-		ui->accessory_type = 3;
-		printk(KERN_INFO "usb:dock: set state %d\n", DOCK_STATE_DESK);
-	} else {
-		set_irq_type(ui->dockpin_irq, IRQF_TRIGGER_LOW);
-		switch_set_state(&dock_switch, DOCK_STATE_UNDOCKED);
-		ui->accessory_type = 0;
-		printk(KERN_INFO "usb:dock: set state %d\n", DOCK_STATE_UNDOCKED);
-	}
-	enable_irq(ui->dockpin_irq);
-
-
-}
-static void dock_detect_init(struct usb_info *ui)
-{
-	int ret;
-
-	if (ui->dock_pin_gpio == 0)
-		return;
-	if (ui->dockpin_irq == 0)
-		ui->dockpin_irq = gpio_to_irq(ui->dock_pin_gpio);
-
-	ret = request_irq(ui->dockpin_irq, dock_interrupt,
-				IRQF_TRIGGER_LOW,
-				"dock_irq", ui);
-	if (ret < 0) {
-		printk(KERN_ERR "%s: request_irq failed\n", __func__);
-		return;
-	}
-	printk(KERN_INFO "%s: dock irq %d\n", __func__,
-		ui->dockpin_irq);
-	ret = set_irq_wake(ui->dockpin_irq, 1);
-	if (ret < 0) {
-		printk(KERN_ERR "%s: set_irq_wake failed\n", __func__);
-		goto err;
-	}
-
-	if (switch_dev_register(&dock_switch) < 0) {
-		printk(KERN_ERR "usb: fail to register dock switch!\n");
-		goto err;
-	}
-
-	ret = device_create_file(dock_switch.dev, &dev_attr_status);
-	if (ret != 0)
-		printk(KERN_WARNING "dev_attr_status failed\n");
-
-	return;
-
-err:
-	free_irq(ui->dockpin_irq, 0);
-}
-#endif
-
 
 #ifdef CONFIG_USB_ACCESSORY_DETECT
 static void carkit_detect(struct usb_info *ui)
@@ -1842,7 +1690,7 @@ static void accessory_detect_by_adc(struct usb_info *ui)
 		if (adc_value >= 0x2112 && adc_value <= 0x3D53) {
 			printk(KERN_INFO "usb: headset inserted\n");
 			ui->accessory_type = 2;
-			headset_ext_detect(USB_AUDIO_OUT);
+			headset_ext_detect(USB_HEADSET);
 		} else if (adc_value >= 0x88A && adc_value <= 0x1E38) {
 			printk(KERN_INFO "usb: carkit inserted\n");
 			ui->accessory_type = 1;
@@ -1856,7 +1704,7 @@ static void accessory_detect_by_adc(struct usb_info *ui)
 	} else {
 		if (ui->accessory_type == 2) {
 			printk(KERN_INFO "usb: headset removed\n");
-			headset_ext_detect(USB_NO_HEADSET);
+			headset_ext_detect(NO_DEVICE);
 		} else if (ui->accessory_type == 1) {
 			printk(KERN_INFO "usb: carkit removed\n");
 			switch_set_state(&dock_switch, DOCK_STATE_UNDOCKED);
@@ -1908,8 +1756,7 @@ static void accessory_detect_init(struct usb_info *ui)
 
 	if (ui->usb_id_pin_gpio == 0)
 		return;
-	if (ui->idpin_irq == 0)
-		ui->idpin_irq = gpio_to_irq(ui->usb_id_pin_gpio);
+	ui->idpin_irq = gpio_to_irq(ui->usb_id_pin_gpio);
 
 	ret = request_irq(ui->idpin_irq, usbid_interrupt,
 				IRQF_TRIGGER_LOW,
@@ -1929,11 +1776,9 @@ static void accessory_detect_init(struct usb_info *ui)
 		printk(KERN_ERR "usb: fail to register dock switch!\n");
 		goto err;
 	}
-
 	ret = device_create_file(dock_switch.dev, &dev_attr_status);
 	if (ret != 0)
 		printk(KERN_WARNING "dev_attr_status failed\n");
-
 	return;
 err:
 	free_irq(ui->idpin_irq, 0);
@@ -1942,44 +1787,6 @@ err:
 #endif
 
 #define DELAY_FOR_CHECK_CHG msecs_to_jiffies(300)
-
-static void charger_detect_by_uart(struct usb_info *ui)
-{
-	int is_china_ac;
-
-	/*UART*/
-	if (ui->usb_uart_switch)
-		ui->usb_uart_switch(1);
-
-	is_china_ac = ui->china_ac_detect();
-
-	if (is_china_ac) {
-		ui->connect_type = CONNECT_TYPE_AC;
-		queue_work(ui->usb_wq, &ui->notifier_work);
-		usb_lpm_enter(ui);
-		printk(KERN_INFO "usb: AC charger\n");
-	} else {
-		ui->connect_type = CONNECT_TYPE_UNKNOWN;
-		queue_delayed_work(ui->usb_wq, &ui->chg_work,
-			DELAY_FOR_CHECK_CHG);
-		printk(KERN_INFO "usb: not AC charger\n");
-
-		/*set uart to gpo*/
-		if (ui->serial_debug_gpios)
-			ui->serial_debug_gpios(0);
-		/*turn on USB HUB*/
-		if (ui->usb_hub_enable)
-			ui->usb_hub_enable(1);
-
-		/*USB*/
-		if (ui->usb_uart_switch)
-			ui->usb_uart_switch(0);
-
-		usb_lpm_exit(ui);
-		usb_reset(ui);
-	}
-}
-
 static void charger_detect(struct usb_info *ui)
 {
 	if (!vbus)
@@ -2004,13 +1811,6 @@ static void charger_detect(struct usb_info *ui)
 static void check_charger(struct work_struct *w)
 {
 	struct usb_info *ui = container_of(w, struct usb_info, chg_work.work);
-	if (disable_charger) {
-		printk(KERN_INFO "usb: disable charger\n");
-		if (ui->disable_usb_charger)
-			ui->disable_usb_charger();
-		disable_charger = 0;
-		return;
-	}
 	/* unknown charger */
 	if (vbus && ui->connect_type == CONNECT_TYPE_UNKNOWN)
 		queue_work(ui->usb_wq, &ui->notifier_work);
@@ -2021,7 +1821,6 @@ static void usb_do_work(struct work_struct *w)
 	struct usb_info *ui = container_of(w, struct usb_info, work);
 	unsigned long iflags;
 	unsigned flags, _vbus;
-
 
 	for (;;) {
 		spin_lock_irqsave(&ui->lock, iflags);
@@ -2037,15 +1836,9 @@ static void usb_do_work(struct work_struct *w)
 		case USB_STATE_IDLE:
 			if (flags & USB_FLAG_START) {
 				pr_info("hsusb: IDLE -> ONLINE\n");
-
-				if (ui->china_ac_detect)
-					charger_detect_by_uart(ui);
-				else {
-					usb_lpm_exit(ui);
-					usb_reset(ui);
-
-					charger_detect(ui);
-				}
+				usb_lpm_exit(ui);
+				usb_reset(ui);
+				charger_detect(ui);
 
 				ui->state = USB_STATE_ONLINE;
 #ifdef CONFIG_USB_ACCESSORY_DETECT
@@ -2117,14 +1910,9 @@ static void usb_do_work(struct work_struct *w)
 			 */
 			if ((flags & USB_FLAG_VBUS_ONLINE) && _vbus) {
 				pr_info("hsusb: OFFLINE -> ONLINE\n");
-
-				if (ui->china_ac_detect)
-					charger_detect_by_uart(ui);
-				else {
-					usb_lpm_exit(ui);
-					usb_reset(ui);
-					charger_detect(ui);
-				}
+				usb_lpm_exit(ui);
+				usb_reset(ui);
+				charger_detect(ui);
 
 				ui->state = USB_STATE_ONLINE;
 				usb_do_work_check_vbus(ui);
@@ -2154,33 +1942,9 @@ void msm_hsusb_set_vbus_state(int online)
 			} else {
 				ui->flags |= USB_FLAG_VBUS_OFFLINE;
 			}
-
-			if (online) {
-				/*USB*/
-				if (ui->usb_uart_switch)
-					ui->usb_uart_switch(0);
-			} else {
-				/*turn off USB HUB*/
-				if (ui->usb_hub_enable)
-					ui->usb_hub_enable(0);
-
-				/*UART*/
-				if (ui->usb_uart_switch)
-					ui->usb_uart_switch(1);
-				/*configure uart pin to alternate function*/
-				if (ui->serial_debug_gpios)
-					ui->serial_debug_gpios(1);
-#ifdef CONFIG_DOCK_ACCESSORY_DETECT
-				if (ui->accessory_type == 3) {
-					set_irq_type(ui->dockpin_irq, IRQF_TRIGGER_LOW);
-					switch_set_state(&dock_switch, DOCK_STATE_UNDOCKED);
-					ui->accessory_type = 0;
-					printk(KERN_INFO "usb:dock: vbus offline\n");
-					enable_irq(ui->dockpin_irq);
-				}
-#endif
-			}
-
+			/* online->switch to USB, offline->switch to uart */
+			if (ui->usb_uart_switch)
+				ui->usb_uart_switch(!online);
 			queue_work(ui->usb_wq, &ui->work);
 		}
 	}
@@ -2601,10 +2365,6 @@ static int msm72k_probe(struct platform_device *pdev)
 		ui->phy_init_seq = pdata->phy_init_seq;
 		ui->usb_connected = pdata->usb_connected;
 		ui->usb_uart_switch = pdata->usb_uart_switch;
-		ui->serial_debug_gpios = pdata->serial_debug_gpios;
-		ui->usb_hub_enable = pdata->usb_hub_enable;
-		ui->china_ac_detect = pdata->china_ac_detect;
-		ui->disable_usb_charger = pdata->disable_usb_charger;
 
 		ui->accessory_detect = pdata->accessory_detect;
 		printk(KERN_INFO "usb: accessory detect %d\n",
@@ -2612,15 +2372,6 @@ static int msm72k_probe(struct platform_device *pdev)
 		ui->usb_id_pin_gpio = pdata->usb_id_pin_gpio;
 		printk(KERN_INFO "usb: id_pin_gpio %d\n",
 			pdata->usb_id_pin_gpio);
-
-		ui->dock_detect = pdata->dock_detect;
-		printk(KERN_INFO "usb: dock detect %d\n",
-			ui->dock_detect);
-		ui->dock_pin_gpio = pdata->dock_pin_gpio;
-		printk(KERN_INFO "usb: dock pin gpio %d\n",
-			ui->dock_pin_gpio);
-
-		ui->idpin_irq = pdata->id_pin_irq;
 		if (pdata->config_usb_id_gpios)
 			ui->config_usb_id_gpios = pdata->config_usb_id_gpios;
 	}
@@ -2706,11 +2457,9 @@ static int msm72k_probe(struct platform_device *pdev)
 
 	/* initialize mfg serial number */
 
-	if (board_mfg_mode() == 1) {
+	if (board_mfg_mode() == 1)
 		use_mfg_serialno = 1;
-		wake_lock_init(&vbus_idle_wake_lock, WAKE_LOCK_IDLE, "usb_idle_lock");
-		perf_lock_init(&usb_perf_lock, PERF_LOCK_HIGHEST, "usb");
-	} else
+	else
 		use_mfg_serialno = 0;
 	strncpy(mfg_df_serialno, "000000000000", strlen("000000000000"));
 

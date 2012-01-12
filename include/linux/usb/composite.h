@@ -36,10 +36,8 @@
 
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
-#include <linux/switch.h>
 
 
-struct usb_composite_dev;
 struct usb_configuration;
 
 /**
@@ -102,9 +100,7 @@ struct usb_function {
 	struct usb_descriptor_header	**hs_descriptors;
 
 	struct usb_configuration	*config;
-
-	/* disabled is zero if the function is enabled */
-	int				disabled;
+	int				hidden;
 
 	/* REVISIT:  bind() functions can be marked __init, which
 	 * makes trouble for section mismatch analysis.  See if
@@ -132,7 +128,6 @@ struct usb_function {
 	/* private: */
 	/* internals */
 	struct list_head		list;
-	DECLARE_BITMAP(endpoints, 32);
 	struct device			*dev;
 };
 
@@ -142,9 +137,6 @@ int usb_function_deactivate(struct usb_function *);
 int usb_function_activate(struct usb_function *);
 
 int usb_interface_id(struct usb_configuration *, struct usb_function *);
-
-void usb_function_set_enabled(struct usb_function *, int);
-void usb_composite_force_reset(struct usb_composite_dev *);
 
 /**
  * ep_choose - select descriptor endpoint at current device speed
@@ -340,7 +332,6 @@ struct usb_composite_dev {
 
 	/* private: */
 	/* internals */
-	unsigned int			suspended:1;
 	struct usb_device_descriptor	desc;
 	struct list_head		configs;
 	struct usb_composite_driver	*driver;
@@ -353,15 +344,6 @@ struct usb_composite_dev {
 
 	/* protects at least deactivation count */
 	spinlock_t			lock;
-
-	/* switch indicating connected/disconnected state */
-	struct switch_dev    sw_connected;
-  /* switch indicating current configuration */
-  struct switch_dev    sw_config;
-  /* current connected state for sw_connected */
-  bool        connected;
-
-	struct work_struct switch_work;
 };
 
 extern int usb_string_id(struct usb_composite_dev *c);
