@@ -129,7 +129,7 @@ int kgsl_yamato_setup_pt(struct kgsl_device *device,
 			 struct kgsl_pagetable *pagetable);
 int kgsl_yamato_cleanup_pt(struct kgsl_device *device,
 			   struct kgsl_pagetable *pagetable);
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 int kgsl_yamato_setstate(struct kgsl_device *device, uint32_t flags);
 #else
 static inline int kgsl_yamato_setstate(struct kgsl_device *device, uint32_t flags)

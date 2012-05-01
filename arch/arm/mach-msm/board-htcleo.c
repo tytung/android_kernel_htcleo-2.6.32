@@ -59,6 +59,10 @@
 #include <mach/htc_headset_mgr.h>
 #include <mach/htc_headset_gpio.h>
 
+#ifdef CONFIG_MSM_KGSL
+#include <linux/msm_kgsl.h>
+#endif
+
 #include <mach/board-htcleo-microp.h>
 
 #include "board-htcleo.h"
@@ -790,19 +794,83 @@ static struct platform_device msm_kgsl_device =
 	.num_resources	= ARRAY_SIZE(msm_kgsl_resources),
 };
 
+#ifdef CONFIG_MSM_KGSL
+/* start kgsl */
+static struct resource kgsl_3d0_resources[] = {
+	{
+		.name  = KGSL_3D0_REG_MEMORY,
+		.start = 0xA0000000,
+		.end = 0xA001ffff,
+		.flags = IORESOURCE_MEM,
+	},
+	{
+		.name = KGSL_3D0_IRQ,
+		.start = INT_GRAPHICS,
+		.end = INT_GRAPHICS,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct kgsl_device_platform_data kgsl_3d0_pdata = {
+	.pwr_data = {
+		.pwrlevel = {
+			{
+				.gpu_freq = 0,
+				.bus_freq = 128000000,
+			},
+		},
+		.init_level = 0,
+		.num_levels = 1,
+		.set_grp_async = NULL,
+		.idle_timeout = HZ/5,
+	},
+	.clk = {
+		.name = {
+			.clk = "grp_clk",
+		},
+	},
+	.imem_clk_name = {
+		.clk = "imem_clk",
+	},
+};
+
+struct platform_device msm_kgsl_3d0 = {
+	.name = "kgsl-3d0",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(kgsl_3d0_resources),
+	.resource = kgsl_3d0_resources,
+	.dev = {
+		.platform_data = &kgsl_3d0_pdata,
+	},
+};
+/* end kgsl */
+#endif
+
 ///////////////////////////////////////////////////////////////////////
 // Memory
 ///////////////////////////////////////////////////////////////////////
 
 static struct android_pmem_platform_data mdp_pmem_pdata = {
 	.name		= "pmem",
+	.start		= MSM_PMEM_MDP_BASE,
+	.size		= MSM_PMEM_MDP_SIZE,
+#ifdef CONFIG_MSM_KGSL
+	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
+#else
 	.no_allocator	= 0,
+#endif
 	.cached		= 1,
 };
 
 static struct android_pmem_platform_data android_pmem_adsp_pdata = {
 	.name		= "pmem_adsp",
+	.start		= MSM_PMEM_ADSP_BASE,
+	.size		= MSM_PMEM_ADSP_SIZE,
+#ifdef CONFIG_MSM_KGSL
+	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
+#else
 	.no_allocator	= 0,
+#endif
 	.cached		= 1,
 };
 
@@ -811,7 +879,11 @@ static struct android_pmem_platform_data android_pmem_venc_pdata = {
 	.name		= "pmem_venc",
 	.start		= MSM_PMEM_VENC_BASE,
 	.size		= MSM_PMEM_VENC_SIZE,
+#ifdef CONFIG_MSM_KGSL
+	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
+#else
 	.no_allocator	= 0,
+#endif
 	.cached		= 1,
 };
 
@@ -945,7 +1017,11 @@ static struct platform_device *devices[] __initdata =
 	&msm_device_i2c,
 	&ds2746_battery_pdev,
 	&htc_battery_pdev,
+#ifdef CONFIG_MSM_KGSL
+	&msm_kgsl_3d0,
+#else
 	&msm_kgsl_device,
+#endif
 	&msm_camera_sensor_s5k3e2fx,
 	&htcleo_flashlight_device,
 	&qsd_device_spi,

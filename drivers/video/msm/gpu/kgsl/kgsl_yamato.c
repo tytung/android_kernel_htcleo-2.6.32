@@ -325,7 +325,7 @@ error:
 
 }
 
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 int kgsl_yamato_setstate(struct kgsl_device *device, uint32_t flags)
 {
 	unsigned int link[32];
@@ -731,7 +731,7 @@ int kgsl_yamato_getproperty(struct kgsl_device *device,
 		break;
 	case KGSL_PROP_MMU_ENABLE:
 		{
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 			int mmuProp = 1;
 #else
 			int mmuProp = 0;

@@ -55,7 +55,7 @@ config MSM_ROTATOR_USE_IMEM
           block.  Or some systems may want the iMem to be dedicated to a
           different function.
 
-config MSM_KGSL_MMU
+config GPU_MSM_KGSL_MMU
 	bool "Turn on MMU for graphics driver "
 	depends on GPU_MSM_KGSL && MMU
 	default n

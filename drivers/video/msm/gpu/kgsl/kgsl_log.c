@@ -237,7 +237,7 @@ static struct file_operations kgsl_mmu_regs_fops = {
 };
 #endif /*DEBUG*/
 
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 static int kgsl_cache_enable_set(void *data, u64 val)
 {
 	kgsl_cache_enable = (val != 0);
@@ -282,7 +282,7 @@ int kgsl_debug_init(void)
 				&kgsl_mmu_regs_fops);
 #endif
 
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 	debugfs_create_file("cache_enable", 0644, dent, 0,
 			    &kgsl_cache_enable_fops);
 #endif

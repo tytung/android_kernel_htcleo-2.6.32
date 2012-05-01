@@ -51,7 +51,7 @@ struct kgsl_file_private {
 
 static void kgsl_put_phys_file(struct file *file);
 
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 static long flush_l1_cache_range(unsigned long addr, int size)
 {
 	struct page *page;
@@ -190,11 +190,6 @@ static int kgsl_first_open_locked(void)
 
 	kgsl_clk_enable();
 
-	/* init memory apertures */
-	result = kgsl_sharedmem_init(&kgsl_driver.shmem);
-	if (result != 0)
-		goto done;
-
 	/* init devices */
 	result = kgsl_yamato_init(&kgsl_driver.yamato_device,
 					&kgsl_driver.yamato_config);
@@ -220,9 +215,6 @@ static int kgsl_last_release_locked(void)
 
 	/* close devices */
 	kgsl_yamato_close(&kgsl_driver.yamato_device);
-
-	/* shutdown memory apertures */
-	kgsl_sharedmem_close(&kgsl_driver.shmem);
 
 	kgsl_clk_disable();
 	kgsl_driver.active = false;
@@ -642,7 +634,7 @@ done:
 	return result;
 }
 
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 static int kgsl_ioctl_sharedmem_from_vmalloc(struct kgsl_file_private *private,
 					     void __user *arg)
 {
@@ -888,7 +880,7 @@ error:
 	return result;
 }
 
-#ifdef CONFIG_MSM_KGSL_MMU
+#ifdef CONFIG_GPU_MSM_KGSL_MMU
 /*This function flushes a graphics memory allocation from CPU cache
  *when caching is enabled with MMU*/
 static int kgsl_ioctl_sharedmem_flush_cache(struct kgsl_file_private *private,
@@ -1066,6 +1058,9 @@ static void kgsl_driver_cleanup(void)
 		kgsl_driver.interrupt_num = 0;
 	}
 
+	/* shutdown memory apertures */
+	kgsl_sharedmem_close(&kgsl_driver.shmem);
+
 	if (kgsl_driver.grp_clk) {
 		clk_put(kgsl_driver.grp_clk);
 		kgsl_driver.grp_clk = NULL;
@@ -1169,6 +1164,9 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 
 	kgsl_driver.shmem.physbase = res->start;
 	kgsl_driver.shmem.size = resource_size(res);
+
+	/* init memory apertures */
+	result = kgsl_sharedmem_init(&kgsl_driver.shmem);
 
 done:
 	if (result)

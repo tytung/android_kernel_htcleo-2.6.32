@@ -34,10 +34,4 @@ obj-$(CONFIG_FB_MSM_LCDC) += mdp_lcdc.o
 obj-$(CONFIG_FB_MSM_TVOUT) += tvenc.o tvfb.o
 
 # Yamato GL driver
-ifeq ($(CONFIG_ARCH_MSM7X30),y)
-obj-$(CONFIG_GPU_MSM_KGSL) += gpu/kgsl_adreno205/
-else
 obj-$(CONFIG_GPU_MSM_KGSL) += gpu/kgsl/
-endif
-
-obj-$(CONFIG_MSM_HDMI) += hdmi/
