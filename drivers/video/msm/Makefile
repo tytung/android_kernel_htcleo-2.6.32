@@ -1,7 +1,7 @@
 
 # core framebuffer
 #
-obj-y := msm_fb.o logo.o
+obj-y := msm_fb.o
 ifeq ($(CONFIG_FB_MSM_LOGO),y)
 obj-y += logo.o
 endif
