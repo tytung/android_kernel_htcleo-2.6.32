@@ -169,18 +169,10 @@ static int msm_timer_set_next_event(unsigned long cycles,
 	clock->last_set = now;
 	clock->alarm_vtime = alarm + clock->offset;
 	late = now - alarm;
-	if (late >= (int)(-clock->write_delay << clock->shift) && late < DGT_HZ*5) {
-		static int print_limit = 10;
-		if (print_limit > 0) {
-			print_limit--;
-			printk(KERN_NOTICE "msm_timer_set_next_event(%lu) "
-			       "clock %s, alarm already expired, now %x, "
-			       "alarm %x, late %d%s\n",
-			       cycles, clock->clockevent.name, now, alarm, late,
-			       print_limit ? "" : " stop printing");
-		}
+	if (late >= (int)(-clock->write_delay << clock->shift) &&
+	    late < clock->freq*5)
 		return -ETIME;
-	}
+
 	return 0;
 }
 
@@ -582,9 +574,12 @@ static struct msm_clock msm_clocks[] = {
 #endif
 		.freq = GPT_HZ,
 		.flags   =
+#ifdef CONFIG_ARCH_MSM_ARM11
 			MSM_CLOCK_FLAGS_UNSTABLE_COUNT |
 			MSM_CLOCK_FLAGS_ODD_MATCH_WRITE |
-			MSM_CLOCK_FLAGS_DELAYED_WRITE_POST,
+			MSM_CLOCK_FLAGS_DELAYED_WRITE_POST |
+#endif
+		  0,
 		.write_delay = 9,
 	},
 	[MSM_CLOCK_DGT] = {

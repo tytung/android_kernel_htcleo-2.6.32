@@ -30,6 +30,7 @@
 
 #include <mach/vreg.h>
 #include <mach/gpio.h>
+#include <mach/board-htcleo-mmc.h>
 
 #include "board-htcleo.h"
 #include "devices.h"
@@ -391,7 +392,7 @@ static int __init htcleommc_dbg_init(void)
 {
 	struct dentry *dent;
 
-	if (!machine_is_htcleo() && !machine_is_htcleo())
+	if (!machine_is_htcleo())
 		return 0;
 
 	dent = debugfs_create_dir("htcleo_mmc_dbg", 0);

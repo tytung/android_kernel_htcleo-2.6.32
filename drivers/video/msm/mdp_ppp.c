@@ -15,8 +15,12 @@
 #include <linux/fb.h>
 #include <linux/file.h>
 #include <linux/delay.h>
+#include <linux/major.h>
+#include <linux/msm_hw3d.h>
 #include <linux/msm_mdp.h>
+#include <linux/mutex.h>
 #include <linux/android_pmem.h>
+#include <linux/wait.h>
 #include <mach/msm_fb.h>
 
 #include "mdp_hw.h"
@@ -52,19 +56,19 @@ static uint32_t dst_img_cfg[] = {
 	PPP_ARRAY1(CFG, DST)
 };
 
-static uint32_t bytes_per_pixel[] = {
+static const uint32_t bytes_per_pixel[] = {
 	[MDP_RGB_565] = 2,
-	[MDP_RGB_888] = 3,
 	[MDP_XRGB_8888] = 4,
+	[MDP_Y_CBCR_H2V2] = 1,
 	[MDP_ARGB_8888] = 4,
+	[MDP_RGB_888] = 3,
+	[MDP_Y_CRCB_H2V2] = 1,
+	[MDP_YCRYCB_H2V1] = 2,
+	[MDP_Y_CRCB_H2V1] = 1,
+	[MDP_Y_CBCR_H2V1] = 1,
 	[MDP_RGBA_8888] = 4,
 	[MDP_BGRA_8888] = 4,
 	[MDP_RGBX_8888] = 4,
-	[MDP_Y_CBCR_H2V1] = 1,
-	[MDP_Y_CBCR_H2V2] = 1,
-	[MDP_Y_CRCB_H2V1] = 1,
-	[MDP_Y_CRCB_H2V2] = 1,
-	[MDP_YCRYCB_H2V1] = 2
 };
 
 static uint32_t dst_op_chroma[] = {
@@ -78,6 +82,9 @@ static uint32_t src_op_chroma[] = {
 static uint32_t bg_op_chroma[] = {
 	PPP_ARRAY1(CHROMA_SAMP, BG)
 };
+
+static DECLARE_WAIT_QUEUE_HEAD(mdp_ppp_waitqueue);
+DEFINE_MUTEX(mdp_mutex);
 
 static uint32_t get_luma_offset(struct mdp_img *img,
 				struct mdp_rect *rect, uint32_t bpp)
@@ -268,7 +275,6 @@ static void blit_blend(struct mdp_blit_req *req, struct ppp_regs *regs)
 	req->alpha &= 0xff;
 	/* ALPHA BLEND */
 	if (HAS_ALPHA(req->src.format)) {
-#if !defined(CONFIG_MACH_HTCLEO)	
 		regs->op |= PPP_OP_ROT_ON | PPP_OP_BLEND_ON;
 		if (req->flags & MDP_BLEND_FG_PREMULT) {
 #ifdef CONFIG_MSM_MDP31
@@ -285,10 +291,6 @@ static void blit_blend(struct mdp_blit_req *req, struct ppp_regs *regs)
 		} else {
 			regs->op |= PPP_OP_BLEND_SRCPIXEL_ALPHA;
 		}
-#else
-		regs->op |= PPP_OP_ROT_ON | PPP_OP_BLEND_ON;
-		regs->op |= PPP_OP_BLEND_SRCPIXEL_ALPHA;
-#endif
 	} else if (req->alpha < MDP_ALPHA_NOP) {
 		/* just blend by alpha */
 		regs->op |= PPP_OP_ROT_ON | PPP_OP_BLEND_ON |
@@ -309,7 +311,7 @@ static void blit_blend(struct mdp_blit_req *req, struct ppp_regs *regs)
 	set_blend_region(&req->dst, &req->dst_rect, regs);
 }
 
-static int blit_scale(const struct mdp_info *mdp, struct mdp_blit_req *req,
+static int blit_scale(struct mdp_info *mdp, struct mdp_blit_req *req,
 		      struct ppp_regs *regs)
 {
 	struct mdp_rect dst_rect;
@@ -330,7 +332,7 @@ static int blit_scale(const struct mdp_info *mdp, struct mdp_blit_req *req,
 	}
 
 	if (mdp_ppp_cfg_scale(mdp, regs, &req->src_rect, &dst_rect,
-			      req->src.format, req->dst.format)) {
+				req->src.format, req->dst.format)) {
 		DLOG("crap, bad scale\n");
 		return -1;
 	}
@@ -339,7 +341,7 @@ static int blit_scale(const struct mdp_info *mdp, struct mdp_blit_req *req,
 	return 0;
 }
 
-static void blit_blur(const struct mdp_info *mdp, struct mdp_blit_req *req,
+static void blit_blur(struct mdp_info *mdp, struct mdp_blit_req *req,
 		      struct ppp_regs *regs)
 {
 	int ret;
@@ -411,21 +413,23 @@ static void flush_imgs(struct mdp_blit_req *req, struct ppp_regs *regs,
 #ifdef CONFIG_ANDROID_PMEM
 	uint32_t src0_len, src1_len, dst0_len, dst1_len;
 
-	/* flush src images to memory before dma to mdp */
-	get_len(&req->src, &req->src_rect, regs->src_bpp, &src0_len,
-		&src1_len);
-	flush_pmem_file(src_file, req->src.offset, src0_len);
-	if (IS_PSEUDOPLNR(req->src.format))
-		flush_pmem_file(src_file, req->src.offset + src0_len,
-				src1_len);
+	if (!(req->flags & MDP_BLIT_NON_CACHED)) {
+		/* flush src images to memory before dma to mdp */
+		get_len(&req->src, &req->src_rect, regs->src_bpp, &src0_len,
+			&src1_len);
+		flush_pmem_file(src_file, req->src.offset, src0_len);
+		if (IS_PSEUDOPLNR(req->src.format))
+			flush_pmem_file(src_file, req->src.offset + src0_len,
+					src1_len);
 
-	/* flush dst images */
-	get_len(&req->dst, &req->dst_rect, regs->dst_bpp, &dst0_len,
-		&dst1_len);
-	flush_pmem_file(dst_file, req->dst.offset, dst0_len);
-	if (IS_PSEUDOPLNR(req->dst.format))
-		flush_pmem_file(dst_file, req->dst.offset + dst0_len,
-				dst1_len);
+		/* flush dst images */
+		get_len(&req->dst, &req->dst_rect, regs->dst_bpp, &dst0_len,
+			&dst1_len);
+		flush_pmem_file(dst_file, req->dst.offset, dst0_len);
+		if (IS_PSEUDOPLNR(req->dst.format))
+			flush_pmem_file(dst_file, req->dst.offset + dst0_len,
+					dst1_len);
+	}
 #endif
 }
 
@@ -437,6 +441,13 @@ static uint32_t get_chroma_base(struct mdp_img *img, uint32_t base,
 	if (IS_PSEUDOPLNR(img->format))
 		addr = base + (img->width * img->height * bpp);
 	return addr;
+}
+
+int mdp_get_bytes_per_pixel(int format)
+{
+	if (format < 0 || format >= MDP_IMGTYPE_LIMIT)
+		return -1;
+	return bytes_per_pixel[format];
 }
 
 #if PPP_DUMP_BLITS
@@ -501,19 +512,17 @@ static int send_blit(const struct mdp_info *mdp, struct mdp_blit_req *req,
 		mdp_writel_dbg(mdp, regs->bg_img_sz, MDP_PPP_BG_IMAGE_SIZE);
 		mdp_writel_dbg(mdp, regs->bg_alpha_sel,
 			       MDP_PPP_BLEND_BG_ALPHA_SEL);
-			       
-#if defined(CONFIG_MACH_HTCLEO)
+#if 0 /* zeusk: defined(CONFIG_MACH_HTCLEO) */
       		mdp_writel_dbg(mdp, 0, MDP_TFETCH_TEST_MODE);
 #endif
 #endif
 	}
-	if( src_file != -1 && dst_file != -1 )
-		flush_imgs(req, regs, src_file, dst_file);
+	flush_imgs(req, regs, src_file, dst_file);
 	mdp_writel_dbg(mdp, 0x1000, MDP_DISPLAY0_START);
 	return 0;
 }
-
-void mdp_dump_blit(struct mdp_blit_req *req)
+/*
+static void mdp_dump_blit(struct mdp_blit_req *req)
 {
 	pr_info("%s: src: w=%d h=%d f=0x%x offs=0x%x mem_id=%d\n", __func__,
 		req->src.width, req->src.height, req->src.format,
@@ -531,8 +540,8 @@ void mdp_dump_blit(struct mdp_blit_req *req)
 	pr_info("%s: transp_max=0x%08x\n", __func__, req->transp_mask);
 	pr_info("%s: flags=%08x\n", __func__, req->flags);
 }
-
-int mdp_ppp_blit(const struct mdp_info *mdp, struct mdp_blit_req *req,
+*/
+static int process_blit(struct mdp_info *mdp, struct mdp_blit_req *req,
 		 struct file *src_file, unsigned long src_start, unsigned long src_len,
 		 struct file *dst_file, unsigned long dst_start, unsigned long dst_len)
 {
@@ -644,13 +653,6 @@ int mdp_ppp_blit(const struct mdp_info *mdp, struct mdp_blit_req *req,
 	return 0;
 }
 
-int mdp_get_bytes_per_pixel(int format)
-{
-	if (format < 0 || format >= MDP_IMGTYPE_LIMIT)
-		return -1;
-	return bytes_per_pixel[format];
-}
-
 #define mdp_dump_register(mdp, reg) \
 	printk(# reg ": %08x\n", mdp_readl((mdp), (reg)))
 
@@ -668,234 +670,164 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp)
 	mdp_dump_register(mdp, MDP_INTR_ENABLE);
 }
 
-
-/* Splits a blit into two horizontal stripes.  Used to work around MDP bugs */
-int mdp_ppp_blit_split_height(struct mdp_info *mdp, const struct mdp_blit_req *req,
-	struct file *src_file, unsigned long src_start, unsigned long src_len,
-	struct file *dst_file, unsigned long dst_start, unsigned long dst_len)
+static int mdp_ppp_wait(struct mdp_info *mdp)
 {
 	int ret;
-	struct mdp_blit_req splitreq;
-	int s_x_0, s_x_1, s_w_0, s_w_1, s_y_0, s_y_1, s_h_0, s_h_1;
-	int d_x_0, d_x_1, d_w_0, d_w_1, d_y_0, d_y_1, d_h_0, d_h_1;
 
-	splitreq = *req;
-	/* break dest roi at height*/
-	d_x_0 = d_x_1 = req->dst_rect.x;
-	d_w_0 = d_w_1 = req->dst_rect.w;
-	d_y_0 = req->dst_rect.y;
-	if (req->dst_rect.h % 32 == 3)
-		d_h_1 = (req->dst_rect.h - 3) / 2 - 1;
-	else
-		d_h_1 = (req->dst_rect.h - 1) / 2 - 1;
-	d_h_0 = req->dst_rect.h - d_h_1;
-	d_y_1 = d_y_0 + d_h_0;
-	if (req->dst_rect.h == 3) {
-		d_h_1 = 2;
-		d_h_0 = 2;
-		d_y_1 = d_y_0 + 1;
-	}
-	/* break source roi */
-	if (splitreq.flags & MDP_ROT_90) {
-		s_y_0 = s_y_1 = req->src_rect.y;
-		s_h_0 = s_h_1 = req->src_rect.h;
-		s_x_0 = req->src_rect.x;
-		s_w_1 = (req->src_rect.w * d_h_1) / req->dst_rect.h;
-		s_w_0 = req->src_rect.w - s_w_1;
-		s_x_1 = s_x_0 + s_w_0;
-		if (d_h_1 >= 8 * s_w_1) {
-			s_w_1++;
-			s_x_1--;
-		}
-	} else {
-		s_x_0 = s_x_1 = req->src_rect.x;
-		s_w_0 = s_w_1 = req->src_rect.w;
-		s_y_0 = req->src_rect.y;
-		s_h_1 = (req->src_rect.h * d_h_1) / req->dst_rect.h;
-		s_h_0 = req->src_rect.h - s_h_1;
-		s_y_1 = s_y_0 + s_h_0;
-		if (d_h_1 >= 8 * s_h_1) {
-			s_h_1++;
-			s_y_1--;
-		}
-	}
-
-	/* blit first region */
-	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_90) ||
-		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
-		splitreq.src_rect.h = s_h_0;
-		splitreq.src_rect.y = s_y_0;
-		splitreq.dst_rect.h = d_h_0;
-		splitreq.dst_rect.y = d_y_0;
-		splitreq.src_rect.x = s_x_0;
-		splitreq.src_rect.w = s_w_0;
-		splitreq.dst_rect.x = d_x_0;
-		splitreq.dst_rect.w = d_w_0;
-	} else {
-		splitreq.src_rect.h = s_h_0;
-		splitreq.src_rect.y = s_y_0;
-		splitreq.dst_rect.h = d_h_1;
-		splitreq.dst_rect.y = d_y_1;
-		splitreq.src_rect.x = s_x_0;
-		splitreq.src_rect.w = s_w_0;
-		splitreq.dst_rect.x = d_x_1;
-		splitreq.dst_rect.w = d_w_1;
-	}
-	ret = mdp_blit_and_wait(mdp, &splitreq,
-		src_file, src_start, src_len,
-		dst_file, dst_start, dst_len);
+	ret = mdp_wait(mdp, DL0_ROI_DONE, &mdp_ppp_waitqueue);
 	if (ret)
-		return ret;
-
-	/* blit second region */
-	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_90) ||
-		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
-		splitreq.src_rect.h = s_h_1;
-		splitreq.src_rect.y = s_y_1;
-		splitreq.dst_rect.h = d_h_1;
-		splitreq.dst_rect.y = d_y_1;
-		splitreq.src_rect.x = s_x_1;
-		splitreq.src_rect.w = s_w_1;
-		splitreq.dst_rect.x = d_x_1;
-		splitreq.dst_rect.w = d_w_1;
-	} else {
-		splitreq.src_rect.h = s_h_1;
-		splitreq.src_rect.y = s_y_1;
-		splitreq.dst_rect.h = d_h_0;
-		splitreq.dst_rect.y = d_y_0;
-		splitreq.src_rect.x = s_x_1;
-		splitreq.src_rect.w = s_w_1;
-		splitreq.dst_rect.x = d_x_0;
-		splitreq.dst_rect.w = d_w_0;
-	}
-	ret = mdp_blit_and_wait(mdp, &splitreq,
-		src_file, src_start, src_len,
-		dst_file, dst_start, dst_len);
+		mdp_ppp_dump_debug(mdp);
 	return ret;
 }
 
-/* Splits a blit into two vertical stripes.  Used to work around MDP bugs */
-int mdp_ppp_blit_split_width(struct mdp_info *mdp, const struct mdp_blit_req *req,
-	struct file *src_file, unsigned long src_start, unsigned long src_len,
-	struct file *dst_file, unsigned long dst_start, unsigned long dst_len)
+static int get_img(struct mdp_img *img, struct fb_info *info,
+		   unsigned long *start, unsigned long *len,
+		   struct file** filep)
+{
+	int put_needed, ret = 0;
+	struct file *file;
+	unsigned long vstart;
+
+    if (img->memory_id & 0x40000000)
+    {
+        struct fb_info *fb = registered_fb[img->memory_id & 0x0000FFFF];
+        if (fb)
+        {
+            *start = fb->fix.smem_start;
+            *len = fb->fix.smem_len;
+        }
+        *filep = NULL;
+        return 0;
+    }
+	
+	if (!get_pmem_file(img->memory_id, start, &vstart, len, filep))
+		return 0;
+	else if (!get_msm_hw3d_file(img->memory_id, &img->offset, start, len,
+				    filep))
+		return 0;
+
+	file = fget_light(img->memory_id, &put_needed);
+	if (file == NULL)
+		return -1;
+
+	if (MAJOR(file->f_dentry->d_inode->i_rdev) == FB_MAJOR) {
+		*start = info->fix.smem_start;
+		*len = info->fix.smem_len;
+		ret = 0;
+	} else
+		ret = -1;
+	fput_light(file, put_needed);
+
+	return ret;
+}
+void put_img(struct file *p_src_file)
+{
+#ifdef CONFIG_ANDROID_PMEM
+	if (p_src_file)
+		put_pmem_file(p_src_file);
+#else
+    if (is_msm_hw3d_file(p_src_file))
+			put_msm_hw3d_file(p_src_file);
+#endif
+}
+
+static void dump_req(struct mdp_blit_req *req,
+	unsigned long src_start, unsigned long src_len,
+	unsigned long dst_start, unsigned long dst_len)
+{
+	pr_err("flags: 0x%x\n",         req->flags);
+	pr_err("src_start:  0x%08lx\n", src_start);
+	pr_err("src_len:    0x%08lx\n", src_len);
+	pr_err("src.offset: 0x%x\n",    req->src.offset);
+	pr_err("src.format: 0x%x\n",    req->src.format);
+	pr_err("src.width:  %d\n",      req->src.width);
+	pr_err("src.height: %d\n",      req->src.height);
+	pr_err("src_rect.x: %d\n",      req->src_rect.x);
+	pr_err("src_rect.y: %d\n",      req->src_rect.y);
+	pr_err("src_rect.w: %d\n",      req->src_rect.w);
+	pr_err("src_rect.h: %d\n",      req->src_rect.h);
+
+	pr_err("dst_start:  0x%08lx\n", dst_start);
+	pr_err("dst_len:    0x%08lx\n", dst_len);
+	pr_err("dst.offset: 0x%x\n",    req->dst.offset);
+	pr_err("dst.format: 0x%x\n",    req->dst.format);
+	pr_err("dst.width:  %d\n",      req->dst.width);
+	pr_err("dst.height: %d\n",      req->dst.height);
+	pr_err("dst_rect.x: %d\n",      req->dst_rect.x);
+	pr_err("dst_rect.y: %d\n",      req->dst_rect.y);
+	pr_err("dst_rect.w: %d\n",      req->dst_rect.w);
+	pr_err("dst_rect.h: %d\n",      req->dst_rect.h);
+}
+
+int mdp_ppp_blit_and_wait(struct mdp_info *mdp, struct mdp_blit_req *req,
+		struct file *src_file, unsigned long src_start, unsigned long src_len,
+		struct file *dst_file, unsigned long dst_start, unsigned long dst_len)
 {
 	int ret;
-	struct mdp_blit_req splitreq;
-	int s_x_0, s_x_1, s_w_0, s_w_1, s_y_0, s_y_1, s_h_0, s_h_1;
-	int d_x_0, d_x_1, d_w_0, d_w_1, d_y_0, d_y_1, d_h_0, d_h_1;
-	splitreq = *req;
-
-	/* break dest roi at width*/
-	d_y_0 = d_y_1 = req->dst_rect.y;
-	d_h_0 = d_h_1 = req->dst_rect.h;
-	d_x_0 = req->dst_rect.x;
-	if (req->dst_rect.w % 32 == 6)
-		d_w_1 = req->dst_rect.w / 2 - 1;
-	else if (req->dst_rect.w % 2 == 0)
-		d_w_1 = req->dst_rect.w / 2;
-	else if (req->dst_rect.w % 32 == 3)
-		d_w_1 = (req->dst_rect.w - 3) / 2 - 1;
-	else
-		d_w_1 = (req->dst_rect.w - 1) / 2 - 1;
-	d_w_0 = req->dst_rect.w - d_w_1;
-	d_x_1 = d_x_0 + d_w_0;
-	if (req->dst_rect.w == 3) {
-		d_w_1 = 2;
-		d_w_0 = 2;
-		d_x_1 = d_x_0 + 1;
+	mdp->enable_irq(mdp, DL0_ROI_DONE);
+	ret = process_blit(mdp, req, src_file, src_start, src_len,
+			   dst_file, dst_start, dst_len);
+	if (unlikely(ret)) {
+		mdp->disable_irq(mdp, DL0_ROI_DONE);
+		return ret;
 	}
-
-	/* break src roi at height or width*/
-	if (splitreq.flags & MDP_ROT_90) {
-		s_x_0 = s_x_1 = req->src_rect.x;
-		s_w_0 = s_w_1 = req->src_rect.w;
-		s_y_0 = req->src_rect.y;
-		s_h_1 = (req->src_rect.h * d_w_1) / req->dst_rect.w;
-		s_h_0 = req->src_rect.h - s_h_1;
-		s_y_1 = s_y_0 + s_h_0;
-		if (d_w_1 >= 8 * s_h_1) {
-			s_h_1++;
-			s_y_1--;
-		}
-	} else {
-		s_y_0 = s_y_1 = req->src_rect.y;
-		s_h_0 = s_h_1 = req->src_rect.h;
-		s_x_0 = req->src_rect.x;
-		s_w_1 = (req->src_rect.w * d_w_1) / req->dst_rect.w;
-		s_w_0 = req->src_rect.w - s_w_1;
-		s_x_1 = s_x_0 + s_w_0;
-		if (d_w_1 >= 8 * s_w_1) {
-			s_w_1++;
-			s_x_1--;
-		}
+	ret = mdp_ppp_wait(mdp);
+	if (unlikely(ret)) {
+		printk(KERN_ERR "%s: failed!\n", __func__);
+		pr_err("original request:\n");
+		dump_req(mdp->req, src_start, src_len, dst_start, dst_len);
+		pr_err("dead request:\n");
+		dump_req(req, src_start, src_len, dst_start, dst_len);
+		BUG();
+		return ret;
 	}
+	return 0;
+}
 
-	/* blit first region */
-	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_270) ||
-		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
-		splitreq.src_rect.h = s_h_0;
-		splitreq.src_rect.y = s_y_0;
-		splitreq.dst_rect.h = d_h_0;
-		splitreq.dst_rect.y = d_y_0;
-		splitreq.src_rect.x = s_x_0;
-		splitreq.src_rect.w = s_w_0;
-		splitreq.dst_rect.x = d_x_0;
-		splitreq.dst_rect.w = d_w_0;
-	} else {
-		splitreq.src_rect.h = s_h_0;
-		splitreq.src_rect.y = s_y_0;
-		splitreq.dst_rect.h = d_h_1;
-		splitreq.dst_rect.y = d_y_1;
-		splitreq.src_rect.x = s_x_0;
-		splitreq.src_rect.w = s_w_0;
-		splitreq.dst_rect.x = d_x_1;
-		splitreq.dst_rect.w = d_w_1;
-	}
+int mdp_ppp_blit(struct mdp_info *mdp, struct fb_info *fb,
+		 struct mdp_blit_req *req)
+{
+	int ret;
+	unsigned long src_start = 0, src_len = 0, dst_start = 0, dst_len = 0;
+	struct file *src_file = 0, *dst_file = 0;
 
-	if (unlikely((splitreq.dst_rect.h != 1) &&
-		((splitreq.dst_rect.h % 32 == 3) ||
-		(splitreq.dst_rect.h % 32) == 1)))
-		ret = mdp_ppp_blit_split_height(mdp, &splitreq,
-			src_file, src_start, src_len,
-			dst_file, dst_start, dst_len);
-	else
-		ret = mdp_blit_and_wait(mdp, &splitreq,
-			src_file, src_start, src_len,
-			dst_file, dst_start, dst_len);
+	ret = mdp_ppp_validate_blit(mdp, req);
 	if (ret)
 		return ret;
 
-	/* blit second region */
-	if (((splitreq.flags & MDP_ROT_MASK) == MDP_ROT_270) ||
-		((splitreq.flags & MDP_ROT_MASK) == 0x0)) {
-		splitreq.src_rect.h = s_h_1;
-		splitreq.src_rect.y = s_y_1;
-		splitreq.dst_rect.h = d_h_1;
-		splitreq.dst_rect.y = d_y_1;
-		splitreq.src_rect.x = s_x_1;
-		splitreq.src_rect.w = s_w_1;
-		splitreq.dst_rect.x = d_x_1;
-		splitreq.dst_rect.w = d_w_1;
-	} else {
-		splitreq.src_rect.h = s_h_1;
-		splitreq.src_rect.y = s_y_1;
-		splitreq.dst_rect.h = d_h_0;
-		splitreq.dst_rect.y = d_y_0;
-		splitreq.src_rect.x = s_x_1;
-		splitreq.src_rect.w = s_w_1;
-		splitreq.dst_rect.x = d_x_0;
-		splitreq.dst_rect.w = d_w_0;
+	/* do this first so that if this fails, the caller can always
+	 * safely call put_img */
+	if (unlikely(get_img(&req->src, fb, &src_start, &src_len, &src_file))) {
+		printk(KERN_ERR "mdp_ppp: could not retrieve src image from "
+				"memory\n");
+		return -EINVAL;
 	}
 
-	if (unlikely((splitreq.dst_rect.h != 1) &&
-		((splitreq.dst_rect.h % 32 == 3) ||
-		(splitreq.dst_rect.h % 32) == 1)))
-		ret = mdp_ppp_blit_split_height(mdp, &splitreq,
-			src_file, src_start, src_len,
-			dst_file, dst_start, dst_len);
-	else
-		ret = mdp_blit_and_wait(mdp, &splitreq,
-			src_file, src_start, src_len,
-			dst_file, dst_start, dst_len);
+	if (unlikely(get_img(&req->dst, fb, &dst_start, &dst_len, &dst_file))) {
+		printk(KERN_ERR "mdp_ppp: could not retrieve dst image from "
+				"memory\n");
+		put_img(src_file);
+		return -EINVAL;
+	}
+	mutex_lock(&mdp_mutex);
+
+	/* transp_masking unimplemented */
+	req->transp_mask = MDP_TRANSP_NOP;
+	mdp->req = req;
+
+	ret = mdp_ppp_do_blit(mdp, req, src_file, src_start, src_len,
+			      dst_file, dst_start, dst_len);
+
+	put_img(src_file);
+	put_img(dst_file);
+	mutex_unlock(&mdp_mutex);
 	return ret;
 }
+
+void mdp_ppp_handle_isr(struct mdp_info *mdp, uint32_t mask)
+{
+	if (mask & DL0_ROI_DONE)
+		wake_up(&mdp_ppp_waitqueue);
+}
+
+

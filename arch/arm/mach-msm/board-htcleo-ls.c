@@ -118,7 +118,7 @@ int lightsensor_read_value(uint32_t *val)
 	}
 
 	*val = data[1] | (data[0] << 8);
-	D("lsensor adc = %d\n", *val);
+	D("lsensor adc = %u\n", *val); /* val is unsigned */
 	return 0;
 }
 

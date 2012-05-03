@@ -178,7 +178,8 @@
 	
 /* Voltage driver */
 #define HTCLEO_TPS65023_MIN_UV_MV		(800)
-#define HTCLEO_TPS65023_MAX_UV_MV		(1350)
+#define HTCLEO_TPS65023_MAX_UV_MV		(1375)
+#define HTCLEO_TPS65023_UV_STEP_MV		(25)
 
 /* LEDS */
 #define LED_RGB	(1 << 0)
@@ -196,11 +197,12 @@ struct microp_led_platform_data {
         int num_leds;
 };
 
-
-
-
 int htcleo_pm_set_vreg(int enable, unsigned id);
 int __init htcleo_init_panel(void);
 int htcleo_is_nand_boot(void);
+unsigned htcleo_get_vbus_state(void);
+void config_camera_on_gpios(void);
+void config_camera_off_gpios(void);
+int is_valid_mac_address(char *mac);
 
 #endif /* __ARCH_ARM_MACH_MSM_BOARD_HTCLEO_H */

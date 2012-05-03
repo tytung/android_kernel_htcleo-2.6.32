@@ -136,4 +136,14 @@ struct microp_i2c_client_data {
 int microp_i2c_read(uint8_t addr, uint8_t *data, int length);
 int microp_i2c_write(uint8_t addr, uint8_t *data, int length);
 int capella_cm3602_power(int pwr_device, uint8_t enable);
+int microp_read_gpo_status(uint16_t *status);
+int microp_gpo_enable(uint16_t gpo_mask);
+int microp_gpo_disable(uint16_t gpo_mask);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+void microp_early_suspend(struct early_suspend *h);
+void microp_early_resume(struct early_suspend *h);
+#endif // CONFIG_HAS_EARLYSUSPEND
+
+
 #endif

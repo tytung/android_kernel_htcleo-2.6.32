@@ -138,13 +138,14 @@ dmov_exec_cmdptr_complete_func(struct msm_dmov_cmd *_cmd,
 	complete(&cmd->complete);
 }
 
-int msm_dmov_exec_cmd(unsigned id, unsigned int cmdptr)
+int msm_dmov_exec_cmd(unsigned id, unsigned int crci_mask, unsigned int cmdptr)
 {
 	struct msm_dmov_exec_cmdptr_cmd cmd;
 
 	PRINT_FLOW("dmov_exec_cmdptr(%d, %x)\n", id, cmdptr);
 
 	cmd.dmov_cmd.cmdptr = cmdptr;
+	cmd.dmov_cmd.crci_mask = crci_mask;
 	cmd.dmov_cmd.complete_func = dmov_exec_cmdptr_complete_func;
 	cmd.dmov_cmd.execute_func = NULL;
 	cmd.id = id;

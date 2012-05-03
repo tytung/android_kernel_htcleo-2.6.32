@@ -31,7 +31,7 @@
 #include <linux/delay.h>
 #include <linux/earlysuspend.h>
 #include <linux/wakelock.h>
-
+#include <asm/uaccess.h>
 #include <mach/msm_fb.h>
 #include "mddi_hw.h"
 
@@ -106,7 +106,9 @@ struct mddi_info {
 };
 
 static void mddi_init_rev_encap(struct mddi_info *mddi);
+/* FIXME: Workaround for Novatek
 static void mddi_skew_calibration(struct mddi_info *mddi);
+*/
 
 #define mddi_readl(r) readl(mddi->base + (MDDI_##r))
 #define mddi_writel(v, r) writel((v), mddi->base + (MDDI_##r))
@@ -204,10 +206,8 @@ static void mddi_wait_interrupt(struct mddi_info *mddi, uint32_t intmask);
 
 static void mddi_handle_rev_data_avail(struct mddi_info *mddi)
 {
-	union mddi_rev *rev = mddi->rev_data;
 	uint32_t rev_data_count;
 	uint32_t rev_crc_err_count;
-	int i;
 	struct reg_read_info *ri;
 	size_t prev_offset;
 	uint16_t length;
@@ -242,6 +242,8 @@ static void mddi_handle_rev_data_avail(struct mddi_info *mddi)
 		return;
 
 	if (mddi_debug_flags & 1) {
+		int i;
+		union mddi_rev *rev = mddi->rev_data;
 		printk(KERN_INFO "INT %x, STAT %x, CURR_REV_PTR %x\n",
 		       mddi_readl(INT), mddi_readl(STAT),
 		       mddi_readl(CURR_REV_PTR));
@@ -355,7 +357,7 @@ static irqreturn_t mddi_isr(int irq, void *data)
 static long mddi_wait_interrupt_timeout(struct mddi_info *mddi,
 					uint32_t intmask, int timeout)
 {
-	unsigned long irq_flags;
+	unsigned long irq_flags=0;
 
 	spin_lock_irqsave(&mddi->int_lock, irq_flags);
 	mddi->got_int &= ~intmask;
@@ -369,7 +371,7 @@ static long mddi_wait_interrupt_timeout(struct mddi_info *mddi,
 static void mddi_wait_interrupt(struct mddi_info *mddi, uint32_t intmask)
 {
 	if (mddi_wait_interrupt_timeout(mddi, intmask, HZ/10) == 0)
-		printk(KERN_INFO KERN_ERR "mddi_wait_interrupt %d, timeout "
+		printk(KERN_INFO "mddi_wait_interrupt %d, timeout "
 		       "waiting for %x, INT = %x, STAT = %x gotint = %x\n",
 		       current->pid, intmask, mddi_readl(INT), mddi_readl(STAT),
 		       mddi->got_int);
@@ -399,7 +401,10 @@ static uint16_t mddi_init_registers(struct mddi_info *mddi)
 	mddi_writel(0x0001, VERSION);
 	mddi_writel(MDDI_HOST_BYTES_PER_SUBFRAME, BPS);
 	mddi_writel(0x0003, SPM); /* subframes per media */
-	mddi_writel(0x0005, TA1_LEN);
+	if (mddi->type == MSM_MDP_MDDI_TYPE_II)
+		mddi_writel(0x00C8, TA1_LEN);
+	else
+		mddi_writel(0x0005, TA1_LEN);
 	mddi_writel(MDDI_HOST_TA2_LEN, TA2_LEN);
 	mddi_writel(0x003C, DISP_WAKE); /* wakeup counter */
 	mddi_writel(MDDI_HOST_REV_RATE_DIV, REV_RATE_DIV);
@@ -431,7 +436,7 @@ static uint16_t mddi_init_registers(struct mddi_info *mddi)
 	mddi_writel(0x0050, DRIVE_LO);
 	mddi_writel(0x00320000, PAD_IO_CTL);
 	if (mddi->type == MSM_MDP_MDDI_TYPE_II)
-		mddi_writel(0x40884020, PAD_CAL);
+		mddi_writel(0x40880020, PAD_CAL);
 	else
 		mddi_writel(0x00220020, PAD_CAL);
 #else
@@ -469,7 +474,7 @@ static void mddi_suspend(struct msm_mddi_client_data *cdata)
 	mddi_wait_interrupt(mddi, MDDI_INT_NO_CMD_PKTS_PEND);
 	/* turn off the clock */
 	clk_disable(mddi->clk);
-#if CONFIG_MSM_MDP40
+#ifdef CONFIG_MSM_MDP40
 	clk_disable(mdp_clk);
 #endif
 	wake_unlock(&mddi->idle_lock);
@@ -484,7 +489,7 @@ static void mddi_resume(struct msm_mddi_client_data *cdata)
 	/* turn on the client */
 	if (mddi->power_client)
 		mddi->power_client(&mddi->client_data, 1);
-#if CONFIG_MSM_MDP40
+#ifdef CONFIG_MSM_MDP40
 	clk_enable(mdp_clk);
 #endif
 	/* turn on the clock */
@@ -498,7 +503,8 @@ static void mddi_resume(struct msm_mddi_client_data *cdata)
 */
 	mddi_writel(mddi->int_enable, INTEN);
 	mddi_writel(MDDI_CMD_LINK_ACTIVE, CMD);
-	mddi_writel(MDDI_CMD_SEND_RTD, CMD);
+	if (mddi->type == MSM_MDP_MDDI_TYPE_I)
+		mddi_writel(MDDI_CMD_SEND_RTD, CMD);
 	mddi_wait_interrupt(mddi, MDDI_INT_NO_CMD_PKTS_PEND);
 	mddi_set_auto_hibernate(&mddi->client_data, 1);
 	wake_unlock(&mddi->idle_lock);
@@ -689,7 +695,7 @@ uint32_t mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
 	struct reg_read_info ri;
 	unsigned s;
 	int retry_count = 2;
-	unsigned long irq_flags;
+	unsigned long irq_flags=0;
 
 	mutex_lock(&mddi->reg_read_lock);
 
@@ -720,6 +726,9 @@ uint32_t mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
 
 	do {
 		init_completion(&ri.done);
+		if (mddi->type == MSM_MDP_MDDI_TYPE_II)
+			mddi_set_auto_hibernate(&mddi->client_data, 0);
+		mddi_writel(MDDI_CMD_SEND_RTD, CMD);
 		mddi->reg_read = &ri;
 		mddi_writel(mddi->reg_read_addr, PRI_PTR);
 
@@ -732,10 +741,14 @@ uint32_t mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
 		/* while((s & MDDI_STAT_PRI_LINK_LIST_DONE) == 0){ */
 		/*	s = mddi_readl(STAT); */
 		/* } */
-
-		/* Enable Periodic Reverse Encapsulation. */
-		mddi_writel(MDDI_CMD_PERIODIC_REV_ENCAP | 1, CMD);
-		mddi_wait_interrupt(mddi, MDDI_INT_NO_CMD_PKTS_PEND);
+		if (mddi->type == MSM_MDP_MDDI_TYPE_II) {
+			mddi_writel(MDDI_CMD_SEND_REV_ENCAP, CMD);
+			mddi_wait_interrupt(mddi, MDDI_INT_REV_DATA_AVAIL);
+		} else {
+			/* Enable Periodic Reverse Encapsulation. */
+			mddi_writel(MDDI_CMD_PERIODIC_REV_ENCAP | 1, CMD);
+			mddi_wait_interrupt(mddi, MDDI_INT_NO_CMD_PKTS_PEND);
+		}
 		if (wait_for_completion_timeout(&ri.done, HZ/10) == 0 &&
 		    !ri.done.done) {
 			printk(KERN_INFO "mddi_remote_read(%x) timeout "
@@ -763,6 +776,8 @@ uint32_t mddi_remote_read(struct msm_mddi_client_data *cdata, uint32_t reg)
 		       "MDDI_CMD_SEND_RTD: int %x, stat %x, rtd val %x "
 		       "curr_rev_ptr %x\n", mddi_readl(INT), mddi_readl(STAT),
 		       mddi_readl(RTD_VAL), mddi_readl(CURR_REV_PTR));
+		if (mddi->type == MSM_MDP_MDDI_TYPE_II)
+			mddi_set_auto_hibernate(&mddi->client_data, 1);
 	} while (retry_count-- > 0);
 	/* Disable Periodic Reverse Encapsulation. */
 	mddi_writel(MDDI_CMD_PERIODIC_REV_ENCAP | 0, CMD);
@@ -830,7 +845,7 @@ static int __init mddi_rev_data_setup(struct mddi_info *mddi)
 			      sizeof(*mddi->reg_write_data);
 	return 0;
 }
-
+/*	FIXME: Workaround for Novatek
 static void mddi_skew_calibration(struct mddi_info *mddi)
 {
 	struct msm_mddi_platform_data *pdata = mddi->client_pdev.dev.platform_data;
@@ -842,6 +857,7 @@ static void mddi_skew_calibration(struct mddi_info *mddi)
 	clk_set_rate( mddi->clk, pdata->clk_rate);
 	mdelay(1);
 }
+*/
 
 static int __init mddi_probe(struct platform_device *pdev)
 {
@@ -871,7 +887,7 @@ static int __init mddi_probe(struct platform_device *pdev)
 	printk(KERN_INFO "mddi: init() base=0x%p irq=%d\n", mddi->base,
 	       mddi->irq);
 	mddi->power_client = pdata->power_client;
-	if (pdata->type != NULL)
+	if ((pdata->type != NULL) && (pdata->type != MSM_MDP_MDDI_TYPE_I))
 		mddi->type = pdata->type;
 
 	mutex_init(&mddi->reg_write_lock);
