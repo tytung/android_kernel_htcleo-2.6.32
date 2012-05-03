@@ -55,22 +55,6 @@ config MSM_ROTATOR_USE_IMEM
           block.  Or some systems may want the iMem to be dedicated to a
           different function.
 
-config GPU_MSM_KGSL_MMU
-	bool "Turn on MMU for graphics driver "
-	depends on GPU_MSM_KGSL && MMU
-	default n
-	help
-	  If enabled, the GPU driver will allocate memory from vmalloc
-	  and enable the use of GPU MMU, instead of using pmem.
-
-config MSM_KGSL_PER_FD_PAGETABLE
-        bool "Turn on per-fd pagetable for MMU of graphics driver "
-        depends on MSM_KGSL_MMU && MMU
-        default n
-        help
-         If enabled, the MMU unit of GPU driver will use seperate
-         pagetables for each file descriptor
-
 config MSM_HDMI
 	bool "Support for HDMI in QCT platform"
 	depends on MSM_MDP31
