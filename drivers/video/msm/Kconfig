@@ -26,17 +26,6 @@ config FB_MSM_DTV
 	bool
 	default n
 
-config GPU_MSM_KGSL
-	tristate "MSM 3D Graphics driver for QSD8x50 and MSM7x27"
-	default n
-	depends on FB_MSM && (ARCH_QSD8X50 || ARCH_MSM7227 || ARCH_MSM7X30)
-	select GENERIC_ALLOCATOR
-	select CONFIG_FW_LOADER
-	help
-	  3D graphics driver for QSD8x50 and MSM7x27. Required to
-	  use hardware accelerated OpenGL ES 2.0 and 1.1 on these
-	  chips.
-
 config MSM_ROTATOR
         tristate "MSM Offline Image Rotator Driver"
         depends on ARCH_MSM7X30 && ANDROID_PMEM
