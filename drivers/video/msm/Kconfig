@@ -26,17 +26,6 @@ config FB_MSM_DTV
 	bool
 	default n
 
-config GPU_MSM_KGSL
-	tristate "MSM 3D Graphics driver for QSD8x50 and MSM7x27"
-	default n
-	depends on FB_MSM && (ARCH_QSD8X50 || ARCH_MSM7227 || ARCH_MSM7X30)
-	select GENERIC_ALLOCATOR
-	select CONFIG_FW_LOADER
-	help
-	  3D graphics driver for QSD8x50 and MSM7x27. Required to
-	  use hardware accelerated OpenGL ES 2.0 and 1.1 on these
-	  chips.
-
 config MSM_ROTATOR
         tristate "MSM Offline Image Rotator Driver"
         depends on ARCH_MSM7X30 && ANDROID_PMEM
@@ -54,22 +43,6 @@ config MSM_ROTATOR_USE_IMEM
           iMem.  Some MSM platforms may not have iMem available for the rotator
           block.  Or some systems may want the iMem to be dedicated to a
           different function.
-
-config GPU_MSM_KGSL_MMU
-	bool "Turn on MMU for graphics driver "
-	depends on GPU_MSM_KGSL && MMU
-	default n
-	help
-	  If enabled, the GPU driver will allocate memory from vmalloc
-	  and enable the use of GPU MMU, instead of using pmem.
-
-config MSM_KGSL_PER_FD_PAGETABLE
-        bool "Turn on per-fd pagetable for MMU of graphics driver "
-        depends on MSM_KGSL_MMU && MMU
-        default n
-        help
-         If enabled, the MMU unit of GPU driver will use seperate
-         pagetables for each file descriptor
 
 config MSM_HDMI
 	bool "Support for HDMI in QCT platform"
