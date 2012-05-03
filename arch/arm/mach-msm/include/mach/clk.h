@@ -51,4 +51,7 @@ int clk_set_max_rate(struct clk *clk, unsigned long rate);
 int clk_reset(struct clk *clk, enum clk_reset_action action);
 
 int clk_set_flags(struct clk *clk, unsigned long flags);
+
+unsigned long acpuclk_get_max_axi_rate(void);
+
 #endif

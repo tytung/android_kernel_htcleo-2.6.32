@@ -3,12 +3,30 @@
 
 #include <linux/types.h>
 #include <linux/i2c.h>
-
 struct dentry;
 
 /* Definitions of frame buffers						*/
 
 #define FB_MAX			32	/* sufficient for now */
+
+struct fbcon_decor_iowrapper
+{
+	unsigned short vc;		/* Virtual console */
+	unsigned char origin;		/* Point of origin of the request */
+	void *data;
+};
+
+#ifdef __KERNEL__
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+struct fbcon_decor_iowrapper32
+{
+	unsigned short vc;		/* Virtual console */
+	unsigned char origin;		/* Point of origin of the request */
+	compat_uptr_t data;
+};
+#endif /* CONFIG_COMPAT */
+#endif /* __KERNEL__ */
 
 /* ioctls
    0x46 is 'F'								*/
@@ -37,7 +55,24 @@ struct dentry;
 #define FBIOGET_HWCINFO         0x4616
 #define FBIOPUT_MODEINFO        0x4617
 #define FBIOGET_DISPINFO        0x4618
+#define FBIOCONDECOR_SETCFG	_IOWR('F', 0x19, struct fbcon_decor_iowrapper)
+#define FBIOCONDECOR_GETCFG	_IOR('F', 0x1A, struct fbcon_decor_iowrapper)
+#define FBIOCONDECOR_SETSTATE	_IOWR('F', 0x1B, struct fbcon_decor_iowrapper)
+#define FBIOCONDECOR_GETSTATE	_IOR('F', 0x1C, struct fbcon_decor_iowrapper)
+#define FBIOCONDECOR_SETPIC 	_IOWR('F', 0x1D, struct fbcon_decor_iowrapper)
+#ifdef __KERNEL__
+#ifdef CONFIG_COMPAT
+#define FBIOCONDECOR_SETCFG32	_IOWR('F', 0x19, struct fbcon_decor_iowrapper32)
+#define FBIOCONDECOR_GETCFG32	_IOR('F', 0x1A, struct fbcon_decor_iowrapper32)
+#define FBIOCONDECOR_SETSTATE32	_IOWR('F', 0x1B, struct fbcon_decor_iowrapper32)
+#define FBIOCONDECOR_GETSTATE32	_IOR('F', 0x1C, struct fbcon_decor_iowrapper32)
+#define FBIOCONDECOR_SETPIC32	_IOWR('F', 0x1D, struct fbcon_decor_iowrapper32)
+#endif /* CONFIG_COMPAT */
+#endif /* __KERNEL__ */
 
+#define FBCON_DECOR_THEME_LEN		128	/* Maximum lenght of a theme name */
+#define FBCON_DECOR_IO_ORIG_KERNEL	0	/* Kernel ioctl origin */
+#define FBCON_DECOR_IO_ORIG_USER	1	/* User ioctl origin */
 
 #define FB_TYPE_PACKED_PIXELS		0	/* Packed Pixels	*/
 #define FB_TYPE_PLANES			1	/* Non interleaved planes */
@@ -282,6 +317,28 @@ struct fb_cmap {
 	__u16 *transp;			/* transparency, can be NULL */
 };
 
+#ifdef __KERNEL__
+#ifdef CONFIG_COMPAT
+struct fb_cmap32 {
+	__u32 start;
+	__u32 len;			/* Number of entries */
+	compat_uptr_t red;		/* Red values	*/
+	compat_uptr_t green;
+	compat_uptr_t blue;
+	compat_uptr_t transp;		/* transparency, can be NULL */
+};
+
+#define fb_cmap_from_compat(to, from) \
+	(to).start  = (from).start; \
+	(to).len    = (from).len; \
+	(to).red    = compat_ptr((from).red); \
+	(to).green  = compat_ptr((from).green); \
+	(to).blue   = compat_ptr((from).blue); \
+	(to).transp = compat_ptr((from).transp)
+
+#endif /* CONFIG_COMPAT */
+#endif /* __KERNEL__ */
+
 struct fb_con2fbmap {
 	__u32 console;
 	__u32 framebuffer;
@@ -363,6 +420,34 @@ struct fb_image {
 	struct fb_cmap cmap;	/* color map info */
 };
 
+#ifdef __KERNEL__
+#ifdef CONFIG_COMPAT
+struct fb_image32 {
+	__u32 dx;			/* Where to place image */
+	__u32 dy;
+	__u32 width;			/* Size of image */
+	__u32 height;
+	__u32 fg_color;			/* Only used when a mono bitmap */
+	__u32 bg_color;
+	__u8  depth;			/* Depth of the image */
+	const compat_uptr_t data;	/* Pointer to image data */
+	struct fb_cmap32 cmap;		/* color map info */
+};
+
+#define fb_image_from_compat(to, from) \
+	(to).dx       = (from).dx; \
+	(to).dy       = (from).dy; \
+	(to).width    = (from).width; \
+	(to).height   = (from).height; \
+	(to).fg_color = (from).fg_color; \
+	(to).bg_color = (from).bg_color; \
+	(to).depth    = (from).depth; \
+	(to).data     = compat_ptr((from).data); \
+	fb_cmap_from_compat((to).cmap, (from).cmap)
+
+#endif /* CONFIG_COMPAT */
+#endif /* __KERNEL__ */
+
 /*
  * hardware cursor control
  */
@@ -403,6 +488,7 @@ struct fb_cursor {
 #include <linux/notifier.h>
 #include <linux/list.h>
 #include <linux/backlight.h>
+#include <linux/slab.h>
 #include <asm/io.h>
 
 struct vm_area_struct;
@@ -543,6 +629,8 @@ struct fb_cursor_user {
 #define FB_EVENT_GET_REQ                0x0D
 /*      Unbind from the console if possible */
 #define FB_EVENT_FB_UNBIND              0x0E
+/*      CONSOLE-SPECIFIC: remap all consoles to new fb - for vga switcheroo */
+#define FB_EVENT_REMAP_ALL_CONSOLE      0x0F
 
 struct fb_event {
 	struct fb_info *info;
@@ -606,6 +694,12 @@ struct fb_deferred_io {
  * LOCKING NOTE: those functions must _ALL_ be called with the console
  * semaphore held, this is the only suitable locking mechanism we have
  * in 2.6. Some may be called at interrupt time at this point though.
+ *
+ * The exception to this is the debug related hooks.  Putting the fb
+ * into a debug state (e.g. flipping to the kernel console) and restoring
+ * it must be done in a lock-free manner, so low level drivers should
+ * keep track of the initial console (if applicable) and may need to
+ * perform direct, unlocked hardware writes in these hooks.
  */
 
 struct fb_ops {
@@ -675,6 +769,10 @@ struct fb_ops {
 
 	/* teardown any resources to do with this framebuffer */
 	void (*fb_destroy)(struct fb_info *info);
+
+	/* called at KDB enter and leave time to prepare the console */
+	int (*fb_debug_enter)(struct fb_info *info);
+	int (*fb_debug_leave)(struct fb_info *info);
 };
 
 #ifdef CONFIG_FB_TILEBLITTING
@@ -763,6 +861,7 @@ struct fb_tile_ops {
 	 *  takes over; acceleration engine should be in a quiescent state */
 
 /* hints */
+#define FBINFO_VIRTFB		0x0004 /* FB is System RAM, not device. */
 #define FBINFO_PARTIAL_PAN_OK	0x0040 /* otw use pan only for double-buffering */
 #define FBINFO_READS_FAST	0x0080 /* soft-copy faster than rendering */
 
@@ -784,8 +883,6 @@ struct fb_tile_ops {
 #define FBINFO_MISC_USEREVENT          0x10000 /* event request
 						  from userspace */
 #define FBINFO_MISC_TILEBLITTING       0x20000 /* use tile blitting */
-#define FBINFO_MISC_FIRMWARE           0x40000 /* a replaceable firmware
-						  inited framebuffer */
 
 /* A driver may set this flag to indicate that it does want a set_par to be
  * called every time when fbcon_switch is executed. The advantage is that with
@@ -799,6 +896,8 @@ struct fb_tile_ops {
  */
 #define FBINFO_MISC_ALWAYS_SETPAR   0x40000
 
+/* where the fb is a firmware driver, and can be replaced with a proper one */
+#define FBINFO_MISC_FIRMWARE        0x80000
 /*
  * Host and GPU endianness differ.
  */
@@ -809,6 +908,10 @@ struct fb_tile_ops {
  * and host endianness. Drivers should not use this flag.
  */
 #define FBINFO_BE_MATH  0x100000
+
+/* report to the VT layer that this fb driver can accept forced console
+   output like oopses */
+#define FBINFO_CAN_FORCE_OUTPUT     0x200000
 
 struct fb_info {
 	int node;
@@ -854,14 +957,31 @@ struct fb_info {
 #define FBINFO_STATE_SUSPENDED	1
 	u32 state;			/* Hardware state i.e suspend */
 	void *fbcon_par;                /* fbcon use-only private area */
+
+	struct fb_image bgdecor;
+
 	/* From here on everything is device dependent */
 	void *par;
 	/* we need the PCI or similiar aperture base/size not
 	   smem_start/size as smem_start may just be an object
 	   allocated inside the aperture so may not actually overlap */
-	resource_size_t aperture_base;
-	resource_size_t aperture_size;
+	struct apertures_struct {
+		unsigned int count;
+		struct aperture {
+			resource_size_t base;
+			resource_size_t size;
+		} ranges[0];
+	} *apertures;
 };
+
+static inline struct apertures_struct *alloc_apertures(unsigned int max_num) {
+	struct apertures_struct *a = kzalloc(sizeof(struct apertures_struct)
+			+ max_num * sizeof(struct aperture), GFP_KERNEL);
+	if (!a)
+		return NULL;
+	a->count = max_num;
+	return a;
+}
 
 #ifdef MODULE
 #define FBINFO_DEFAULT	FBINFO_MODULE
@@ -898,6 +1018,8 @@ struct fb_info {
 #define fb_writel sbus_writel
 #define fb_writeq sbus_writeq
 #define fb_memset sbus_memset_io
+#define fb_memcpy_fromfb sbus_memcpy_fromio
+#define fb_memcpy_tofb sbus_memcpy_toio
 
 #elif defined(__i386__) || defined(__alpha__) || defined(__x86_64__) || defined(__hppa__) || defined(__sh__) || defined(__powerpc__) || defined(__avr32__) || defined(__bfin__)
 
@@ -910,6 +1032,8 @@ struct fb_info {
 #define fb_writel __raw_writel
 #define fb_writeq __raw_writeq
 #define fb_memset memset_io
+#define fb_memcpy_fromfb memcpy_fromio
+#define fb_memcpy_tofb memcpy_toio
 
 #else
 
@@ -922,6 +1046,8 @@ struct fb_info {
 #define fb_writel(b,addr) (*(volatile u32 *) (addr) = (b))
 #define fb_writeq(b,addr) (*(volatile u64 *) (addr) = (b))
 #define fb_memset memset
+#define fb_memcpy_fromfb memcpy
+#define fb_memcpy_tofb memcpy
 
 #endif
 
@@ -955,6 +1081,8 @@ extern ssize_t fb_sys_write(struct fb_info *info, const char __user *buf,
 /* drivers/video/fbmem.c */
 extern int register_framebuffer(struct fb_info *fb_info);
 extern int unregister_framebuffer(struct fb_info *fb_info);
+extern void remove_conflicting_framebuffers(struct apertures_struct *a,
+				const char *name, bool primary);
 extern int fb_prepare_logo(struct fb_info *fb_info, int rotate);
 extern int fb_show_logo(struct fb_info *fb_info, int rotate);
 extern char* fb_get_buffer_offset(struct fb_info *info, struct fb_pixmap *buf, u32 size);
@@ -1052,6 +1180,8 @@ extern int fb_parse_edid(unsigned char *edid, struct fb_var_screeninfo *var);
 extern const unsigned char *fb_firmware_edid(struct device *device);
 extern void fb_edid_to_monspecs(unsigned char *edid,
 				struct fb_monspecs *specs);
+extern void fb_edid_add_monspecs(unsigned char *edid,
+				 struct fb_monspecs *specs);
 extern void fb_destroy_modedb(struct fb_videomode *modedb);
 extern int fb_find_mode_cvt(struct fb_videomode *mode, int margins, int rb);
 extern unsigned char *fb_ddc_read(struct i2c_adapter *adapter);
@@ -1082,6 +1212,7 @@ extern const struct fb_videomode *fb_find_best_display(const struct fb_monspecs 
 
 /* drivers/video/fbcmap.c */
 extern int fb_alloc_cmap(struct fb_cmap *cmap, int len, int transp);
+extern int fb_alloc_cmap_gfp(struct fb_cmap *cmap, int len, int transp, gfp_t flags);
 extern void fb_dealloc_cmap(struct fb_cmap *cmap);
 extern int fb_copy_cmap(const struct fb_cmap *from, struct fb_cmap *to);
 extern int fb_cmap_to_user(const struct fb_cmap *from, struct fb_cmap_user *to);

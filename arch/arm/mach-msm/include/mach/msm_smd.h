@@ -63,6 +63,8 @@ int smd_wait_until_writable(smd_channel_t *ch, int bytes);
 #endif
 int smd_wait_until_opened(smd_channel_t *ch, int timeout_us);
 
+int smd_total_fifo_size(smd_channel_t *ch);
+
 typedef enum
 {
 	SMD_PORT_DS = 0,

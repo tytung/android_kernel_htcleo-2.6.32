@@ -14,6 +14,7 @@
  *
  */
 #include <linux/gpio.h>
+#include <linux/module.h>
 #include "devices.h"
 #include "proc_comm.h"
 

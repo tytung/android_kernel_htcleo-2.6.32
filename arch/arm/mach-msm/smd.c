@@ -381,17 +381,18 @@ static void update_packet_state(struct smd_channel *ch)
 	int r;
 
 	/* can't do anything if we're in the middle of a packet */
-	if (ch->current_packet != 0)
-		return;
+	while (ch->current_packet == 0) {
+		/* discard 0 length packets if any */
 
-	/* don't bother unless we can get the full header */
-	if (smd_stream_read_avail(ch) < SMD_HEADER_SIZE)
-		return;
+		/* don't bother unless we can get the full header */
+		if (smd_stream_read_avail(ch) < SMD_HEADER_SIZE)
+			return;
 
-	r = ch_read(ch, hdr, SMD_HEADER_SIZE);
-	BUG_ON(r != SMD_HEADER_SIZE);
+		r = ch_read(ch, hdr, SMD_HEADER_SIZE);
+		BUG_ON(r != SMD_HEADER_SIZE);
 
-	ch->current_packet = hdr[0];
+		ch->current_packet = hdr[0];
+	}
 }
 
 /* provide a pointer and length to next free space in the fifo */
@@ -490,7 +491,7 @@ static void handle_smd_irq(struct list_head *list, void (*notify)(void))
 #ifdef CONFIG_BUILD_CIQ
 	/* put here to make sure we got the disable/enable index */
 	if (!msm_smd_ciq_info)
-		msm_smd_ciq_info = (*(volatile uint32_t *)(MSM_SHARED_RAM_BASE + 0xFC11C));
+		msm_smd_ciq_info = (*(volatile uint32_t *)(MSM_SHARED_RAM_BASE + SMD_CIQ_BASE));
 #endif
 	spin_lock_irqsave(&smd_lock, flags);
 	list_for_each_entry(ch, list, ch_list) {
@@ -641,6 +642,8 @@ static int smd_stream_write(smd_channel_t *ch, const void *_data, int len)
 
 	if (len < 0)
 		return -EINVAL;
+	else if (len == 0)
+		return 0;
 
 	while ((xfer = ch_write_buffer(ch, &ptr)) != 0) {
 		if (!ch_is_open(ch))
@@ -911,6 +914,7 @@ int smd_close(smd_channel_t *ch)
 
 	return 0;
 }
+EXPORT_SYMBOL(smd_close);
 
 int smd_read(smd_channel_t *ch, void *data, int len)
 {
@@ -922,6 +926,7 @@ int smd_write(smd_channel_t *ch, const void *data, int len)
 {
 	return ch->write(ch, data, len);
 }
+EXPORT_SYMBOL(smd_write);
 
 int smd_write_atomic(smd_channel_t *ch, const void *data, int len)
 {
@@ -944,6 +949,7 @@ int smd_write_avail(smd_channel_t *ch)
 {
 	return ch->write_avail(ch);
 }
+EXPORT_SYMBOL_GPL(smd_write_avail);
 
 int smd_wait_until_readable(smd_channel_t *ch, int bytes)
 {
@@ -981,6 +987,11 @@ int smd_cur_packet_size(smd_channel_t *ch)
 }
 EXPORT_SYMBOL(smd_cur_packet_size);
 
+/* Returns SMD buffer size */
+int smd_total_fifo_size(smd_channel_t *ch)
+{
+	return ch->fifo_size;
+}
 
 /* ------------------------------------------------------------------------- */
 
