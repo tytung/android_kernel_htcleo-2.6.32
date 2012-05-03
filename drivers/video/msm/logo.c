@@ -28,12 +28,31 @@
 #define fb_height(fb)	((fb)->var.yres)
 #define fb_size(fb)	((fb)->var.xres * (fb)->var.yres * 2)
 
+/* 2012.5.2 SecureCRT
+    Since the RLE is 565 but the framebuffer need 888 format
+    so need to convert the format.
+ */
+static unsigned int rgb565to888(unsigned short rgb565_val)
+{
+    unsigned int rgb888_val=0;
+    unsigned int r = (rgb565_val>>11) & 0x1f;
+    unsigned int g = (rgb565_val>> 5) & 0x3f;
+    unsigned int b = (rgb565_val    ) & 0x1f;
+
+    rgb888_val = (r<<3) | (r>>2); 
+    rgb888_val |=((g<<2) | (g>>4))<<8;
+    rgb888_val |=((b<<3) | (b>>2))<<16;
+
+    return rgb888_val;
+}
+
 static void memset16(void *_ptr, unsigned short val, unsigned count)
 {
-	unsigned short *ptr = _ptr;
+	unsigned int *ptr = _ptr;
+	unsigned int rgb888_val = rgb565to888(val);
 	count >>= 1;
 	while (count--)
-		*ptr++ = val;
+		*ptr++ = rgb888_val;
 }
 
 /* 565RLE image format: [count(2 bytes), rle(2 bytes)] */
@@ -42,7 +61,8 @@ int load_565rle_image(char *filename)
 	struct fb_info *info;
 	int fd, err = 0;
 	unsigned count, max;
-	unsigned short *data, *bits, *ptr;
+	unsigned short *data, *ptr;
+	unsigned int *bits;
 
 	info = registered_fb[0];
 	if (!info) {
@@ -77,7 +97,7 @@ int load_565rle_image(char *filename)
 
 	max = fb_width(info) * fb_height(info);
 	ptr = data;
-	bits = (unsigned short *)(info->screen_base);
+	bits = (unsigned int *)(info->screen_base);
 	while (count > 3) {
 		unsigned n = ptr[0];
 		if (n > max)
