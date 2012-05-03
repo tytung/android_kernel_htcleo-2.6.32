@@ -19,6 +19,7 @@
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 #include <linux/wait.h>
 #include <linux/errno.h>
 

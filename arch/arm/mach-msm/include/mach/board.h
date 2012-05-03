@@ -178,6 +178,8 @@ enum {
 	BOOTMODE_OFFMODE_CHARGING = 0x5,
 };
 
+void msm_hsusb_set_vbus_state(int online);
+
 #define MSM_MAX_DEC_CNT 14
 /* 7k target ADSP information */
 /* Bit 23:0, for codec identification like mp3, wav etc *

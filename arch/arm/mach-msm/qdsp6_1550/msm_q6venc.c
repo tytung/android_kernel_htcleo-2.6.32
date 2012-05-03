@@ -42,6 +42,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
 #include <linux/android_pmem.h>
@@ -358,7 +359,7 @@ static int q6_encode(struct q6venc_dev *q6venc, struct encode_param *enc_param)
 {
 	struct q6_encode_param *q6_param = &enc_param->q6_encode_param;
 	struct file *file;
-	struct buf_info *buf;
+	struct buf_info *buf = 0;
 	int i;
 	int ret;
 	int rlc_buf_index;

@@ -24,6 +24,7 @@
 #include <asm/gpio.h>
 #include <mach/gpio.h>
 #include <mach/htc_headset_mgr.h>
+#include <mach/board-htcleo-audio.h>
 
 #include "board-htcleo.h"
 #include "devices.h"

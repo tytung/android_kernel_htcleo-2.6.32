@@ -17,6 +17,13 @@
  *
  */
 
+#include <linux/workqueue.h>
+#include <linux/completion.h>
+#include <linux/cpu.h>
+#include <linux/cpumask.h>
+#include <linux/sched.h>
+#include <linux/suspend.h>
+
 #include <linux/cpufreq.h>
 #include <linux/earlysuspend.h>
 #include <linux/init.h>

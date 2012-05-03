@@ -14,6 +14,7 @@
  *
  */
 
+#include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/module.h>
 #include <linux/miscdevice.h>

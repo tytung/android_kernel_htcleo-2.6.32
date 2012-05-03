@@ -53,8 +53,9 @@
 #define MDDI_MF_CNT             0x0084
 #define MDDI_CURR_REV_PTR       0x0088
 #define MDDI_CORE_VER           0x008c
-#define MDDI_PAD_IO_CTL		0x00a0
-#define MDDI_PAD_CAL		0x00a4
+#define MDDI_SF_LEN_CTL_REG		0x0094
+#define MDDI_PAD_IO_CTL			0x00a0
+#define MDDI_PAD_CAL			0x00a4
 
 #define MDDI_INT_PRI_PTR_READ       0x0001
 #define MDDI_INT_SEC_PTR_READ       0x0002
@@ -131,8 +132,10 @@
 #define MDDI_HOST_TA2_LEN       0x000c
 #endif
 
-#if defined (CONFIG_ARCH_QSD8X50) || defined (CONFIG_ARCH_MSM7X30)
+#if defined (CONFIG_ARCH_QSD8X50)
 #define MDDI_HOST_REV_RATE_DIV  0x0004
+#elif defined (CONFIG_ARCH_MSM7X30)
+#define MDDI_HOST_REV_RATE_DIV  0x0010
 #else
 #define MDDI_HOST_REV_RATE_DIV  0x0002
 #endif

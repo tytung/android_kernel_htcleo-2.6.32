@@ -19,6 +19,8 @@
 #include <linux/gpio.h>
 #include <linux/wakelock.h>
 #include <mach/msm_fb.h>
+#include <linux/slab.h>
+#include <linux/sched.h>
 
 static DECLARE_WAIT_QUEUE_HEAD(novtec_vsync_wait);
 
@@ -145,7 +147,6 @@ static irqreturn_t novtec_vsync_interrupt(int irq, void *data)
 
 	panel->novtec_got_int = 1;
 	if (panel->novtec_callback) {
-		mdelay(3);
 		panel->novtec_callback->func(panel->novtec_callback);
 		panel->novtec_callback = 0;
 	}

@@ -19,6 +19,7 @@
 #include <linux/miscdevice.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 #include <linux/wait.h>
 #include <linux/uaccess.h>
 #include <linux/msm_audio.h>

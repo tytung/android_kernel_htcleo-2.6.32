@@ -39,7 +39,6 @@
 
 #define HTCLEO_DEFAULT_BACKLIGHT_BRIGHTNESS 255
 
-
 static struct led_trigger *htcleo_lcd_backlight;
 static int auto_bl_state=0;
 static DEFINE_MUTEX(htcleo_backlight_lock);

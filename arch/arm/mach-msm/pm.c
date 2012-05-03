@@ -142,13 +142,15 @@ int msm_irq_idle_sleep_allowed(void);
 int msm_irq_pending(void);
 int clks_allow_tcxo_locked_debug(void);
 extern int board_mfg_mode(void);
-extern char * board_get_mfg_sleep_gpio_table(void);
+extern unsigned long * board_get_mfg_sleep_gpio_table(void);
 extern void gpio_set_diag_gpio_table(unsigned long * dwMFG_gpio_table);
 extern void wait_rmt_final_call_back(int timeout);
 
+#ifdef CONFIG_AXI_SCREEN_POLICY
 static int axi_rate;
 static int sleep_axi_rate;
 static struct clk *axi_clk;
+#endif
 static uint32_t *msm_pm_reset_vector;
 
 static uint32_t msm_pm_max_sleep_time;
@@ -654,8 +656,8 @@ static int msm_wakeup_after;	/* default, no wakeup by alarm */
 static int msm_power_wakeup_after(const char *val, struct kernel_param *kp)
 {
 	int ret;
-	struct uart_port *port;
-	struct msm_port *msm_port;
+	//struct uart_port *port;
+	//struct msm_port *msm_port;
 
 	ret = param_set_int(val, kp);
 	printk(KERN_INFO "+msm_power_wakeup_after, ret=%d\r\n", ret);
@@ -681,7 +683,7 @@ static void msm_pm_power_off(void)
 
 	pmic_glb_power_down();
 
-#if CONFIG_MSM_RMT_STORAGE_SERVER
+#ifdef CONFIG_MSM_RMT_STORAGE_SERVER
 		printk(KERN_INFO "from %s\r\n", __func__);
 		wait_rmt_final_call_back(10);
 		printk(KERN_INFO "back %s\r\n", __func__);
@@ -715,7 +717,7 @@ void msm_pm_flush_console(void)
 }
 
 #if defined(CONFIG_MACH_HTCLEO)
-static void htcleo_save_reset_reason()
+static void htcleo_save_reset_reason(void)
 {
 	/* save restart_reason to be accesible in bootloader @ ramconsole - 0x1000*/
 	uint32_t *bootloader_reset_reason = ioremap(0x2FFB0000, PAGE_SIZE);
@@ -728,7 +730,7 @@ static void htcleo_save_reset_reason()
 }
 #endif
 
-static void msm_pm_restart(char str)
+static void msm_pm_restart(char str, const char *cmd)
 {
 	msm_pm_flush_console();
 
@@ -742,7 +744,7 @@ static void msm_pm_restart(char str)
 	else
 		msm_proc_comm(PCOM_RESET_CHIP, &restart_reason, 0);
 
-#if CONFIG_MSM_RMT_STORAGE_SERVER
+#ifdef CONFIG_MSM_RMT_STORAGE_SERVER
 	printk(KERN_INFO "from %s\r\n", __func__);
 	wait_rmt_final_call_back(10);
 	printk(KERN_INFO "back %s\r\n", __func__);
@@ -858,6 +860,7 @@ void msm_pm_set_max_sleep_time(int64_t max_sleep_time_ns)
 EXPORT_SYMBOL(msm_pm_set_max_sleep_time);
 
 #ifdef CONFIG_EARLYSUSPEND
+#ifdef CONFIG_AXI_SCREEN_POLICY
 /* axi 128 screen on, 61mhz screen off */
 static void axi_early_suspend(struct early_suspend *handler)
 {
@@ -877,7 +880,9 @@ static struct early_suspend axi_screen_suspend = {
 	.resume = axi_late_resume,
 };
 #endif
+#endif
 
+#ifdef CONFIG_AXI_SCREEN_POLICY
 static void __init msm_pm_axi_init(void)
 {
 #ifdef CONFIG_EARLYSUSPEND
@@ -895,19 +900,18 @@ static void __init msm_pm_axi_init(void)
 	axi_rate = 0;
 #endif
 }
+#endif
 
 static int __init msm_pm_init(void)
 {
 	pm_power_off = msm_pm_power_off;
 	arm_pm_restart = msm_pm_restart;
 	msm_pm_max_sleep_time = 0;
-#if defined(CONFIG_ARCH_MSM_SCORPION)
 #ifdef CONFIG_AXI_SCREEN_POLICY
 	msm_pm_axi_init();
 #endif
-#endif
-
 	register_reboot_notifier(&msm_reboot_notifier);
+
 	msm_pm_reset_vector = ioremap(0x0, PAGE_SIZE);
 
 #if defined(CONFIG_MACH_HTCLEO)
