@@ -30,8 +30,9 @@ Primary features:
 - Wired headphones support for ICS. (Credits: zivan56)
 - Backported xt_qtaguid and xt_quota2 to support data usage for ICS. (Credits: tytung)
 - Improved Flashlight compatibility for ICS. (Credits: tytung)
+- Backported the GPU driver to enable the Hardware Acceleration for ICS. (Credits: Securecrt and Rick_1995)
 
-Credits: Cotulla, Markinus, Hastarin, TYTung, Letama, Rajko, Dan1j3l, Cedesmith, Arne, Trilu, Charansingh, Mdebeljuh, Jdivic, Avs333, Snq-, Savan, Drizztje, Marc1706, Zivan56, other devs, and testers.
+Credits: Cotulla, Markinus, Hastarin, TYTung, Letama, Rajko, Dan1j3l, Cedesmith, Arne, Trilu, Charansingh, Mdebeljuh, Jdivic, Avs333, Snq-, Savan, Drizztje, Marc1706, Zivan56, Securecrt, Rick_1995, other devs, and testers.
 
 ===============================================================================
 
