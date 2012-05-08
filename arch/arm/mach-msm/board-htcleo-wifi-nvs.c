@@ -25,7 +25,6 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/blktrans.h>
 #include <mach/msm_iomap.h>
-#include <linux/crc32.h>
 #include <linux/io.h>
 
 #include "board-htcleo.h"
@@ -84,16 +83,25 @@ EXPORT_SYMBOL(get_wifi_nvs_ram);
 
 static int parse_tag_msm_wifi(void)
 {
-	uint32_t id1, id2, id3, sid1, sid2, sid3;
+	uint32_t id1, id2, sid1, sid2, sid3;
 	uint32_t id_base = 0xef260;
-	id1 = readl(MSM_SHARED_RAM_BASE + id_base + 0x0);
-	id2 = readl(MSM_SHARED_RAM_BASE + id_base + 0x4);	
-	id3 = readl(MSM_SHARED_RAM_BASE + id_base + 0x8);
-	sid1 = crc32(~0, &id1, 4);
-	sid2 = crc32(~0, &id2, 4);
-	sid3 = crc32(~0, &id3, 4);
-	sprintf(nvs_mac_addr, "macaddr=00:23:76:%2x:%2x:%2x\n", sid1 % 0xff, sid2 % 0xff, sid3 % 0xff);
-	pr_info("Device Wifi Mac Address: %s\n", nvs_mac_addr);
+	/* read Serial Number SN (IMEI = TAC.SN) */
+	id1 = readl(MSM_SHARED_RAM_BASE + id_base + 0x8);
+	id2 = readl(MSM_SHARED_RAM_BASE + id_base + 0xc);
+	/* Xor SN with TAC (yes only two differents TAC for the HD2 */
+	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x0);
+	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x4);
+	/* Xor with CID of operator too further mix the Serial */
+	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x10);
+	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x14);
+
+	/* repack the SN part from IMEI (id) into three bytes using low nibbles */
+	sid1 = ((id1 <<  4) & 0xf0) | ((id1 >> 8)  & 0xf);
+	sid2 = ((id1 >> 12) & 0xf0) | ((id1 >> 24) & 0xf);
+	sid3 = ((id2 <<  4) & 0xf0) | ((id2 >> 8)  & 0xf);
+
+	sprintf(nvs_mac_addr, "macaddr=00:23:76:%02x:%02x:%02x\n", sid1, sid2, sid3);
+	pr_info("Device WiFi MAC Address: %s\n", nvs_mac_addr);
 	return 0;
 }
 
