@@ -203,6 +203,5 @@ int htcleo_is_nand_boot(void);
 unsigned htcleo_get_vbus_state(void);
 void config_camera_on_gpios(void);
 void config_camera_off_gpios(void);
-int is_valid_mac_address(char *mac);
 
 #endif /* __ARCH_ARM_MACH_MSM_BOARD_HTCLEO_H */
