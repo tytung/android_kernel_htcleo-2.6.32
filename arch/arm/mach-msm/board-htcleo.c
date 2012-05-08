@@ -15,7 +15,6 @@
  *
  */
 
-#include <linux/crc32.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
@@ -560,16 +559,25 @@ MODULE_PARM_DESC(bdaddr, "bluetooth address");
 
 static int parse_tag_bdaddr(void)
 {
-	uint32_t id1, id2, id3, sid1, sid2, sid3;
+	uint32_t id1, id2, sid1, sid2, sid3;
 	uint32_t id_base = 0xef260;
-	id1 = readl(MSM_SHARED_RAM_BASE + id_base + 0x0);
-	id2 = readl(MSM_SHARED_RAM_BASE + id_base + 0x4);
-	id3 = readl(MSM_SHARED_RAM_BASE + id_base + 0x8);
-	sid1 = crc32(~0, &id1, 4);
-	sid2 = crc32(~0, &id2, 4);
-	sid3 = crc32(~0, &id3, 4);
-	sprintf(bdaddr, "00:23:76:%2X:%2X:%2X", sid3 % 0xff, sid2 % 0xff, sid1 % 0xff);
-	pr_info("Device Bluetooth Mac Address: %s\n", bdaddr);
+	/* read Serial Number SN (IMEI = TAC.SN) */
+	id1 = readl(MSM_SHARED_RAM_BASE + id_base + 0x8);
+	id2 = readl(MSM_SHARED_RAM_BASE + id_base + 0xc);
+	/* Xor SN with TAC (yes only two differents TAC for the HD2 */
+	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x0);
+	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x4);
+	/* Xor with CID of operator too further mix the Serial */
+	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x10);
+	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x14);
+
+	/* repack the SN part from IMEI (id) into three bytes using low nibbles */
+	sid1 = ((id1 <<  4) & 0xf0) | ((id1 >> 8)  & 0xf);
+	sid2 = ((id1 >> 12) & 0xf0) | ((id1 >> 24) & 0xf);
+	sid3 = ((id2 <<  4) & 0xf0) | ((id2 >> 8)  & 0xf);
+
+	sprintf(bdaddr, "00:23:76:%02x:%02x:%02x", sid3, sid2, sid1);
+	pr_info("Device Bluetooth MAC Address: %s\n", bdaddr);
 	return 0;
 }
 /* end AOSP style interface */
