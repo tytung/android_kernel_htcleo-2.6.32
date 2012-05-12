@@ -536,7 +536,7 @@ static char bdaddr[BDADDR_STR_SIZE];
 module_param_string(bdaddr, bdaddr, sizeof(bdaddr), 0400);
 MODULE_PARM_DESC(bdaddr, "bluetooth address");
 
-static int parse_tag_bdaddr(void)
+static void parse_tag_bdaddr(void)
 {
 	uint32_t id1, id2, sid1, sid2, sid3;
 	uint32_t id_base = 0xef260;
@@ -557,7 +557,6 @@ static int parse_tag_bdaddr(void)
 
 	sprintf(bdaddr, "00:23:76:%02x:%02x:%02x", sid3, sid2, sid1);
 	pr_info("Device Bluetooth MAC Address: %s\n", bdaddr);
-	return 0;
 }
 /* end AOSP style interface */
 

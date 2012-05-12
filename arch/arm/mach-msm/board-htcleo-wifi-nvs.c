@@ -81,7 +81,7 @@ unsigned char *get_wifi_nvs_ram( void )
 }
 EXPORT_SYMBOL(get_wifi_nvs_ram);
 
-static int parse_tag_msm_wifi(void)
+static void parse_tag_msm_wifi(void)
 {
 	uint32_t id1, id2, sid1, sid2, sid3;
 	uint32_t id_base = 0xef260;
@@ -102,7 +102,6 @@ static int parse_tag_msm_wifi(void)
 
 	sprintf(nvs_mac_addr, "macaddr=00:23:76:%02x:%02x:%02x\n", sid1, sid2, sid3);
 	pr_info("Device WiFi MAC Address: %s\n", nvs_mac_addr);
-	return 0;
 }
 
 static int parse_tag_msm_wifi_from_spl(void)
