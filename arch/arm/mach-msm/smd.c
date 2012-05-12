@@ -140,16 +140,18 @@ static void handle_modem_crash(void)
 		;
 }
 
-extern int (*msm_check_for_modem_crash)(void);
-
 uint32_t raw_smsm_get_state(enum smsm_state_item item)
 {
 	return readl(smd_info.state + item * 4);
 }
 
-static int check_for_modem_crash(void)
+int smsm_check_for_modem_crash(void)
 {
-	if (raw_smsm_get_state(SMSM_STATE_MODEM) & SMSM_RESET) {
+	/* if the modem's not ready yet, we have to hope for the best */
+	if (!smd_info.state)
+		return 0;
+
+	if (raw_smsm_get_state(SMSM_MODEM_STATE) & SMSM_RESET) {
 		handle_modem_crash();
 		return -1;
 	}
@@ -1237,8 +1239,6 @@ static int __init msm_smd_probe(struct platform_device *pdev)
 	}
 
 	do_smd_probe();
-
-	msm_check_for_modem_crash = check_for_modem_crash;
 
 	msm_init_last_radio_log(THIS_MODULE);
 
