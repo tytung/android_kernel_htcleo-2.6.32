@@ -29,6 +29,7 @@
 #include <linux/proc_fs.h>
 #include <linux/rbtree.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 
@@ -81,7 +82,6 @@ enum {
 	BINDER_DEBUG_BUFFER_ALLOC           = 1U << 13,
 	BINDER_DEBUG_PRIORITY_CAP           = 1U << 14,
 	BINDER_DEBUG_BUFFER_ALLOC_ASYNC     = 1U << 15,
-	BINDER_DEBUG_IOCTL                = 1U << 16,
 };
 static uint32_t binder_debug_mask = BINDER_DEBUG_USER_ERROR |
 	BINDER_DEBUG_FAILED_TRANSACTION | BINDER_DEBUG_DEAD_TRANSACTION;
@@ -2615,9 +2615,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	unsigned int size = _IOC_SIZE(cmd);
 	void __user *ubuf = (void __user *)arg;
 
-	binder_debug(BINDER_DEBUG_IOCTL,
-		     "binder_ioctl begin: %d:%d %x %lx\n",
-		     proc->pid, current->pid, cmd, arg);
+	/*printk(KERN_INFO "binder_ioctl: %d:%d %x %lx\n", proc->pid, current->pid, cmd, arg);*/
 
 	ret = wait_event_interruptible(binder_user_error_wait, binder_stop_on_user_error < 2);
 	if (ret)
@@ -2736,9 +2734,6 @@ err:
 	wait_event_interruptible(binder_user_error_wait, binder_stop_on_user_error < 2);
 	if (ret && ret != -ERESTARTSYS)
 		printk(KERN_INFO "binder: %d:%d ioctl %x %lx returned %d\n", proc->pid, current->pid, cmd, arg, ret);
-	binder_debug(BINDER_DEBUG_IOCTL,
-		     "binder_ioctl end: %d:%d %x %lx\n",
-		     proc->pid, current->pid, cmd, arg);
 	return ret;
 }
 
