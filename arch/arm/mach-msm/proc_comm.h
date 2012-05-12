@@ -1,6 +1,6 @@
 /* arch/arm/mach-msm/proc_comm.h
  *
- * Copyright (c) 2007 QUALCOMM Incorporated
+ * Copyright (c) 2007-2009, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -179,7 +179,18 @@ enum {
 	PCOM_CLKCTL_RPC_RAIL_DISABLE,
 	PCOM_CLKCTL_RPC_RAIL_CONTROL,
 	PCOM_CLKCTL_RPC_MIN_MSMC1,
-	PCOM_NUM_CMDS,
+	PCOM_CLKCTL_RPC_SRC_REQUEST,
+	PCOM_NPA_INIT,
+	PCOM_NPA_ISSUE_REQUIRED_REQUEST,
+};
+
+enum {
+	PCOM_OEM_FIRST_CMD = 0x10000000,
+	PCOM_OEM_TEST_CMD = PCOM_OEM_FIRST_CMD,
+
+	/* add OEM PROC COMM commands here */
+
+	PCOM_OEM_LAST = PCOM_OEM_TEST_CMD,
 };
 
 enum {
@@ -199,7 +210,6 @@ enum {
 	PCOM_CMD_FAIL_SMSM_NOT_INIT,
 	PCOM_CMD_FAIL_PROC_COMM_BUSY,
 	PCOM_CMD_FAIL_PROC_COMM_NOT_INIT,
-
 };
 
 /* List of VREGs that support the Pull Down Resistor setting. */
@@ -294,6 +304,7 @@ enum {
 		(((pull) & 0x3) << 15)		| \
 		(((drvstr) & 0xF) << 17))
 
+void msm_proc_comm_reset_modem_now(void);
 int msm_proc_comm(unsigned cmd, unsigned *data1, unsigned *data2);
 
 #endif
