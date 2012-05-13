@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -24,16 +24,40 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
  */
-#ifndef __A205_REG_H
-#define __A205_REG_H
 
-#define REG_LEIA_PC_INDX_OFFSET          REG_VGT_INDX_OFFSET
-#define REG_LEIA_PC_VERTEX_REUSE_BLOCK_CNTL REG_VGT_VERTEX_REUSE_BLOCK_CNTL
-#define REG_LEIA_PC_MAX_VTX_INDX         REG_VGT_MAX_VTX_INDX
-#define REG_LEIA_GRAS_CONTROL            0x2210
-#define REG_LEIA_VSC_BIN_SIZE            0x0C01
-#define REG_LEIA_VSC_PIPE_DATA_LENGTH_7  0x0C1D
+#ifndef _INTERNAL_POWER_RAIL_H
+#define _INTERNAL_POWER_RAIL_H
 
-#endif /*__A205_REG_H */
+/* Clock power rail IDs */
+#define PWR_RAIL_GRP_CLK	8
+#define PWR_RAIL_GRP_2D_CLK	58
+#define PWR_RAIL_MDP_CLK	14
+#define PWR_RAIL_MFC_CLK	68
+#define PWR_RAIL_ROTATOR_CLK	90
+#define PWR_RAIL_VDC_CLK	39
+#define PWR_RAIL_VFE_CLK	41
+#define PWR_RAIL_VPE_CLK	76
+
+enum rail_ctl_mode {
+	PWR_RAIL_CTL_AUTO = 0,
+	PWR_RAIL_CTL_MANUAL,
+};
+
+static inline int __maybe_unused internal_pwr_rail_ctl(unsigned rail_id,
+						       bool enable)
+{
+	/* Not yet implemented. */
+	return 0;
+}
+static inline int __maybe_unused internal_pwr_rail_mode(unsigned rail_id,
+							enum rail_ctl_mode mode)
+{
+	/* Not yet implemented. */
+	return 0;
+}
+
+int internal_pwr_rail_ctl_auto(unsigned rail_id, bool enable);
+
+#endif /* _INTERNAL_POWER_RAIL_H */
+
