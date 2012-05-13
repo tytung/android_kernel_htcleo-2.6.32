@@ -46,6 +46,8 @@
 #define VDEC_IOCTL_GETDECATTRIBUTES   _IOR(VDEC_IOCTL_MAGIC, 10, \
 						struct vdec_dec_attributes)
 #define VDEC_IOCTL_GETVERSION   _IOR(VDEC_IOCTL_MAGIC, 11, struct vdec_version)
+#define VDEC_IOCTL_PERFORMANCE_CHANGE_REQ  _IOW(VDEC_IOCTL_MAGIC, 14, \
+						unsigned int)
 
 enum {
 	VDEC_FRAME_DECODE_OK,
@@ -82,6 +84,13 @@ enum {
 	VDEC_COLOR_FORMAT_NV21 = 0x01,
 	VDEC_COLOR_FORMAT_NV21_YAMOTO = 0x02
    };
+
+enum {
+	PERF_REQUEST_SET_MIN = 0,
+	PERF_REQUEST_LOWER,
+	PERF_REQUEST_RAISE,
+	PERF_REQUEST_SET_MAX
+};
 
 struct vdec_input_buf_info {
 	u32 offset;
