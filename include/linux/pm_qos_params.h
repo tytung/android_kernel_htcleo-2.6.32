@@ -1,6 +1,8 @@
 /* interface for the pm_qos_power infrastructure of the linux kernel.
  *
  * Mark Gross <mgross@linux.intel.com>
+ *
+ * Copyright (c) 2010, Code Aurora Forum. All rights reserved.
  */
 #ifndef __PM_QOS_PARAMS_H__
 #define __PM_QOS_PARAMS_H__
@@ -57,3 +59,4 @@ int pm_qos_add_notifier(int qos, struct notifier_block *notifier);
 int pm_qos_remove_notifier(int qos, struct notifier_block *notifier);
 
 #endif /* __PM_QOS_PARAMS_H__ */
+

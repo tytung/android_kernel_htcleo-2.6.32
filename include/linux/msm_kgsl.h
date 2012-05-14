@@ -35,7 +35,7 @@
 #define _MSM_KGSL_H
 
 #define KGSL_VERSION_MAJOR        3
-#define KGSL_VERSION_MINOR        7
+#define KGSL_VERSION_MINOR        8
 
 /*context flags */
 #define KGSL_CONTEXT_SAVE_GMEM	1
@@ -59,6 +59,9 @@
 #define KGSL_FLAGS_SOFT_RESET  0x00000100
 
 #define KGSL_MAX_PWRLEVELS 5
+
+#define KGSL_CONVERT_TO_MBPS(val) \
+  (val*1000*1000U)
 
 /* device id */
 enum kgsl_deviceid {
@@ -170,7 +173,6 @@ struct kgsl_device_pwr_data {
 	int (*set_grp_async)(void);
 	unsigned int idle_timeout;
 	unsigned int nap_allowed;
-	unsigned int idle_pass;
 };
 
 struct kgsl_clk_data {
@@ -183,6 +185,8 @@ struct kgsl_device_platform_data {
 	struct kgsl_clk_data clk;
 	/* imem_clk_name is for 3d only, not used in 2d devices */
 	struct kgsl_grp_clk_name imem_clk_name;
+	const char *iommu_user_ctx_name;
+	const char *iommu_priv_ctx_name;
 };
 
 #endif
@@ -453,6 +457,30 @@ struct kgsl_cff_syncmem {
 
 #define IOCTL_KGSL_CFF_SYNCMEM \
 	_IOW(KGSL_IOC_TYPE, 0x30, struct kgsl_cff_syncmem)
+
+/*
+* A timestamp event allows the user space to register an action following an
+* expired timestamp.
+*/
+
+struct kgsl_timestamp_event {
+	int type;                /* Type of event (see list below) */
+	unsigned int timestamp;  /* Timestamp to trigger event on */
+	unsigned int context_id; /* Context for the timestamp */
+	void *priv;              /* Pointer to the event specific blob */
+	size_t len;              /* Size of the event specific blob */
+};
+
+#define IOCTL_KGSL_TIMESTAMP_EVENT \
+	_IOW(KGSL_IOC_TYPE, 0x31, struct kgsl_timestamp_event)
+
+/* A genlock timestamp event releases an existing lock on timestamp expire */
+
+#define KGSL_TIMESTAMP_EVENT_GENLOCK 1
+
+struct kgsl_timestamp_event_genlock {
+	int handle; /* Handle of the genlock lock to release */
+};
 
 #ifdef __KERNEL__
 #ifdef CONFIG_MSM_KGSL_DRM

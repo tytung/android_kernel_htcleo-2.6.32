@@ -1,29 +1,13 @@
 /* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *     * Neither the name of Code Aurora Forum, Inc. nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
  *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  */
 #ifndef __A200_REG_H
@@ -271,18 +255,6 @@ union reg_cp_rb_cntl {
 #define MH_ARBITER_CONFIG__RB_CLNT_ENABLE__SHIFT           0x00000019
 #define MH_ARBITER_CONFIG__PA_CLNT_ENABLE__SHIFT           0x0000001a
 
-#define MH_MMU_CONFIG__RB_W_CLNT_BEHAVIOR__SHIFT           0x00000004
-#define MH_MMU_CONFIG__CP_W_CLNT_BEHAVIOR__SHIFT           0x00000006
-#define MH_MMU_CONFIG__CP_R0_CLNT_BEHAVIOR__SHIFT          0x00000008
-#define MH_MMU_CONFIG__CP_R1_CLNT_BEHAVIOR__SHIFT          0x0000000a
-#define MH_MMU_CONFIG__CP_R2_CLNT_BEHAVIOR__SHIFT          0x0000000c
-#define MH_MMU_CONFIG__CP_R3_CLNT_BEHAVIOR__SHIFT          0x0000000e
-#define MH_MMU_CONFIG__CP_R4_CLNT_BEHAVIOR__SHIFT          0x00000010
-#define MH_MMU_CONFIG__VGT_R0_CLNT_BEHAVIOR__SHIFT         0x00000012
-#define MH_MMU_CONFIG__VGT_R1_CLNT_BEHAVIOR__SHIFT         0x00000014
-#define MH_MMU_CONFIG__TC_R_CLNT_BEHAVIOR__SHIFT           0x00000016
-#define MH_MMU_CONFIG__PA_W_CLNT_BEHAVIOR__SHIFT           0x00000018
-
 #define CP_RB_CNTL__RB_BUFSZ__SHIFT                        0x00000000
 #define CP_RB_CNTL__RB_BLKSZ__SHIFT                        0x00000008
 #define CP_RB_CNTL__RB_POLL_EN__SHIFT                      0x00000014
@@ -334,21 +306,6 @@ union reg_cp_rb_cntl {
 #define REG_RBBM_PERFCOUNTER1_LO         0x0397
 
 #define REG_MASTER_INT_SIGNAL            0x03B7
-
-#define REG_MH_ARBITER_CONFIG            0x0A40
-#define REG_MH_INTERRUPT_CLEAR           0x0A44
-#define REG_MH_INTERRUPT_MASK            0x0A42
-#define REG_MH_INTERRUPT_STATUS          0x0A43
-#define REG_MH_MMU_CONFIG                0x0040
-#define REG_MH_MMU_INVALIDATE            0x0045
-#define REG_MH_MMU_MPU_BASE              0x0046
-#define REG_MH_MMU_MPU_END               0x0047
-#define REG_MH_MMU_PAGE_FAULT            0x0043
-#define REG_MH_MMU_PT_BASE               0x0042
-#define REG_MH_MMU_TRAN_ERROR            0x0044
-#define REG_MH_MMU_VA_RANGE              0x0041
-#define REG_MH_CLNT_INTF_CTRL_CONFIG1    0x0A54
-#define REG_MH_CLNT_INTF_CTRL_CONFIG2    0x0A55
 
 #define REG_PA_CL_VPORT_XSCALE           0x210F
 #define REG_PA_CL_VPORT_ZOFFSET          0x2114
@@ -407,6 +364,7 @@ union reg_cp_rb_cntl {
 #define REG_SQ_CF_BOOLEANS               0x4900
 #define REG_SQ_CF_LOOP                   0x4908
 #define REG_SQ_GPR_MANAGEMENT            0x0D00
+#define REG_SQ_FLOW_CONTROL              0x0D01
 #define REG_SQ_INST_STORE_MANAGMENT      0x0D02
 #define REG_SQ_INT_ACK                   0x0D36
 #define REG_SQ_INT_CNTL                  0x0D34
@@ -438,11 +396,23 @@ union reg_cp_rb_cntl {
 #define REG_SQ_CONSTANT_0                0x4000
 #define REG_SQ_FETCH_0                   0x4800
 
-#define REG_MH_AXI_ERROR                 0xA45
-#define REG_MH_DEBUG_CTRL                0xA4E
-#define REG_MH_DEBUG_DATA                0xA4F
 #define REG_COHER_BASE_PM4               0xA2A
 #define REG_COHER_STATUS_PM4             0xA2B
 #define REG_COHER_SIZE_PM4               0xA29
+
+/*registers added in adreno220*/
+#define REG_A220_PC_INDX_OFFSET          REG_VGT_INDX_OFFSET
+#define REG_A220_PC_VERTEX_REUSE_BLOCK_CNTL REG_VGT_VERTEX_REUSE_BLOCK_CNTL
+#define REG_A220_PC_MAX_VTX_INDX         REG_VGT_MAX_VTX_INDX
+#define REG_A220_RB_LRZ_VSC_CONTROL	 0x2209
+#define REG_A220_GRAS_CONTROL            0x2210
+#define REG_A220_VSC_BIN_SIZE            0x0C01
+#define REG_A220_VSC_PIPE_DATA_LENGTH_7  0x0C1D
+
+/*registers added in adreno225*/
+#define REG_A225_RB_COLOR_INFO3          0x2005
+#define REG_A225_PC_MULTI_PRIM_IB_RESET_INDX 0x2103
+#define REG_A225_GRAS_UCP0X              0x2340
+#define REG_A225_GRAS_UCP_ENABLED        0x2360
 
 #endif /* __A200_REG_H */

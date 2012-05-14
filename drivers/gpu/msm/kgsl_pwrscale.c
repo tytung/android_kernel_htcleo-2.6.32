@@ -1,4 +1,5 @@
 /* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (C) 2011 Sony Ericsson Mobile Communications AB.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,6 +16,7 @@
 
 #include "kgsl.h"
 #include "kgsl_pwrscale.h"
+#include "kgsl_device.h"
 
 struct kgsl_pwrscale_attribute {
 	struct attribute attr;
@@ -38,6 +40,12 @@ __ATTR(_name, _mode, _show, _store)
 /* Master list of available policies */
 
 static struct kgsl_pwrscale_policy *kgsl_pwrscale_policies[] = {
+#ifdef CONFIG_MSM_SCM
+	&kgsl_pwrscale_policy_tz,
+#endif
+#ifdef CONFIG_MSM_SLEEP_STATS
+	&kgsl_pwrscale_policy_idlestats,
+#endif
 	NULL
 };
 
@@ -141,9 +149,6 @@ static ssize_t policy_sysfs_store(struct kobject *kobj,
 
 static void policy_sysfs_release(struct kobject *kobj)
 {
-	struct kgsl_pwrscale *pwrscale = to_pwrscale(kobj);
-
-	complete(&pwrscale->kobj_unregister);
 }
 
 static ssize_t pwrscale_sysfs_show(struct kobject *kobj,
@@ -181,12 +186,12 @@ static void pwrscale_sysfs_release(struct kobject *kobj)
 {
 }
 
-static const struct sysfs_ops policy_sysfs_ops = {
+static struct sysfs_ops policy_sysfs_ops = {
 	.show = policy_sysfs_show,
 	.store = policy_sysfs_store
 };
 
-static const struct sysfs_ops pwrscale_sysfs_ops = {
+static struct sysfs_ops pwrscale_sysfs_ops = {
 	.show = pwrscale_sysfs_show,
 	.store = pwrscale_sysfs_store
 };
@@ -220,13 +225,17 @@ EXPORT_SYMBOL(kgsl_pwrscale_wake);
 void kgsl_pwrscale_busy(struct kgsl_device *device)
 {
 	if (device->pwrscale.policy && device->pwrscale.policy->busy)
-		device->pwrscale.policy->busy(device, &device->pwrscale);
+		if (!device->pwrscale.gpu_busy)
+			device->pwrscale.policy->busy(device,
+					&device->pwrscale);
+	device->pwrscale.gpu_busy = 1;
 }
 
 void kgsl_pwrscale_idle(struct kgsl_device *device)
 {
 	if (device->pwrscale.policy && device->pwrscale.policy->idle)
 		device->pwrscale.policy->idle(device, &device->pwrscale);
+	device->pwrscale.gpu_busy = 0;
 }
 EXPORT_SYMBOL(kgsl_pwrscale_idle);
 
@@ -236,12 +245,8 @@ int kgsl_pwrscale_policy_add_files(struct kgsl_device *device,
 {
 	int ret;
 
-	init_completion(&pwrscale->kobj_unregister);
-
-	ret = kobject_init_and_add(&pwrscale->kobj,
-				   &ktype_pwrscale_policy,
-				   &device->pwrscale_kobj,
-				   "%s", pwrscale->policy->name);
+	ret = kobject_add(&pwrscale->kobj, &device->pwrscale_kobj,
+		"%s", pwrscale->policy->name);
 
 	if (ret)
 		return ret;
@@ -249,8 +254,8 @@ int kgsl_pwrscale_policy_add_files(struct kgsl_device *device,
 	ret = sysfs_create_group(&pwrscale->kobj, attr_group);
 
 	if (ret) {
+		kobject_del(&pwrscale->kobj);
 		kobject_put(&pwrscale->kobj);
-		wait_for_completion(&pwrscale->kobj_unregister);
 	}
 
 	return ret;
@@ -261,16 +266,24 @@ void kgsl_pwrscale_policy_remove_files(struct kgsl_device *device,
 				       struct attribute_group *attr_group)
 {
 	sysfs_remove_group(&pwrscale->kobj, attr_group);
+	kobject_del(&pwrscale->kobj);
 	kobject_put(&pwrscale->kobj);
-	wait_for_completion(&pwrscale->kobj_unregister);
+}
+
+static void _kgsl_pwrscale_detach_policy(struct kgsl_device *device)
+{
+	if (device->pwrscale.policy != NULL) {
+		device->pwrscale.policy->close(device, &device->pwrscale);
+		kgsl_pwrctrl_pwrlevel_change(device,
+				device->pwrctrl.thermal_pwrlevel);
+	}
+	device->pwrscale.policy = NULL;
 }
 
 void kgsl_pwrscale_detach_policy(struct kgsl_device *device)
 {
 	mutex_lock(&device->mutex);
-	if (device->pwrscale.policy != NULL)
-		device->pwrscale.policy->close(device, &device->pwrscale);
-	device->pwrscale.policy = NULL;
+	_kgsl_pwrscale_detach_policy(device);
 	mutex_unlock(&device->mutex);
 }
 EXPORT_SYMBOL(kgsl_pwrscale_detach_policy);
@@ -278,16 +291,25 @@ EXPORT_SYMBOL(kgsl_pwrscale_detach_policy);
 int kgsl_pwrscale_attach_policy(struct kgsl_device *device,
 				struct kgsl_pwrscale_policy *policy)
 {
-	int ret;
-
-	if (device->pwrscale.policy != NULL)
-		kgsl_pwrscale_detach_policy(device);
+	int ret = 0;
 
 	mutex_lock(&device->mutex);
+
+	if (device->pwrscale.policy == policy)
+		goto done;
+
+	if (device->pwrscale.policy != NULL)
+		_kgsl_pwrscale_detach_policy(device);
+
 	device->pwrscale.policy = policy;
-	ret = device->pwrscale.policy->init(device, &device->pwrscale);
-	if (ret)
-		device->pwrscale.policy = NULL;
+
+	if (policy) {
+		ret = device->pwrscale.policy->init(device, &device->pwrscale);
+		if (ret)
+			device->pwrscale.policy = NULL;
+	}
+
+done:
 	mutex_unlock(&device->mutex);
 
 	return ret;
@@ -296,8 +318,16 @@ EXPORT_SYMBOL(kgsl_pwrscale_attach_policy);
 
 int kgsl_pwrscale_init(struct kgsl_device *device)
 {
-	return kobject_init_and_add(&device->pwrscale_kobj, &ktype_pwrscale,
-				    &device->dev->kobj, "pwrscale");
+	int ret;
+
+	ret = kobject_init_and_add(&device->pwrscale_kobj, &ktype_pwrscale,
+		&device->dev->kobj, "pwrscale");
+
+	if (ret)
+		return ret;
+
+	kobject_init(&device->pwrscale.kobj, &ktype_pwrscale_policy);
+	return ret;
 }
 EXPORT_SYMBOL(kgsl_pwrscale_init);
 
