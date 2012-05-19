@@ -4,6 +4,8 @@
  * Copyright (C) 2003-2005,2008 David Brownell
  * Copyright (C) 2003-2004 Robert Schwebel, Benedikt Spranger
  * Copyright (C) 2008 Nokia Corporation
+ * Copyright (C) 2009 Samsung Electronics
+ *                    Author: Michal Nazarewicz (m.nazarewicz@samsung.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +24,7 @@
 
 /* #define VERBOSE_DEBUG */
 
+#include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/etherdevice.h>
@@ -84,6 +87,8 @@ struct f_rndis {
 	struct gether			port;
 	u8				ctrl_id, data_id;
 	u8				ethaddr[ETH_ALEN];
+	u32  			vendorID;
+	const char 		*manufacturer;
 	int				config;
 
 	struct rndis_ep_descs		fs;
@@ -95,6 +100,8 @@ struct f_rndis {
 	atomic_t			notify_count;
 };
 
+static char		manufacturer [10] = "HTC";
+static u32		vendorID = 0x0bb4;
 static inline struct f_rndis *func_to_rndis(struct usb_function *f)
 {
 	return container_of(f, struct f_rndis, port.func);
@@ -412,8 +419,7 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	 */
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_SEND_ENCAPSULATED_COMMAND:
-		if (w_length > req->length || w_value
-				|| w_index != rndis->ctrl_id)
+		if (w_value || w_index != rndis->ctrl_id)
 			goto invalid;
 		/* read the request; process it later */
 		value = w_length;
@@ -820,6 +826,8 @@ int __init rndis_bind_config(struct usb_configuration *c, u8 ethaddr[ETH_ALEN])
 		goto fail;
 
 	memcpy(rndis->ethaddr, ethaddr, ETH_ALEN);
+	rndis->vendorID = vendorID;
+	rndis->manufacturer = manufacturer;
 
 	/* RNDIS activates when the host changes this filter */
 	rndis->port.cdc_filter = 0;

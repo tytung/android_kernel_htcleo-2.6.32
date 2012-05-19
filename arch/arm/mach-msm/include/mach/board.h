@@ -179,6 +179,16 @@ enum {
 };
 
 void msm_hsusb_set_vbus_state(int online);
+enum usb_connect_type {
+        CONNECT_TYPE_CLEAR = -2,
+        CONNECT_TYPE_UNKNOWN = -1,
+        CONNECT_TYPE_NONE = 0,
+        CONNECT_TYPE_USB,
+        CONNECT_TYPE_AC,
+        CONNECT_TYPE_9V_AC,
+        CONNECT_TYPE_WIRELESS,
+        CONNECT_TYPE_INTERNAL,
+};
 
 #define MSM_MAX_DEC_CNT 14
 /* 7k target ADSP information */

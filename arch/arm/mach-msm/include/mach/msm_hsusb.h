@@ -47,8 +47,18 @@ struct msm_hsusb_platform_data {
 	/* 1 : uart, 0 : usb */
 	void (*usb_uart_switch)(int);
 	void (*config_usb_id_gpios)(bool enable);
-	/* val, reg pairs terminated by -1 */
-	int *phy_init_seq;
+        void (*usb_hub_enable)(bool);
+        void (*serial_debug_gpios)(int);
+        int (*china_ac_detect)(void);
+        void (*disable_usb_charger)(void);
+        /* val, reg pairs terminated by -1 */
+        int *phy_init_seq;
+        void (*change_phy_voltage)(int);
+        int (*ldo_init) (int init);
+        int (*ldo_enable) (int enable);
+        int (*rpc_connect)(int);
+        /* 1 : mhl, 0 : usb */
+        void (*usb_mhl_switch)(bool);
 
 #ifdef CONFIG_USB_FUNCTION
 	/* USB device descriptor fields */
@@ -74,10 +84,15 @@ struct msm_hsusb_platform_data {
 	int num_products;
 	struct msm_hsusb_product *products;
 #endif
-	char *serial_number;
-	int usb_id_pin_gpio;
-	bool enable_car_kit_detect;
-	__u8 accessory_detect;
+        char *serial_number;
+        int usb_id_pin_gpio;
+        int dock_pin_gpio;
+        int id_pin_irq;
+        bool enable_car_kit_detect;
+        __u8 accessory_detect;
+        bool dock_detect;
+
+        int ac_9v_gpio;
 };
 
 int usb_get_connect_type(void);
