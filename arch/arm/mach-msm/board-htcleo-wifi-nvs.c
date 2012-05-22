@@ -104,6 +104,21 @@ static void parse_tag_msm_wifi(void)
 	pr_info("Device WiFi MAC Address: %s\n", nvs_mac_addr);
 }
 
+static int parse_tag_msm_wifi_from_spl(void)
+{
+	uint32_t id1, id2, id3, id4, id5, id6;
+	uint32_t id_base = 0xFC028; //real mac offset found in spl for haret.exe on WM
+	id1 = readl(MSM_SPLHOOD_BASE + id_base + 0x0);
+	id2 = readl(MSM_SPLHOOD_BASE + id_base + 0x1);
+	id3 = readl(MSM_SPLHOOD_BASE + id_base + 0x2);
+	id4 = readl(MSM_SPLHOOD_BASE + id_base + 0x3);
+	id5 = readl(MSM_SPLHOOD_BASE + id_base + 0x4);
+	id6 = readl(MSM_SPLHOOD_BASE + id_base + 0x5);
+	sprintf(nvs_mac_addr, "macaddr=%2x:%2x:%2x:%2x:%2x:%2x\n", id1 & 0xff, id2 & 0xff, id3 & 0xff, id4 & 0xff, id5 & 0xff, id6 & 0xff);
+	pr_info("Device Real Wifi Mac Address: %s\n", nvs_mac_addr);
+	return 0;
+}
+
 static unsigned wifi_get_nvs_size( void )
 {
 	unsigned len;
@@ -146,6 +161,8 @@ static int __init wifi_nvs_init(void)
 	pr_info("%s\n", __func__);
 	if (htcleo_is_nand_boot()) {
 		parse_tag_msm_wifi();
+	} else {
+		parse_tag_msm_wifi_from_spl();
 	}
 	wifi_calibration = create_proc_entry("calibration", 0444, NULL);
 	if (wifi_calibration != NULL) {
