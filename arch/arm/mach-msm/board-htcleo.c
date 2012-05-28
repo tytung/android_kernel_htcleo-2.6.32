@@ -537,7 +537,7 @@ int is_valid_mac_address(char *mac)
 	int i =0;
 	while(i<17){
 		if( (i%3) == 2){
-			if ((mac[i] !=':') && (mac[i] = '-')) return 0;
+			if ((mac[i] !=':') || (mac[i] != '-')) return 0;
 			if (mac[i] == '-') mac[i] = ':';
 		}else{
 			if ( !( ((mac[i] >= '0') && (mac[i] <= '9')) ||
