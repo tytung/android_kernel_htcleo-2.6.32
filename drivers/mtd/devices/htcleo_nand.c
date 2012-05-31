@@ -1827,56 +1827,15 @@ static int param_get_page_size(char *buffer, struct kernel_param *kp)
 }
 module_param_call(pagesize, NULL, param_get_page_size, NULL, S_IRUGO);
 
-int is_htc_mac (int pattern)
-{
-		/* HTC blocks to find :
-		00:09:2D
-		00:23:76
-		18:87:76
-		1C:B0:94
-		38:E7:D8
-		64:A7:69
-		7C:61:93
-		90:21:55
-		A0:F4:50
-		A8:26:D9
-		D4:20:6D
-		D8:B3:77
-		E8:99:C4
-		F8:DB:F7 */
-    static int nums[] = {
-    0x00092D,0x2D0900,
-    0x002376,0x762300,
-    0x188776,0x768718,
-    0x1CB094,0x94B01C,
-    0x38E7D8,0xD8E738,
-    0x64A769,0x69A764,
-    0x7C6193,0x93617C,
-    0x902155,0x552190,
-    0xA0F450,0x50F4A0,
-    0xA826D9,0xD926A8,
-    0xD4206D,0x6D20D4,
-    0xD8B377,0x77B3D8,
-    0xE899C4,0xC499E8,
-    0xF8DBF7,0xF7DBF8};
-    int i;
-    for (i=0; i< (sizeof(nums)/sizeof(nums[0])); i++) {
-	    if (nums[i] == pattern) return 1;
-    }
-    return 0;
-}
-
 void scanmac(struct mtd_info *mtd)
 {
 	unsigned char *iobuf;
 	int ret;
 	loff_t addr;
 	struct mtd_oob_ops ops;
-	int i,j,k;
 
 	iobuf = kmalloc(2048/*mtd->erasesize*/, GFP_KERNEL);
 	if (!iobuf) {
-		/*ret = -ENOMEM;*/
 		printk("%s: error: cannot allocate memory\n",__func__);
 		return;
 	}
@@ -1888,52 +1847,33 @@ void scanmac(struct mtd_info *mtd)
 	ops.oobbuf = NULL;
 	ops.retlen = 0;
 
-	/* block 505 page 6 contains as good candidate */
-	addr = ((loff_t) 505*0x20000 + 6*2048);
+	addr = ((loff_t) 505*0x20000);
 	ret = msm_nand_read_oob(mtd, addr, &ops);
-
 	if (ret == -EUCLEAN)
 		ret = 0;
 	if (ret || ops.retlen != 2048 ) {
 		printk("%s: error: read(%d) failed at %#llx\n",__func__,ops.retlen, addr);
 		goto out;
 	}
+	printk("%s: candidate for wifi mac=%02x:%02x:%02x:%02x:%02x:%02x\n",__func__,
+		iobuf[40],iobuf[41],iobuf[42],iobuf[43],iobuf[44],iobuf[45]);
 
-	printk("%s: Prefered candidate mac=%02x:%02x:%02x:%02x:%02x:%02x\n",__func__,
+	addr = ((loff_t) 505*0x20000 + 6*0x800);
+	ret = msm_nand_read_oob(mtd, addr, &ops);
+	if (ret == -EUCLEAN)
+		ret = 0;
+	if (ret || ops.retlen != 2048 ) {
+		printk("%s: error: read(%d) failed at %#llx\n",__func__,ops.retlen, addr);
+		goto out;
+	}
+	printk("%s: candidate for bluetooth mac=%02x:%02x:%02x:%02x:%02x:%02x\n",__func__,
 		iobuf[5],iobuf[4],iobuf[3],iobuf[2],iobuf[1],iobuf[0]);
 
-	/* now lets walk looking for HTC mac in the first reserved blocks of NAND   */
-	/* NUM_PROTECTED_BLOCKS=0x212 but Parttiontable starts at 0x219             */
-	/* I think 400 is ok, I have already eliminated 0 - 157 with false positive */
-	/* If my guess is correct, only 505 will match ;-)                          */
-	for (i=158; i<0x219; i++) {
-	    for (j=0; j<64; j++) {
-		addr = ((loff_t) i*0x20000 + j*2048);
-		ret = msm_nand_read_oob(mtd, addr, &ops);
-
-		if (ret == -EUCLEAN)
-		    ret = 0;
-		if (ret || ops.retlen != 2048 ) {
-			printk("%s: error: read(%d) failed at %#llx\n",__func__,ops.retlen, addr);
-			break;
-		}
-		/* check */
-		for (k=0; k<2045; k++) {
-		    if (is_htc_mac( (iobuf[k+0]<<16) + (iobuf[k+1]<<8) + iobuf[k+2])) {
-			printk("Mac candidate at block:%d page:%d offset:%d:\n",i,j,k);
-			k >>= 4;
-			k <<= 4;
-			print_hex_dump_bytes("", DUMP_PREFIX_OFFSET, &iobuf[k], 16);
-			k += 16;
-		    }
-		}
-	    }/*j*/
-	}/*i*/
 	ret = 0;
+
 out:
 	kfree(iobuf);
-	if (ret)
-		printk("Find MAc Error %d occurred\n", ret);
+	if (ret) printk("Find MAC Error %d occurred\n", ret);
 	return;
 }
 
