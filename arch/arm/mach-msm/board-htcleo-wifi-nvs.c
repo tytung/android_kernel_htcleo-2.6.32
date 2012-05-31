@@ -28,13 +28,17 @@
 #include <linux/io.h>
 
 #include "board-htcleo.h"
+#include <mach/board-htcleo-mac.h>
 
 #define NVS_MAX_SIZE		0x800U
-#define NVS_MACADDR_SIZE	0x1AU
 #define WLAN_SKB_BUF_NUM	16
 
+/*
+ * wifi mac address will be parsed in msm_nand_probe
+ * see drivers/mtd/devices/htcleo_nand.c
+ */
 static struct proc_dir_entry *wifi_calibration;
-static unsigned char nvs_mac_addr[NVS_MACADDR_SIZE];
+char nvs_mac_addr[NVS_MACADDR_SIZE];
 static unsigned char *hardcoded_nvs = 
   "sromrev=3\n"\
   "vendid=0x14e4\n"\
@@ -81,43 +85,7 @@ unsigned char *get_wifi_nvs_ram( void )
 }
 EXPORT_SYMBOL(get_wifi_nvs_ram);
 
-static void parse_tag_msm_wifi(void)
-{
-	uint32_t id1, id2, sid1, sid2, sid3;
-	uint32_t id_base = 0xef260;
-	/* read Serial Number SN (IMEI = TAC.SN) */
-	id1 = readl(MSM_SHARED_RAM_BASE + id_base + 0x8);
-	id2 = readl(MSM_SHARED_RAM_BASE + id_base + 0xc);
-	/* Xor SN with TAC (yes only two differents TAC for the HD2 */
-	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x0);
-	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x4);
-	/* Xor with CID of operator too further mix the Serial */
-	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x10);
-	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x14);
 
-	/* repack the SN part from IMEI (id) into three bytes using low nibbles */
-	sid1 = ((id1 <<  4) & 0xf0) | ((id1 >> 8)  & 0xf);
-	sid2 = ((id1 >> 12) & 0xf0) | ((id1 >> 24) & 0xf);
-	sid3 = ((id2 <<  4) & 0xf0) | ((id2 >> 8)  & 0xf);
-
-	sprintf(nvs_mac_addr, "macaddr=00:23:76:%02x:%02x:%02x\n", sid1, sid2, sid3);
-	pr_info("Device WiFi MAC Address: %s\n", nvs_mac_addr);
-}
-
-static int parse_tag_msm_wifi_from_spl(void)
-{
-	uint32_t id1, id2, id3, id4, id5, id6;
-	uint32_t id_base = 0xFC028; //real mac offset found in spl for haret.exe on WM
-	id1 = readl(MSM_SPLHOOD_BASE + id_base + 0x0);
-	id2 = readl(MSM_SPLHOOD_BASE + id_base + 0x1);
-	id3 = readl(MSM_SPLHOOD_BASE + id_base + 0x2);
-	id4 = readl(MSM_SPLHOOD_BASE + id_base + 0x3);
-	id5 = readl(MSM_SPLHOOD_BASE + id_base + 0x4);
-	id6 = readl(MSM_SPLHOOD_BASE + id_base + 0x5);
-	sprintf(nvs_mac_addr, "macaddr=%2x:%2x:%2x:%2x:%2x:%2x\n", id1 & 0xff, id2 & 0xff, id3 & 0xff, id4 & 0xff, id5 & 0xff, id6 & 0xff);
-	pr_info("Device Real Wifi Mac Address: %s\n", nvs_mac_addr);
-	return 0;
-}
 
 static unsigned wifi_get_nvs_size( void )
 {
@@ -159,11 +127,6 @@ static int wifi_calibration_read_proc(char *page, char **start, off_t off,
 static int __init wifi_nvs_init(void)
 {
 	pr_info("%s\n", __func__);
-	if (htcleo_is_nand_boot()) {
-		parse_tag_msm_wifi();
-	} else {
-		parse_tag_msm_wifi_from_spl();
-	}
 	wifi_calibration = create_proc_entry("calibration", 0444, NULL);
 	if (wifi_calibration != NULL) {
 		wifi_calibration->size = wifi_get_nvs_size();

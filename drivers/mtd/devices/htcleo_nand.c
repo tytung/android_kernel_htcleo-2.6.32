@@ -39,6 +39,7 @@
 #include <asm/mach/flash.h>
 
 #include <mach/dma.h>
+#include <mach/board-htcleo-mac.h>
 
 unsigned crci_mask;
 
@@ -1863,8 +1864,9 @@ void scanmac(struct mtd_info *mtd)
 		printk("%s: error: read(%d) failed at %#llx\n",__func__,ops.retlen, addr);
 		goto out;
 	}
-	printk("%s: candidate for wifi mac=%02x:%02x:%02x:%02x:%02x:%02x\n",__func__,
+	sprintf(nvs_mac_addr, "macaddr=%02x:%02x:%02x:%02x:%02x:%02x\n",
 		iobuf[40],iobuf[41],iobuf[42],iobuf[43],iobuf[44],iobuf[45]);
+	pr_info("Device WiFi MAC Address: %s\n", nvs_mac_addr);
 
 	addr = ((loff_t) 505*0x20000 + 6*0x800);
 	ret = msm_nand_read_oob(mtd, addr, &ops);
@@ -1874,9 +1876,11 @@ void scanmac(struct mtd_info *mtd)
 		printk("%s: error: read(%d) failed at %#llx\n",__func__,ops.retlen, addr);
 		goto out;
 	}
-	printk("%s: candidate for bluetooth mac=%02x:%02x:%02x:%02x:%02x:%02x\n",__func__,
-		iobuf[5],iobuf[4],iobuf[3],iobuf[2],iobuf[1],iobuf[0]);
 
+	// BT MAC for AOSP ROMs
+	sprintf(bdaddr, "%02x:%02x:%02x:%02x:%02x:%02x",
+		iobuf[5],iobuf[4],iobuf[3],iobuf[2],iobuf[1],iobuf[0]);
+	pr_info("Device Bluetooth MAC Address: %s\n", bdaddr);
 	ret = 0;
 
 out:

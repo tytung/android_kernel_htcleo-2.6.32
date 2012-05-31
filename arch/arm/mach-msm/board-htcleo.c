@@ -64,6 +64,7 @@
 #include <linux/msm_kgsl.h>
 #endif
 
+#include <mach/board-htcleo-mac.h>
 #include <mach/board-htcleo-microp.h>
 
 #include "board-htcleo.h"
@@ -535,35 +536,14 @@ static struct platform_device msm_camera_sensor_s5k3e2fx =
 ///////////////////////////////////////////////////////////////////////
 
 /* AOSP style interface */
-#define BDADDR_STR_SIZE 18
-static char bdaddr[BDADDR_STR_SIZE];
-
+/*
+ * bluetooth mac address will be parsed in msm_nand_probe
+ * see drivers/mtd/devices/htcleo_nand.c
+ */
+char bdaddr[BDADDR_STR_SIZE];
 module_param_string(bdaddr, bdaddr, sizeof(bdaddr), 0400);
 MODULE_PARM_DESC(bdaddr, "bluetooth address");
 
-static void parse_tag_bdaddr(void)
-{
-	uint32_t id1, id2, sid1, sid2, sid3;
-	uint32_t id_base = 0xef260;
-	/* read Serial Number SN (IMEI = TAC.SN) */
-	id1 = readl(MSM_SHARED_RAM_BASE + id_base + 0x8);
-	id2 = readl(MSM_SHARED_RAM_BASE + id_base + 0xc);
-	/* Xor SN with TAC (yes only two differents TAC for the HD2 */
-	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x0);
-	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x4);
-	/* Xor with CID of operator too further mix the Serial */
-	id1 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x10);
-	id2 ^= readl(MSM_SHARED_RAM_BASE + id_base + 0x14);
-
-	/* repack the SN part from IMEI (id) into three bytes using low nibbles */
-	sid1 = ((id1 <<  4) & 0xf0) | ((id1 >> 8)  & 0xf);
-	sid2 = ((id1 >> 12) & 0xf0) | ((id1 >> 24) & 0xf);
-	sid3 = ((id2 <<  4) & 0xf0) | ((id2 >> 8)  & 0xf);
-
-	sprintf(bdaddr, "00:23:76:%02x:%02x:%02x", sid3, sid2, sid1);
-	pr_info("Device Bluetooth MAC Address: %s\n", bdaddr);
-}
-/* end AOSP style interface */
 
 #ifdef CONFIG_SERIAL_MSM_HS
 static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
@@ -1080,8 +1060,6 @@ static void __init htcleo_init(void)
 #endif
 
 	config_gpio_table(bt_gpio_table, ARRAY_SIZE(bt_gpio_table));
-
-	parse_tag_bdaddr();
 
 	htcleo_audio_init();
 
