@@ -20,17 +20,16 @@ Primary features:
 - Two-way call recording (Credits: avs333, snq-, and tytung)
 - T-Mobile Wi-Fi Calling (Credits: tytung)
 - Wi-Fi IEEE 802.1x/EAP authentication (Credits: tytung)
-- Native USB Tethering (for Gingerbread) (Credits: tytung)
+- Native USB Tethering (Credits: tytung)
 - Native Wi-Fi Tethering (Credits: tytung)
-- Real Wi-Fi MAC address (only for SD build on WinMo 6.5) (Credits: savan and tytung)
-- Unique Wi-Fi MAC address (for MAGLDR and cLK) (Credits: Franck78 and markinus)
-- Unique Bluetooth MAC address (Credits: Franck78, markinus and tytung)
 - Official HTC extended battery support (HTC EB 2300mAh) (Credits: arne)
 - ALSA sound driver as kernel modules (alsa-pcm-htc-leo.ko and alsa-mix-htc-leo.ko) (Credits: cotulla)
 - Wired headphones support for ICS. (Credits: zivan56)
 - Backported xt_qtaguid and xt_quota2 to support data usage for ICS. (Credits: tytung)
 - Improved Flashlight compatibility for ICS. (Credits: tytung)
 - Backported the GPU driver to enable the Hardware Acceleration for ICS. (Credits: Securecrt and Rick_1995)
+- Updated to msm-kgsl3d0 v3.8 to match the latest QCOM Adreno200 drivers for ICS. (Credits: Rick_1995)
+- Real WiFi and Bluetooth MAC addresses. (Credits: Franck78, Rick_1995 and Marc1706)
 
 Credits: Cotulla, Markinus, Hastarin, TYTung, Letama, Rajko, Dan1j3l, Cedesmith, Arne, Trilu, Charansingh, Mdebeljuh, Jdivic, Avs333, Snq-, Savan, Drizztje, Marc1706, Zivan56, Securecrt, Rick_1995, Franck78, other devs, and testers.
 
