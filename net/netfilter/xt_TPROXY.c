@@ -22,6 +22,7 @@
 
 #include <net/netfilter/ipv4/nf_defrag_ipv4.h>
 
+/*
 #if defined(CONFIG_IP6_NF_IPTABLES) || defined(CONFIG_IP6_NF_IPTABLES_MODULE)
 #define XT_TPROXY_HAVE_IPV6 1
 #include <net/if_inet6.h>
@@ -29,6 +30,7 @@
 #include <linux/netfilter_ipv6/ip6_tables.h>
 #include <net/netfilter/ipv6/nf_defrag_ipv6.h>
 #endif
+*/
 
 #include <net/netfilter/nf_tproxy_core.h>
 #include <linux/netfilter/xt_TPROXY.h>
