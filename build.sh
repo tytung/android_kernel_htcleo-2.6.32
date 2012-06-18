@@ -24,7 +24,7 @@ find -iname *.ko | xargs -i -t cp {} .
 rm -rf $KERNELBASEDIR/system/lib/modules/lib
 stat $KERNELBASEDIR/boot/zImage
 cd ../../../
-zip -r tytung_HWA_kernel.`date +"%Y%m%d_%H_%M"`.zip boot system
+zip -r tytung_HWA_kernel.`date +"%Y%m%d_%H_%M"`.zip boot system META-INF
 else
 echo "Kernel STUCK in BUILD! no zImage exist"
 fi
