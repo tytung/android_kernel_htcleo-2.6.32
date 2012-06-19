@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -391,7 +391,6 @@ void adreno_ringbuffer_stop(struct adreno_ringbuffer *rb)
 	if (rb->flags & KGSL_FLAGS_STARTED) {
 		/* ME_HALT */
 		adreno_regwrite(rb->device, REG_CP_ME_CNTL, 0x10000000);
-
 		rb->flags &= ~KGSL_FLAGS_STARTED;
 	}
 }
@@ -560,6 +559,7 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 	unsigned int *cmds;
 	unsigned int i;
 	struct adreno_context *drawctxt;
+	unsigned int start_index = 0;
 
 	if (device->state & KGSL_STATE_HUNG)
 		return -EBUSY;
@@ -582,7 +582,16 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 			" submission, size %x\n", numibs * 3);
 		return -ENOMEM;
 	}
-	for (i = 0; i < numibs; i++) {
+
+	/*When preamble is enabled, the preamble buffer with state restoration
+	commands are stored in the first node of the IB chain. We can skip that
+	if a context switch hasn't occured */
+
+	if (drawctxt->flags & CTXT_FLAGS_PREAMBLE &&
+		adreno_dev->drawctxt_active == drawctxt)
+		start_index = 1;
+
+	for (i = start_index; i < numibs; i++) {
 		(void)kgsl_cffdump_parse_ibs(dev_priv, NULL,
 			ibdesc[i].gpuaddr, ibdesc[i].sizedwords, false);
 
@@ -739,8 +748,20 @@ int adreno_ringbuffer_extract(struct adreno_ringbuffer *rb,
 			kgsl_sharedmem_readl(&rb->buffer_desc, &value, rb_rptr);
 			rb_rptr = adreno_ringbuffer_inc_wrapped(rb_rptr,
 							rb->buffer_desc.size);
-			BUG_ON((copy_rb_contents == 0) &&
-				(value == cur_context));
+
+			/*
+			 * If other context switches were already lost and
+			 * and the current context is the one that is hanging,
+			 * then we cannot recover.  Print an error message
+			 * and leave.
+			 */
+
+			if ((copy_rb_contents == 0) && (value == cur_context)) {
+				KGSL_DRV_ERR(device, "GPU recovery could not "
+					"find the previous context\n");
+				return -EINVAL;
+			}
+
 			/*
 			 * If we were copying the commands and got to this point
 			 * then we need to remove the 3 commands that appear
