@@ -231,8 +231,6 @@ static void cffdump_printline(int id, uint opcode, uint op1, uint op2,
 
 	spin_lock(&cffdump_lock);
 	if (opcode == CFF_OP_WRITE_MEM) {
-		if (op1 < 0x40000000 || op1 >= 0x60000000)
-			KGSL_CORE_ERR("addr out-of-range: op1=%08x", op1);
 		if ((cff_op_write_membuf.addr != op1 &&
 			cff_op_write_membuf.count)
 			|| (cff_op_write_membuf.count == MEMBUF_SIZE))
@@ -360,15 +358,7 @@ void kgsl_cffdump_destroy()
 
 void kgsl_cffdump_open(enum kgsl_deviceid device_id)
 {
-	/*TODO: move this to where we can report correct gmemsize*/
-	unsigned int va_base;
-
-	if (cpu_is_msm8x60() || cpu_is_msm8960() || cpu_is_msm8930())
-		va_base = 0x40000000;
-	else
-		va_base = 0x20000000;
-
-	kgsl_cffdump_memory_base(device_id, va_base,
+	kgsl_cffdump_memory_base(device_id, KGSL_PAGETABLE_BASE,
 			CONFIG_MSM_KGSL_PAGE_TABLE_SIZE, SZ_256K);
 }
 

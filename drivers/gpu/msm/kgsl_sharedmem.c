@@ -665,7 +665,7 @@ kgsl_sharedmem_writel(const struct kgsl_memdesc *memdesc,
 	BUG_ON(memdesc == NULL || memdesc->hostptr == NULL);
 	BUG_ON(offsetbytes + sizeof(unsigned int) > memdesc->size);
 
-	kgsl_cffdump_setmem(memdesc->physaddr + offsetbytes,
+	kgsl_cffdump_setmem(memdesc->gpuaddr + offsetbytes,
 		src, sizeof(uint));
 	writel_relaxed(src, memdesc->hostptr + offsetbytes);
 	return 0;
@@ -679,7 +679,7 @@ kgsl_sharedmem_set(const struct kgsl_memdesc *memdesc, unsigned int offsetbytes,
 	BUG_ON(memdesc == NULL || memdesc->hostptr == NULL);
 	BUG_ON(offsetbytes + sizebytes > memdesc->size);
 
-	kgsl_cffdump_setmem(memdesc->physaddr + offsetbytes, value,
+	kgsl_cffdump_setmem(memdesc->gpuaddr + offsetbytes, value,
 		sizebytes);
 	memset(memdesc->hostptr + offsetbytes, value, sizebytes);
 	return 0;
