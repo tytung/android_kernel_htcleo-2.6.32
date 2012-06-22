@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -83,7 +83,7 @@ void adreno_regread(struct kgsl_device *device, unsigned int offsetwords,
 void adreno_regwrite(struct kgsl_device *device, unsigned int offsetwords,
 				unsigned int value);
 
-const struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
+struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
 						unsigned int pt_base,
 						unsigned int gpuaddr,
 						unsigned int size);
