@@ -1,7 +1,7 @@
 #!/bin/sh
 
 KERNELBASEDIR=/ics/kernel/out
-
+rm arch/arm/boot/zImage
 make htcleo_defconfig
 make ARCH=arm CROSS_COMPILE=/home/securecrt/tools/arm-2010q1/bin/arm-none-eabi- zImage -j8 && make ARCH=arm CROSS_COMPILE=/home/securecrt/tools/arm-2010q1/bin/arm-none-eabi- modules -j8
 
