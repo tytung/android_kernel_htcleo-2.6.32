@@ -425,7 +425,7 @@ _kgsl_sharedmem_vmalloc(struct kgsl_memdesc *memdesc,
 	memdesc->ops = &kgsl_vmalloc_ops;
 	memdesc->hostptr = (void *) ptr;
 
-	memdesc->sg = kmalloc(sglen * sizeof(struct scatterlist), GFP_KERNEL);
+	memdesc->sg = vmalloc(sglen * sizeof(struct scatterlist));
 	if (memdesc->sg == NULL) {
 		ret = -ENOMEM;
 		goto done;
@@ -564,7 +564,7 @@ void kgsl_sharedmem_free(struct kgsl_memdesc *memdesc)
 	if (memdesc->ops && memdesc->ops->free)
 		memdesc->ops->free(memdesc);
 
-	kfree(memdesc->sg);
+	vfree(memdesc->sg);
 
 	memset(memdesc, 0, sizeof(*memdesc));
 }

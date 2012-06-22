@@ -20,7 +20,7 @@
 #include <linux/slab.h>
 #include <linux/time.h>
 #include <linux/sched.h>
-#include <mach/socinfo.h>
+//#include <mach/socinfo.h>
 
 #include "kgsl.h"
 #include "kgsl_cffdump.h"

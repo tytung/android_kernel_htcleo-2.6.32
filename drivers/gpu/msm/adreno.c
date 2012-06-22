@@ -72,6 +72,7 @@
 	 | (MMU_CONFIG << MH_MMU_CONFIG__PA_W_CLNT_BEHAVIOR__SHIFT))
 
 static const struct kgsl_functable adreno_functable;
+unsigned int kgsl_cff_dump_enable=0;
 
 static struct adreno_device device_3d0 = {
 	.dev = {
