@@ -1182,13 +1182,21 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 	msecs_first = (msecs <= 100) ? ((msecs + 4) / 5) : 100;
 	msecs_part = (msecs - msecs_first + 3) / 4;
 	for (retries = 0; retries < 5; retries++) {
-	if (!kgsl_check_timestamp(device, timestamp)) {
+		if (kgsl_check_timestamp(device, timestamp)) {
+			/* if the timestamp happens while we're not
+			 * waiting, there's a chance that an interrupt
+			 * will not be generated and thus the timestamp
+			 * work needs to be queued.
+			 */
+			queue_work(device->work_queue, &device->ts_expired_ws);
+			status = 0;
+			goto done;
+		}
 			adreno_poke(device);
 //          the QSD8X50 don't support io_fraction ?? // SecureCRT 2012-06-20
 //			io_cnt = (io_cnt + 1) % 100;
 //			if (io_cnt <
-//				pwr->pwrlevels[pwr->active_pwrlevel].
-//					io_fraction)
+//				pwr->pwrlevels[pwr->active_pwrlevel].o_fraction)
 //				io = 0;
 		mutex_unlock(&device->mutex);
 			/* We need to make sure that the process is
@@ -1212,28 +1220,19 @@ static int adreno_waittimestamp(struct kgsl_device *device,
                         }
                         /*this wait timed out*/
 		}
-	}
-			if (!kgsl_check_timestamp(device, timestamp)) {
 				status = -ETIMEDOUT;
 				KGSL_DRV_ERR(device,
-					"Device hang detected while waiting "
-					"for timestamp: %x, last "
-					"submitted(rb->timestamp): %x, wptr: "
-					"%x\n", timestamp,
-					adreno_dev->ringbuffer.timestamp,
+		     "Device hang detected while waiting for timestamp: %x,"
+		      "last submitted(rb->timestamp): %x, wptr: %x\n",
+		      timestamp, adreno_dev->ringbuffer.timestamp,
 					adreno_dev->ringbuffer.wptr);
 				if (!adreno_dump_and_recover(device)) {
 					/* wait for idle after recovery as the
 					 * timestamp that this process wanted
 					 * to wait on may be invalid */
-					if (!adreno_idle(device,
-						KGSL_TIMEOUT_DEFAULT))
-						status = 0;
-				}
-	} else {
+		if (!adreno_idle(device, KGSL_TIMEOUT_DEFAULT))
 		status = 0;
 	}
-
 done:
 	return (int)status;
 }
