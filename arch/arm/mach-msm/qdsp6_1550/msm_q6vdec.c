@@ -61,7 +61,7 @@
 #define VDEC_GET_MAJOR_VERSION(version)	(((version)&MAJOR_MASK)>>16)
 
 #define VDEC_GET_MINOR_VERSION(version)	((version)&MINOR_MASK)
-#define DEBUG_TRACE_VDEC
+//#define DEBUG_TRACE_VDEC
 #ifdef DEBUG_TRACE_VDEC
 #define TRACE(fmt,x...)			\
 	do { pr_debug("%s:%d " fmt, __func__, __LINE__, ##x); } while (0)
