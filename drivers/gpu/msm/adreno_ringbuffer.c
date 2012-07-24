@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -246,6 +246,7 @@ int adreno_ringbuffer_start(struct adreno_ringbuffer *rb, unsigned int init_ram)
 	union reg_cp_rb_cntl cp_rb_cntl;
 	unsigned int *cmds, rb_cntl;
 	struct kgsl_device *device = rb->device;
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	uint cmds_gpu;
 
 	if (rb->flags & KGSL_FLAGS_STARTED)
@@ -362,9 +363,10 @@ int adreno_ringbuffer_start(struct adreno_ringbuffer *rb, unsigned int init_ram)
 	GSL_RB_WRITE(cmds, cmds_gpu,
 		SUBBLOCK_OFFSET(REG_PA_SU_POLY_OFFSET_FRONT_SCALE));
 
-	/* Vertex and Pixel Shader Start Addresses in instructions
-	* (3 DWORDS per instruction) */
-	GSL_RB_WRITE(cmds, cmds_gpu, 0x80000180);
+	/* Instruction memory size: */
+	GSL_RB_WRITE(cmds, cmds_gpu,
+		     (adreno_encode_istore_size(adreno_dev)
+		      | adreno_dev->pix_shader_start));
 	/* Maximum Contexts */
 	GSL_RB_WRITE(cmds, cmds_gpu, 0x00000001);
 	/* Write Confirm Interval and The CP will wait the
