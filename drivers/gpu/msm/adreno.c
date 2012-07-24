@@ -156,37 +156,15 @@ static const struct {
 	{ ADRENO_REV_A225, 2, 2, 0, 5,
 		"a225p5_pm4.fw", "a225_pfp.fw", &adreno_a2xx_gpudev,
 		1536, 768 },
+	{ ADRENO_REV_A225, 2, 2, 0, 6,
+		"a225_pm4.fw", "a225_pfp.fw", &adreno_a2xx_gpudev,
+		1536, 768 },
 	{ ADRENO_REV_A225, 2, 2, ANY_ID, ANY_ID,
 		"a225_pm4.fw", "a225_pfp.fw", &adreno_a2xx_gpudev,
 		1536, 768 },
+	{ ADRENO_REV_A320, 3, 1, ANY_ID, ANY_ID,
+		"a300_pm4.fw", "a300_pfp.fw", &adreno_a3xx_gpudev },
 };
-
-static void adreno_gmeminit(struct adreno_device *adreno_dev)
-{
-	struct kgsl_device *device = &adreno_dev->dev;
-	union reg_rb_edram_info rb_edram_info;
-	unsigned int gmem_size;
-	unsigned int edram_value = 0;
-
-	/* make sure edram range is aligned to size */
-	BUG_ON(adreno_dev->gmemspace.gpu_base &
-				(adreno_dev->gmemspace.sizebytes - 1));
-
-	/* get edram_size value equivalent */
-	gmem_size = (adreno_dev->gmemspace.sizebytes >> 14);
-	while (gmem_size >>= 1)
-		edram_value++;
-
-	rb_edram_info.val = 0;
-
-	rb_edram_info.f.edram_size = edram_value;
-	rb_edram_info.f.edram_mapping_mode = 0; /* EDRAM_MAP_UPPER */
-
-	/* must be aligned to size */
-	rb_edram_info.f.edram_range = (adreno_dev->gmemspace.gpu_base >> 14);
-
-	adreno_regwrite(device, REG_RB_EDRAM_INFO, rb_edram_info.val);
-}
 
 static irqreturn_t adreno_isr(int irq, void *data)
 {
@@ -492,7 +470,6 @@ static int adreno_start(struct kgsl_device *device, unsigned int init_ram)
 {
 	int status = -EINVAL;
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	int init_reftimestamp = 0x7fffffff;
 
 	device->state = KGSL_STATE_INIT;
 	device->requested_state = KGSL_STATE_NONE;
@@ -520,80 +497,22 @@ static int adreno_start(struct kgsl_device *device, unsigned int init_ram)
 
 	kgsl_mh_start(device);
 
-	if (kgsl_mmu_start(device))
+	status = kgsl_mmu_start(device);
+	if (status)
 		goto error_clk_off;
 
-	/*We need to make sure all blocks are powered up and clocked before
-	*issuing a soft reset.  The overrides will then be turned off (set to 0)
-	*/
-	adreno_regwrite(device, REG_RBBM_PM_OVERRIDE1, 0xfffffffe);
-	adreno_regwrite(device, REG_RBBM_PM_OVERRIDE2, 0xffffffff);
-
-	/* Only reset CP block if all blocks have previously been reset */
-	if (!(device->flags & KGSL_FLAGS_SOFT_RESET) ||
-		!adreno_is_a22x(adreno_dev)) {
-		adreno_regwrite(device, REG_RBBM_SOFT_RESET, 0xFFFFFFFF);
-		device->flags |= KGSL_FLAGS_SOFT_RESET;
-	} else
-		adreno_regwrite(device, REG_RBBM_SOFT_RESET, 0x00000001);
-
-	/* The core is in an indeterminate state until the reset completes
-	 * after 30ms.
-	 */
-	msleep(30);
-
-	adreno_regwrite(device, REG_RBBM_SOFT_RESET, 0x00000000);
-
-	adreno_regwrite(device, REG_RBBM_CNTL, 0x00004442);
-
-	if (adreno_is_a225(adreno_dev)) {
-		/* Enable large instruction store for A225 */
-		adreno_regwrite(device, REG_SQ_FLOW_CONTROL, 0x18000000);
-	}
-
-	adreno_regwrite(device, REG_SQ_VS_PROGRAM, 0x00000000);
-	adreno_regwrite(device, REG_SQ_PS_PROGRAM, 0x00000000);
-
-	if (cpu_is_msm8960() || cpu_is_msm8930())
-		adreno_regwrite(device, REG_RBBM_PM_OVERRIDE1, 0x200);
-	else
-		adreno_regwrite(device, REG_RBBM_PM_OVERRIDE1, 0);
-
-	if (!adreno_is_a22x(adreno_dev))
-		adreno_regwrite(device, REG_RBBM_PM_OVERRIDE2, 0);
-	else
-		adreno_regwrite(device, REG_RBBM_PM_OVERRIDE2, 0x80);
-
-	kgsl_sharedmem_set(&device->memstore, 0, 0, device->memstore.size);
-
-	kgsl_sharedmem_writel(&device->memstore,
-			      KGSL_DEVICE_MEMSTORE_OFFSET(ref_wait_ts),
-			      init_reftimestamp);
-
-	adreno_regwrite(device, REG_RBBM_DEBUG, 0x00080000);
-
-	/* Make sure interrupts are disabled */
-
-	adreno_regwrite(device, REG_RBBM_INT_CNTL, 0);
-	adreno_regwrite(device, REG_CP_INT_CNTL, 0);
-	adreno_regwrite(device, REG_SQ_INT_CNTL, 0);
-
-	if (adreno_is_a22x(adreno_dev))
-		adreno_dev->gmemspace.sizebytes = SZ_512K;
-	else
-		adreno_dev->gmemspace.sizebytes = SZ_256K;
-	adreno_gmeminit(adreno_dev);
+	/* Start the GPU */
+	adreno_dev->gpudev->start(adreno_dev);
 
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
+	device->ftbl->irqctrl(device, 1);
 
 	status = adreno_ringbuffer_start(&adreno_dev->ringbuffer, init_ram);
-	if (status != 0)
-		goto error_irq_off;
-
+	if (status == 0) {
 	mod_timer(&device->idle_timer, jiffies + FIRST_TIMEOUT);
-	return status;
+		return 0;
+	}
 
-error_irq_off:
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_OFF);
 	kgsl_mmu_stop(device);
 error_clk_off:
@@ -886,7 +805,8 @@ int adreno_idle(struct kgsl_device *device, unsigned int timeout)
 	unsigned int msecs_first;
 	unsigned int msecs_part;
 
-	kgsl_cffdump_regpoll(device->id, REG_RBBM_STATUS << 2,
+	kgsl_cffdump_regpoll(device->id,
+		adreno_dev->gpudev->reg_rbbm_status << 2,
 		0x00000000, 0x80000000);
 	/* first, wait until the CP has consumed all the commands in
 	 * the ring buffer
@@ -917,7 +837,8 @@ retry:
 	/* now, wait for the GPU to finish its operations */
 	wait_time = jiffies + wait_timeout;
 	while (time_before(jiffies, wait_time)) {
-		adreno_regread(device, REG_RBBM_STATUS, &rbbm_status);
+		adreno_regread(device, adreno_dev->gpudev->reg_rbbm_status,
+			&rbbm_status);
 		if (rbbm_status == 0x110)
 			return 0;
 	}
@@ -1295,44 +1216,29 @@ static inline s64 adreno_ticks_to_us(u32 ticks, u32 gpu_freq)
 static void adreno_power_stats(struct kgsl_device *device,
 				struct kgsl_power_stats *stats)
 {
-	unsigned int reg;
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
+	unsigned int cycles;
+
+	/* Get the busy cycles counted since the counter was last reset */
+	/* Calling this function also resets and restarts the counter */
+
+	cycles = adreno_dev->gpudev->busy_cycles(adreno_dev);
 
 	/* In order to calculate idle you have to have run the algorithm *
 	 * at least once to get a start time. */
 	if (pwr->time != 0) {
-		s64 tmp;
-		/* Stop the performance moniter and read the current *
-		 * busy cycles. */
-		adreno_regwrite(device,
-			REG_CP_PERFMON_CNTL,
-			REG_PERF_MODE_CNT |
-			REG_PERF_STATE_FREEZE);
-		adreno_regread(device, REG_RBBM_PERFCOUNTER1_LO, &reg);
-		tmp = ktime_to_us(ktime_get());
+		s64 tmp = ktime_to_us(ktime_get());
 		stats->total_time = tmp - pwr->time;
 		pwr->time = tmp;
-		stats->busy_time = adreno_ticks_to_us(reg, device->pwrctrl.
+		stats->busy_time = adreno_ticks_to_us(cycles, device->pwrctrl.
 				pwrlevels[device->pwrctrl.active_pwrlevel].
 				gpu_freq);
-
-		adreno_regwrite(device,
-			REG_CP_PERFMON_CNTL,
-			REG_PERF_MODE_CNT |
-			REG_PERF_STATE_RESET);
 	} else {
 		stats->total_time = 0;
 		stats->busy_time = 0;
 		pwr->time = ktime_to_us(ktime_get());
 	}
-
-	/* re-enable the performance moniters */
-	adreno_regread(device, REG_RBBM_PM_OVERRIDE2, &reg);
-	adreno_regwrite(device, REG_RBBM_PM_OVERRIDE2, (reg | 0x40));
-	adreno_regwrite(device, REG_RBBM_PERFCOUNTER1_SELECT, 0x1);
-	adreno_regwrite(device,
-		REG_CP_PERFMON_CNTL,
-		REG_PERF_MODE_CNT | REG_PERF_STATE_ENABLE);
 }
 
 void adreno_irqctrl(struct kgsl_device *device, int state)
