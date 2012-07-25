@@ -199,6 +199,21 @@ void kgsl_mem_entry_attach_process(struct kgsl_mem_entry *entry,
 	entry->priv = process;
 }
 
+/* Detach a memory entry from a process and unmap it from the MMU */
+
+static void kgsl_mem_entry_detach_process(struct kgsl_mem_entry *entry)
+{
+	if (entry == NULL)
+		return;
+
+	entry->priv->stats[entry->memtype].cur -= entry->memdesc.size;
+	entry->priv = NULL;
+
+	kgsl_mmu_unmap(entry->memdesc.pagetable, &entry->memdesc);
+
+	kgsl_mem_entry_put(entry);
+}
+
 /* Allocate a new context id */
 
 static struct kgsl_context *
@@ -597,7 +612,7 @@ kgsl_put_process_private(struct kgsl_device *device,
 
 	list_for_each_entry_safe(entry, entry_tmp, &private->mem_list, list) {
 		list_del(&entry->list);
-		kgsl_mem_entry_put(entry);
+		kgsl_mem_entry_detach_process(entry);
 	}
 
 	kgsl_mmu_putpagetable(private->pagetable);
@@ -1022,7 +1037,7 @@ static void kgsl_freemem_event_cb(struct kgsl_device *device,
 	spin_lock(&entry->priv->mem_lock);
 	list_del(&entry->list);
 	spin_unlock(&entry->priv->mem_lock);
-	kgsl_mem_entry_put(entry);
+	kgsl_mem_entry_detach_process(entry);
 }
 
 static long kgsl_ioctl_cmdstream_freememontimestamp(struct kgsl_device_private
@@ -1116,7 +1131,7 @@ static long kgsl_ioctl_sharedmem_free(struct kgsl_device_private *dev_priv,
 	spin_unlock(&private->mem_lock);
 
 	if (entry) {
-		kgsl_mem_entry_put(entry);
+		kgsl_mem_entry_detach_process(entry);
 	} else {
 		KGSL_CORE_ERR("invalid gpuaddr %08x\n", param->gpuaddr);
 		result = -EINVAL;
