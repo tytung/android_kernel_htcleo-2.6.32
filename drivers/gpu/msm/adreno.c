@@ -415,6 +415,7 @@ adreno_identify_gpu(struct adreno_device *adreno_dev)
 	adreno_dev->pm4_fwfile = adreno_gpulist[i].pm4fw;
 	adreno_dev->istore_size = adreno_gpulist[i].istore_size;
 	adreno_dev->pix_shader_start = adreno_gpulist[i].pix_shader_start;
+	adreno_dev->instruction_size = adreno_gpulist[i].instruction_size;
 }
 
 static int __devinit
@@ -1204,7 +1205,7 @@ static long adreno_ioctl(struct kgsl_device_private *dev_priv,
 	default:
 		KGSL_DRV_INFO(dev_priv->device,
 			"invalid ioctl code %08x\n", cmd);
-		result = -EINVAL;
+		result = -ENOIOCTLCMD;
 		break;
 	}
 	return result;
