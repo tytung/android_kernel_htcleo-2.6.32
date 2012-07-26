@@ -580,11 +580,12 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 			drawctxt);
 		return -EDEADLK;
 	}
-	link = kzalloc(sizeof(unsigned int) * numibs * 3, GFP_KERNEL);
-	cmds = link;
+
+	cmds = link = kzalloc(sizeof(unsigned int) * (numibs * 3 + 4),
+				GFP_KERNEL);
 	if (!link) {
-		KGSL_MEM_ERR(device, "Failed to allocate memory for for command"
-			" submission, size %x\n", numibs * 3);
+		KGSL_CORE_ERR("kzalloc(%d) failed\n",
+			sizeof(unsigned int) * (numibs * 3 + 4));
 		return -ENOMEM;
 	}
 
@@ -596,6 +597,16 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 		adreno_dev->drawctxt_active == drawctxt)
 		start_index = 1;
 
+	if (!start_index) {
+		*cmds++ = cp_nop_packet(1);
+		*cmds++ = KGSL_START_OF_IB_IDENTIFIER;
+	} else {
+		*cmds++ = cp_nop_packet(4);
+		*cmds++ = KGSL_START_OF_IB_IDENTIFIER;
+		*cmds++ = CP_HDR_INDIRECT_BUFFER_PFD;
+		*cmds++ = ibdesc[0].gpuaddr;
+		*cmds++ = ibdesc[0].sizedwords;
+	}
 	for (i = start_index; i < numibs; i++) {
 		(void)kgsl_cffdump_parse_ibs(dev_priv, NULL,
 			ibdesc[i].gpuaddr, ibdesc[i].sizedwords, false);
@@ -604,6 +615,9 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 		*cmds++ = ibdesc[i].gpuaddr;
 		*cmds++ = ibdesc[i].sizedwords;
 	}
+
+	*cmds++ = cp_nop_packet(1);
+	*cmds++ = KGSL_END_OF_IB_IDENTIFIER;
 
 	kgsl_setstate(device,
 		      kgsl_mmu_pt_get_flags(device->mmu.hwpagetable,

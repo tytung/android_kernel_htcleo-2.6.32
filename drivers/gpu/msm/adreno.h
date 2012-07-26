@@ -30,8 +30,10 @@
 #define KGSL_CMD_FLAGS_NOT_KERNEL_CMD	0x00000004
 
 /* Command identifiers */
-#define KGSL_CONTEXT_TO_MEM_IDENTIFIER	0xDEADBEEF
-#define KGSL_CMD_IDENTIFIER		0xFEEDFACE
+#define KGSL_CONTEXT_TO_MEM_IDENTIFIER	0x2EADBEEF
+#define KGSL_CMD_IDENTIFIER		0x2EEDFACE
+#define KGSL_START_OF_IB_IDENTIFIER	0x2EADEABE
+#define KGSL_END_OF_IB_IDENTIFIER	0x2ABEDEAD
 
 #ifdef CONFIG_MSM_SCM
 #define ADRENO_DEFAULT_PWRSCALE_POLICY  (&kgsl_pwrscale_policy_tz)
@@ -117,15 +119,19 @@ static inline int adreno_is_a200(struct adreno_device *adreno_dev)
 	return (adreno_dev->gpurev == ADRENO_REV_A200);
 }
 
+static inline int adreno_is_a203(struct adreno_device *adreno_dev)
+{
+	return (adreno_dev->gpurev == ADRENO_REV_A203);
+}
+
 static inline int adreno_is_a205(struct adreno_device *adreno_dev)
 {
-	return (adreno_dev->gpurev == ADRENO_REV_A200);
+	return (adreno_dev->gpurev == ADRENO_REV_A205);
 }
 
 static inline int adreno_is_a20x(struct adreno_device *adreno_dev)
 {
-	return (adreno_dev->gpurev  == ADRENO_REV_A200 ||
-		adreno_dev->gpurev == ADRENO_REV_A205);
+	return (adreno_dev->gpurev <= 209);
 }
 
 static inline int adreno_is_a220(struct adreno_device *adreno_dev)
