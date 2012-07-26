@@ -118,6 +118,8 @@ struct kgsl_memdesc_ops {
 	int (*map_kernel_mem)(struct kgsl_memdesc *);
 };
 
+#define KGSL_MEMDESC_GUARD_PAGE BIT(0)
+
 /* shared memory allocation */
 struct kgsl_memdesc {
 	struct kgsl_pagetable *pagetable;
@@ -129,6 +131,7 @@ struct kgsl_memdesc {
 	struct scatterlist *sg;
 	unsigned int sglen;
 	struct kgsl_memdesc_ops *ops;
+	int flags;
 };
 
 /* List of different memory entry types */
