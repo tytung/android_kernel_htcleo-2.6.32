@@ -52,7 +52,7 @@ static const struct pm_id_name pm3_types[] = {
 	{CP_IM_LOAD,			"IN__LOAD"},
 	{CP_IM_LOAD_IMMEDIATE,		"IM_LOADI"},
 	{CP_IM_STORE,			"IM_STORE"},
-	{CP_INDIRECT_BUFFER,		"IND_BUF_"},
+	{CP_INDIRECT_BUFFER_PFE,	"IND_BUF_"},
 	{CP_INDIRECT_BUFFER_PFD,	"IND_BUFP"},
 	{CP_INTERRUPT,			"PM4_INTR"},
 	{CP_INVALIDATE_STATE,		"INV_STAT"},
@@ -247,9 +247,8 @@ static void adreno_dump_regs(struct kgsl_device *device,
 static void dump_ib(struct kgsl_device *device, char* buffId, uint32_t pt_base,
 	uint32_t base_offset, uint32_t ib_base, uint32_t ib_size, bool dump)
 {
-	unsigned int memsize;
-	uint8_t *base_addr = kgsl_sharedmem_convertaddr(device, pt_base,
-		ib_base, &memsize);
+	uint8_t *base_addr = adreno_convertaddr(device, pt_base,
+		ib_base, ib_size*sizeof(uint32_t));
 
 	if (base_addr && dump)
 		print_hex_dump(KERN_ERR, buffId, DUMP_PREFIX_OFFSET,
@@ -277,20 +276,19 @@ static void dump_ib1(struct kgsl_device *device, uint32_t pt_base,
 	int i, j;
 	uint32_t value;
 	uint32_t *ib1_addr;
-	unsigned int memsize;
 
 	dump_ib(device, "IB1:", pt_base, base_offset, ib1_base,
 		ib1_size, dump);
 
 	/* fetch virtual address for given IB base */
-	ib1_addr = (uint32_t *)kgsl_sharedmem_convertaddr(device, pt_base,
-		ib1_base, &memsize);
+	ib1_addr = (uint32_t *)adreno_convertaddr(device, pt_base,
+		ib1_base, ib1_size*sizeof(uint32_t));
 	if (!ib1_addr)
 		return;
 
 	for (i = 0; i+3 < ib1_size; ) {
 		value = ib1_addr[i++];
-		if (value == cp_type3_packet(CP_INDIRECT_BUFFER_PFD, 2)) {
+		if (adreno_cmd_is_ib(value)) {
 			uint32_t ib2_base = ib1_addr[i++];
 			uint32_t ib2_size = ib1_addr[i++];
 
@@ -466,7 +464,7 @@ static int adreno_dump(struct kgsl_device *device)
 	const uint32_t *rb_vaddr;
 	int num_item = 0;
 	int read_idx, write_idx;
-	unsigned int ts_processed, rb_memsize;
+	unsigned int ts_processed;
 
 	static struct ib_list ib_list;
 
@@ -681,11 +679,16 @@ static int adreno_dump(struct kgsl_device *device)
 
 	KGSL_LOG_DUMP(device, "RB: rd_addr:%8.8x  rb_size:%d  num_item:%d\n",
 		cp_rb_base, rb_count<<2, num_item);
-	rb_vaddr = (const uint32_t *)kgsl_sharedmem_convertaddr(device,
-			cur_pt_base, cp_rb_base, &rb_memsize);
+
+	if (adreno_dev->ringbuffer.buffer_desc.gpuaddr != cp_rb_base)
+		KGSL_LOG_POSTMORTEM_WRITE(device,
+			"rb address mismatch, should be 0x%08x\n",
+			adreno_dev->ringbuffer.buffer_desc.gpuaddr);
+
+	rb_vaddr = adreno_dev->ringbuffer.buffer_desc.hostptr;
 	if (!rb_vaddr) {
 		KGSL_LOG_POSTMORTEM_WRITE(device,
-			"Can't fetch vaddr for CP_RB_BASE\n");
+			"rb has no kernel mapping!\n");
 		goto error_vfree;
 	}
 
@@ -711,7 +714,7 @@ static int adreno_dump(struct kgsl_device *device)
 	i = 0;
 	for (read_idx = 0; read_idx < num_item; ) {
 		uint32_t this_cmd = rb_copy[read_idx++];
-		if (this_cmd == cp_type3_packet(CP_INDIRECT_BUFFER_PFD, 2)) {
+		if (adreno_cmd_is_ib(this_cmd)) {
 			uint32_t ib_addr = rb_copy[read_idx++];
 			uint32_t ib_size = rb_copy[read_idx++];
 			dump_ib1(device, cur_pt_base, (read_idx-3)<<2, ib_addr,
@@ -743,8 +746,7 @@ static int adreno_dump(struct kgsl_device *device)
 		for (read_idx = NUM_DWORDS_OF_RINGBUFFER_HISTORY;
 			read_idx >= 0; --read_idx) {
 			uint32_t this_cmd = rb_copy[read_idx];
-			if (this_cmd == cp_type3_packet(
-				CP_INDIRECT_BUFFER_PFD, 2)) {
+			if (adreno_cmd_is_ib(this_cmd)) {
 				uint32_t ib_addr = rb_copy[read_idx+1];
 				uint32_t ib_size = rb_copy[read_idx+2];
 				if (ib_size && cp_ib1_base == ib_addr) {

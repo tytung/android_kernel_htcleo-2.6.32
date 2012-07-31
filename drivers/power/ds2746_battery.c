@@ -280,7 +280,7 @@ static BOOL is_charging_avaiable(void)
 static BOOL is_high_current_charging_avaialable(void)
 {
 	if (!poweralg.protect_flags.is_charging_high_current_avaialble)	return FALSE;
-	if (!poweralg.is_china_ac_in) return FALSE;
+	//if (!poweralg.is_china_ac_in) return FALSE;
 	if (poweralg.charge_state == CHARGE_STATE_UNKNOWN) return FALSE;
 	return TRUE;
 }

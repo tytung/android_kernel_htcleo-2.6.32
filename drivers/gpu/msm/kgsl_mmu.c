@@ -1,5 +1,4 @@
-/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
- * Copyright (C) 2011 Sony Ericsson Mobile Communications AB.
+/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,6 +22,7 @@
 #include "kgsl_mmu.h"
 #include "kgsl_device.h"
 #include "kgsl_sharedmem.h"
+#include "adreno_postmortem.h"
 
 #define KGSL_MMU_ALIGN_SHIFT    13
 #define KGSL_MMU_ALIGN_MASK     (~((1 << KGSL_MMU_ALIGN_SHIFT) - 1))
@@ -592,6 +592,12 @@ kgsl_mmu_unmap(struct kgsl_pagetable *pagetable,
 			memdesc->gpuaddr & KGSL_MMU_ALIGN_MASK,
 			memdesc->size);
 
+	/*
+	 * Don't clear the gpuaddr on global mappings because they
+	 * may be in use by other pagetables
+	 */
+	if (!(memdesc->priv & KGSL_MEMFLAGS_GLOBAL))
+	memdesc->gpuaddr = 0;
 	return 0;
 }
 EXPORT_SYMBOL(kgsl_mmu_unmap);
@@ -623,6 +629,7 @@ int kgsl_mmu_map_global(struct kgsl_pagetable *pagetable,
 			gpuaddr, memdesc->gpuaddr);
 		goto error_unmap;
 	}
+	memdesc->priv |= KGSL_MEMFLAGS_GLOBAL;
 	return result;
 error_unmap:
 	kgsl_mmu_unmap(pagetable, memdesc);

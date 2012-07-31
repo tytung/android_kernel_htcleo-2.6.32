@@ -107,7 +107,7 @@ UINT32 FL_25[] =
   1280,   /* Sony 1300mAh (HTE) */
   1250,   /* Sanyo 1300mAh (HTE) */
   1230,   /* Samsung 1230mAh */
-  2300,  /* HTC Extended 2300mAh */
+  2700,  /* HTC Extended 2300mAh */
 };
 
 UINT32 PD_M_COEF[] =
@@ -118,7 +118,7 @@ UINT32 PD_M_COEF[] =
   24, 	/* Sony 1300mAh (HTE) */
   27, 	/* Sanyo 1300mAh (HTE) */
   30,  /* Samsung 1230mAh */
-  30,  /* HTC Extended 2300mAh */ 
+  30,  /* HTC Extended 2700mAh */ 
 };
 
 UINT32 PD_M_RESL[] =
@@ -140,7 +140,7 @@ UINT32 PD_T_COEF[] =
   140,	/* Sony 1300mAh (HTE) */
   156,	/* Sanyo 1300mAh (HTE) */
   250,	/* Samsung 1230mAh */
-  250,  /* HTC Extended 2300mAh */ 
+  250,  /* HTC Extended 2700mAh */ 
 };
 
 /*! star_lee 20100426 - update KADC discharge parameter */
@@ -153,13 +153,13 @@ UINT32 M_PARAMETER_SONY_1300MAH_FORMOSA[] =
 UINT32 M_PARAMETER_Samsung_1230MAH_FORMOSA[] =
 {
   /* capacity (in 0.01%) -> voltage (in mV)*/
-  10000, 4135, 7500, 3960, 4700, 3800, 1700, 3727, 900, 3674, 300, 3640, 0, 3420,
+  10000, 4150, 7500, 3960, 4700, 3800, 1700, 3727, 900, 3600, 300, 3400, 0, 3200,
 };
 
 UINT32 M_PARAMETER_HTC_2300MAH_FORMOSA[] =
 {
   /* capacity (in 0.01%) -> voltage (in mV)*/
-  10000, 4135, 7500, 3960, 4700, 3800, 1700, 3727, 900, 3674, 300, 3640, 0, 3420,
+  10000, 4150, 7500, 3950, 4700, 3780, 1700, 3700, 900, 3600, 300, 3400, 0, 3200,
 };
 
 
@@ -290,8 +290,8 @@ static BOOL is_allow_batt_id_change = FALSE;
 /*boot up voltage*/
 
 /*dead battery is voltage < M_0*/
-#define BATTERY_DEAD_VOLTAGE_LEVEL  	3420
-#define BATTERY_DEAD_VOLTAGE_RELEASE	3450
+#define BATTERY_DEAD_VOLTAGE_LEVEL  	3200
+#define BATTERY_DEAD_VOLTAGE_RELEASE	3250
 
 #define TEMP_MAX 70
 #define TEMP_MIN -11

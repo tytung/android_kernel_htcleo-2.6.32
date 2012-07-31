@@ -61,7 +61,7 @@
 #define VDEC_GET_MAJOR_VERSION(version)	(((version)&MAJOR_MASK)>>16)
 
 #define VDEC_GET_MINOR_VERSION(version)	((version)&MINOR_MASK)
-
+//#define DEBUG_TRACE_VDEC
 #ifdef DEBUG_TRACE_VDEC
 #define TRACE(fmt,x...)			\
 	do { pr_debug("%s:%d " fmt, __func__, __LINE__, ##x); } while (0)
@@ -69,6 +69,8 @@
 #define TRACE(fmt,x...)		do { } while (0)
 #endif
 
+/* the version check will cause vdec hang up!!! */
+#define VERSION_CHECK        0
 
 static DEFINE_MUTEX(idlecount_lock);
 static int idlecount;
@@ -696,7 +698,7 @@ static long vdec_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	default:
-		pr_err("%s: invalid ioctl!\n", __func__);
+		pr_err("%s: invalid ioctl! cmd= %08x \n", __func__,cmd);
 		ret = -EINVAL;
 		break;
 	}
@@ -799,8 +801,9 @@ static int vdec_open(struct inode *inode, struct file *file)
 	int i;
 	struct vdec_msg_list *l;
 	struct vdec_data *vd;
+#if VERSION_CHECK    
 	struct dal_info version_info;
-
+#endif
 	pr_info("q6vdec_open()\n");
 	mutex_lock(&vdec_ref_lock);
 	if (ref_cnt >= MAX_SUPPORTED_INSTANCES) {
@@ -845,6 +848,7 @@ static int vdec_open(struct inode *inode, struct file *file)
 		ret = -EIO;
 		goto vdec_open_err_handle_list;
 	}
+#if VERSION_CHECK    
 	ret = dal_call_f9(vd->vdec_handle, DAL_OP_INFO,
 				&version_info, sizeof(struct dal_info));
 
@@ -859,12 +863,15 @@ static int vdec_open(struct inode *inode, struct file *file)
 		pr_err("%s: driver version mismatch !\n", __func__);
 		goto vdec_open_err_handle_version;
 	}
-
+#endif
 	vd->running = 1;
 	prevent_sleep();
 	return 0;
+
+#if VERSION_CHECK    
 vdec_open_err_handle_version:
 	dal_detach(vd->vdec_handle);
+#endif    
 vdec_open_err_handle_list:
 	{
 		struct vdec_msg_list *l, *n;

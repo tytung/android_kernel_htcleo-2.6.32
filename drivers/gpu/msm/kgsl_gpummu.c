@@ -356,8 +356,8 @@ err_ptpool_remove:
 int kgsl_gpummu_pt_equal(struct kgsl_pagetable *pt,
 					unsigned int pt_base)
 {
-	struct kgsl_gpummu_pt *gpummu_pt = pt->priv;
-	return pt && pt_base && (gpummu_pt->base.gpuaddr == pt_base);
+	struct kgsl_gpummu_pt *gpummu_pt = pt ? pt->priv : NULL;
+	return gpummu_pt && pt_base && (gpummu_pt->base.gpuaddr == pt_base);
 }
 
 void kgsl_gpummu_destroy_pagetable(void *mmu_specific_pt)
@@ -385,14 +385,16 @@ kgsl_pt_map_set(struct kgsl_gpummu_pt *pt, uint32_t pte, uint32_t val)
 {
 	uint32_t *baseptr = (uint32_t *)pt->base.hostptr;
 
-	writel_relaxed(val, &baseptr[pte]);
+	BUG_ON(pte*sizeof(uint32_t) >= pt->base.size);
+	baseptr[pte] = val;
 }
 
 static inline uint32_t
 kgsl_pt_map_get(struct kgsl_gpummu_pt *pt, uint32_t pte)
 {
 	uint32_t *baseptr = (uint32_t *)pt->base.hostptr;
-	return readl_relaxed(&baseptr[pte]) & GSL_PT_PAGE_ADDR_MASK;
+	BUG_ON(pte*sizeof(uint32_t) >= pt->base.size);
+	return baseptr[pte] & GSL_PT_PAGE_ADDR_MASK;	
 }
 
 static unsigned int kgsl_gpummu_pt_get_flags(struct kgsl_pagetable *pt,
@@ -683,7 +685,7 @@ kgsl_gpummu_map(void *mmu_specific_pt,
 		flushtlb = 1;
 
 	for_each_sg(memdesc->sg, s, memdesc->sglen, i) {
-		unsigned int paddr = sg_phys(s);
+		unsigned int paddr = kgsl_get_sg_pa(s);
 		unsigned int j;
 
 		/* Each sg entry might be multiple pages long */
