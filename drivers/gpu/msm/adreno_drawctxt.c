@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +16,8 @@
 #include "kgsl.h"
 #include "kgsl_sharedmem.h"
 #include "adreno.h"
+
+#define KGSL_INIT_REFTIMESTAMP		0x7FFFFFFF
 
 /* quad for copying GMEM to context shadow */
 #define QUAD_LEN 12
@@ -154,6 +156,7 @@ int adreno_drawctxt_create(struct kgsl_device *device,
 
 	drawctxt->pagetable = pagetable;
 	drawctxt->bin_base_offset = 0;
+	drawctxt->id = context->id;
 
 	if (flags & KGSL_CONTEXT_PREAMBLE)
 		drawctxt->flags |= CTXT_FLAGS_PREAMBLE;
@@ -161,9 +164,16 @@ int adreno_drawctxt_create(struct kgsl_device *device,
 	if (flags & KGSL_CONTEXT_NO_GMEM_ALLOC)
 		drawctxt->flags |= CTXT_FLAGS_NOGMEMALLOC;
 
+	if (flags & KGSL_CONTEXT_PER_CONTEXT_TS)
+		drawctxt->flags |= CTXT_FLAGS_PER_CONTEXT_TS;
+
 	ret = adreno_dev->gpudev->ctxt_create(adreno_dev, drawctxt);
 	if (ret)
 			goto err;
+
+	kgsl_sharedmem_writel(&device->memstore,
+			KGSL_MEMSTORE_OFFSET(drawctxt->id, ref_wait_ts),
+			KGSL_INIT_REFTIMESTAMP);
 
 	context->devctxt = drawctxt;
 	return 0;
