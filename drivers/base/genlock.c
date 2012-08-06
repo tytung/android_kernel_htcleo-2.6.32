@@ -22,6 +22,7 @@
 #include <linux/anon_inodes.h>
 #include <linux/miscdevice.h>
 #include <linux/genlock.h>
+#include <linux/interrupt.h>
 
 /* Lock states - can either be unlocked, held as an exclusive write lock or a
  * shared read lock
@@ -296,8 +297,8 @@ static int _genlock_lock(struct genlock *lock, struct genlock_handle *handle,
 	 * succeed to not block, the mere idea is too dangerous to continue
 	 */
 
-//	if (in_interrupt() && !(flags & GENLOCK_NOBLOCK))
-//		BUG();
+	if (in_interrupt() && !(flags & GENLOCK_NOBLOCK))
+		BUG();
 
 	/* Fast path - the lock is unlocked, so go do the needful */
 
