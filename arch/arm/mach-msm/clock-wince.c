@@ -860,7 +860,7 @@ static long new_clk_get_rate(uint32_t id)
     }
 
     msm_proc_comm(PCOM_CLK_REGIME_SEC_MSM_GET_CLK_FREQ_KHZ, &clk, &rate);
-    return clk*1000;
+    return (rate * 1000);
 }
 
 static int new_clk_set_flags(uint32_t id, unsigned long flags)
