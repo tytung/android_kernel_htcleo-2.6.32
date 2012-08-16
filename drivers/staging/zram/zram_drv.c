@@ -104,19 +104,33 @@ static int page_zero_filled(void *ptr)
 	return 1;
 }
 
-static u64 zram_default_disksize_bytes(void)
+static void zram_set_disksize(struct zram *zram, size_t totalram_bytes)
 {
-#if 0
-	return ((totalram_pages << PAGE_SHIFT) *
-		default_disksize_perc_ram / 100) & PAGE_MASK;
-#endif
-	return CONFIG_ZRAM_DEFAULT_DISKSIZE;
-}
+	if (!zram->disksize) {
+		pr_info(
+		"disk size not provided. You can use disksize_kb module "
+		"param to specify size.\nUsing default: (%u%% of RAM).\n",
+		default_disksize_perc_ram
+		);
+		zram->disksize = default_disksize_perc_ram *
+					(totalram_bytes / 100);
+	}
 
-static void zram_set_disksize(struct zram *zram, u64 size_bytes)
-{
-	zram->disksize = size_bytes;
-	set_capacity(zram->disk, size_bytes >> SECTOR_SHIFT);
+	if (zram->disksize > 2 * (totalram_bytes)) {
+		pr_info(
+		"There is little point creating a zram of greater than "
+		"twice the size of memory since we expect a 2:1 compression "
+		"ratio. Note that zram uses about 0.1%% of the size of "
+		"the disk when not in use so a huge zram is "
+		"wasteful.\n"
+		"\tMemory Size: %zu kB\n"
+		"\tSize you selected: %llu kB\n"
+		"Continuing anyway ...\n",
+		totalram_bytes >> 10, zram->disksize
+		);
+	}
+
+	zram->disksize &= PAGE_MASK;
 }
 
 static void zram_free_page(struct zram *zram, size_t index)
@@ -546,27 +560,35 @@ static int zram_make_request(struct request_queue *queue, struct bio *bio)
 {
 	struct zram *zram = queue->queuedata;
 
+	if (unlikely(!zram->init_done) && zram_init_device(zram))
+		goto error;
+
+	down_read(&zram->init_lock);
+	if (unlikely(!zram->init_done))
+		goto error_unlock;
+
 	if (!valid_io_request(zram, bio)) {
 		zram_stat64_inc(zram, &zram->stats.invalid_io);
-		bio_io_error(bio);
-		return 0;
-	}
-
-	if (unlikely(!zram->init_done) && zram_init_device(zram)) {
-		bio_io_error(bio);
-		return 0;
+		goto error_unlock;
 	}
 
 	__zram_make_request(zram, bio, bio_data_dir(bio));
+	up_read(&zram->init_lock);
 
 	return 0;
+
+error_unlock:
+	up_read(&zram->init_lock);
+error:
+	bio_io_error(bio);
+	return 0;
+
 }
 
-void zram_reset_device(struct zram *zram)
+void __zram_reset_device(struct zram *zram)
 {
 	size_t index;
 
-	mutex_lock(&zram->init_lock);
 	zram->init_done = 0;
 
 	/* Free various per-device buffers */
@@ -602,8 +624,14 @@ void zram_reset_device(struct zram *zram)
 	/* Reset stats */
 	memset(&zram->stats, 0, sizeof(zram->stats));
 
-	zram_set_disksize(zram, zram_default_disksize_bytes());
-	mutex_unlock(&zram->init_lock);
+	zram->disksize = 0;
+}
+
+void zram_reset_device(struct zram *zram)
+{
+	down_write(&zram->init_lock);
+	__zram_reset_device(zram);
+	up_write(&zram->init_lock);
 }
 
 int zram_init_device(struct zram *zram)
@@ -611,37 +639,39 @@ int zram_init_device(struct zram *zram)
 	int ret;
 	size_t num_pages;
 
-	mutex_lock(&zram->init_lock);
+	down_write(&zram->init_lock);
 
 	if (zram->init_done) {
-		mutex_unlock(&zram->init_lock);
+		up_write(&zram->init_lock);
 		return 0;
 	}
+
+	zram_set_disksize(zram, totalram_pages << PAGE_SHIFT);
 
 	zram->compress_workmem = kzalloc(LZO1X_MEM_COMPRESS, GFP_KERNEL);
 	if (!zram->compress_workmem) {
 		pr_err("Error allocating compressor working memory!\n");
 		ret = -ENOMEM;
-		goto fail;
+		goto fail_no_table;
 	}
 
-	zram->compress_buffer = (void *)__get_free_pages(__GFP_ZERO, 1);
+	zram->compress_buffer =
+		(void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, 1);
 	if (!zram->compress_buffer) {
 		pr_err("Error allocating compressor buffer space\n");
 		ret = -ENOMEM;
-		goto fail;
+		goto fail_no_table;
 	}
 
 	num_pages = zram->disksize >> PAGE_SHIFT;
 	zram->table = vmalloc(num_pages * sizeof(*zram->table));
 	if (!zram->table) {
 		pr_err("Error allocating zram address table\n");
-		/* To prevent accessing table entries during cleanup */
-		zram->disksize = 0;
 		ret = -ENOMEM;
-		goto fail;
+		goto fail_no_table;
 	}
-  memset(zram->table, 0, num_pages * sizeof(*zram->table));
+	memset(zram->table, 0, num_pages * sizeof(*zram->table));
+	set_capacity(zram->disk, zram->disksize >> SECTOR_SHIFT);
 
 	/* zram devices sort of resembles non-rotational disks */
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zram->disk->queue);
@@ -654,15 +684,17 @@ int zram_init_device(struct zram *zram)
 	}
 
 	zram->init_done = 1;
-	mutex_unlock(&zram->init_lock);
+	up_write(&zram->init_lock);
 
 	pr_debug("Initialization done!\n");
 	return 0;
 
+fail_no_table:
+	/* To prevent accessing table entries during cleanup */
+	zram->disksize = 0;
 fail:
-	mutex_unlock(&zram->init_lock);
-	zram_reset_device(zram);
-
+	__zram_reset_device(zram);
+	up_write(&zram->init_lock);
 	pr_err("Initialization failed: err=%d\n", ret);
 	return ret;
 }
@@ -687,7 +719,7 @@ static int create_device(struct zram *zram, int device_id)
 	int ret = 0;
 
 	init_rwsem(&zram->lock);
-	mutex_init(&zram->init_lock);
+	init_rwsem(&zram->init_lock);
 	spin_lock_init(&zram->stat64_lock);
 
 	zram->queue = blk_alloc_queue(GFP_KERNEL);
@@ -718,12 +750,8 @@ static int create_device(struct zram *zram, int device_id)
 	zram->disk->private_data = zram;
 	snprintf(zram->disk->disk_name, 16, "zram%d", device_id);
 
-	/*
-	 * Set some default disksize. To set another disksize, user
-	 * must reset the device and then write a new disksize to
-	 * corresponding device's sysfs node.
-	 */
-	zram_set_disksize(zram, zram_default_disksize_bytes());
+	/* Actual capacity set using syfs (/sys/block/zram<id>/disksize */
+	set_capacity(zram->disk, 0);
 
 	/*
 	 * To ensure that we always get PAGE_SIZE aligned
@@ -768,13 +796,6 @@ static int __init zram_init(void)
 {
 	int ret, dev_id;
 
-	/*
-	 * Module parameter not specified by user. Use default
-	 * value as defined during kernel config.
-	 */
-	if (zram_num_devices == 0)
-		zram_num_devices = CONFIG_ZRAM_NUM_DEVICES;
-
 	if (zram_num_devices > max_num_devices) {
 		pr_warning("Invalid value for num_devices: %u\n",
 				zram_num_devices);
@@ -789,12 +810,15 @@ static int __init zram_init(void)
 		goto out;
 	}
 
+	if (!zram_num_devices) {
+		pr_info("num_devices not specified. Using default: 1\n");
+		zram_num_devices = 1;
+	}
+
 	/* Allocate the device array and initialize each one */
 	pr_info("Creating %u devices ...\n", zram_num_devices);
-	zram_devices = kzalloc(zram_num_devices * sizeof(struct zram),
-				GFP_KERNEL);
-	if (!zram_devices)
-	{
+	zram_devices = kzalloc(zram_num_devices * sizeof(struct zram), GFP_KERNEL);
+	if (!zram_devices) {
 		ret = -ENOMEM;
 		goto unregister;
 	}
@@ -836,8 +860,8 @@ static void __exit zram_exit(void)
 	pr_debug("Cleanup done!\n");
 }
 
-module_param_named(num_devices, zram_num_devices, uint, 0);
-MODULE_PARM_DESC(num_devices, "Number of zram devices");
+module_param(zram_num_devices, uint, 0);
+MODULE_PARM_DESC(zram_num_devices, "Number of zram devices");
 
 module_init(zram_init);
 module_exit(zram_exit);
