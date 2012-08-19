@@ -40,7 +40,7 @@
 #define MSM_FB_SIZE		0x00600000
 
 #define MSM_PMEM_MDP_BASE  	0x3B700000
-#define MSM_PMEM_MDP_SIZE  	0x03000000
+#define MSM_PMEM_MDP_SIZE  	0x02000000
 
 #define MSM_PMEM_ADSP_BASE	0x3D700000
 #define MSM_PMEM_ADSP_SIZE	0x01800000
@@ -59,7 +59,7 @@
 /* Begin EBI region */
 #define PMEM_KERNEL_EBI1_SIZE	0x00028000
 
-#define MSM_PMEM_SF_SIZE        0x03000000
+#define MSM_PMEM_SF_SIZE        0x02000000
 
 /* MSM_RAM_CONSOLE uses the last 0x00040000 of EBI memory, defined in msm_iomap.h
 #define MSM_RAM_CONSOLE_SIZE    0x00040000
