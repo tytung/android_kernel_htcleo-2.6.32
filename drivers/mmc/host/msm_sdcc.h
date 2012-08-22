@@ -258,9 +258,6 @@ struct msmsdcc_host {
 	int polling_enabled;
 #endif
 
-#ifdef CONFIG_MMC_MSM7X00A_RESUME_IN_WQ
-	struct work_struct	resume_task;
-#endif
 	struct tasklet_struct 	dma_tlet;
 
 
