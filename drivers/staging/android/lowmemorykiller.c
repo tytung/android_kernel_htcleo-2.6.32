@@ -41,6 +41,11 @@
 #include <linux/slab.h>
 #include <linux/sysfs.h>
 
+#ifdef CONFIG_SWAP
+#include <linux/fs.h>
+#include <linux/swap.h>
+#endif
+
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
 	0,
@@ -63,6 +68,10 @@ static unsigned int offlining;
 static struct task_struct *lowmem_deathpending;
 static unsigned long lowmem_deathpending_timeout;
 static struct kobject *lowmem_kobj;
+
+#ifdef CONFIG_SWAP
+static int fudgeswap = 512;
+#endif
 
 #define lowmem_print(level, x...)			\
 	do {						\
@@ -122,7 +131,19 @@ static inline void get_free_ram(int *other_free, int *other_file)
 	*other_free = global_page_state(NR_FREE_PAGES);
 	*other_file = global_page_state(NR_FILE_PAGES) -
 						global_page_state(NR_SHMEM);
+#ifdef CONFIG_SWAP
+	if(fudgeswap != 0){
+		struct sysinfo si;
+		si_swapinfo(&si);
 
+		if(si.freeswap > 0){
+			if(fudgeswap > si.freeswap)
+				other_file += si.freeswap;
+			else
+				other_file += fudgeswap;
+		}
+	}
+#endif
 	if (offlining) {
 		/* Discount all free space in the section being offlined */
 		for_each_zone(zone) {
@@ -347,6 +368,9 @@ module_param_named(debug_level, lowmem_debug_level, uint, S_IRUGO | S_IWUSR);
 module_param_named(notify_trigger, lowmem_minfree_notif_trigger, uint,
 			 S_IRUGO | S_IWUSR);
 
+#ifdef CONFIG_SWAP
+module_param_named(fudgeswap, fudgeswap, int, S_IRUGO | S_IWUSR);
+#endif
 module_init(lowmem_init);
 module_exit(lowmem_exit);
 
