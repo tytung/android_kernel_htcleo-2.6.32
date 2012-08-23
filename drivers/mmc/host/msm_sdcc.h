@@ -155,7 +155,7 @@
 #define MCI_IRQENABLE	\
 	(MCI_CMDCRCFAILMASK|MCI_DATACRCFAILMASK|MCI_CMDTIMEOUTMASK|	\
 	MCI_DATATIMEOUTMASK|MCI_TXUNDERRUNMASK|MCI_RXOVERRUNMASK|	\
-	MCI_CMDRESPENDMASK|MCI_CMDSENTMASK|MCI_DATAENDMASK)
+	MCI_CMDRESPENDMASK|MCI_CMDSENTMASK|MCI_DATAENDMASK|MCI_PROGDONEMASK)
 
 /*
  * The size of the FIFO in bytes.
@@ -164,7 +164,7 @@
 
 #define MCI_FIFOHALFSIZE (MCI_FIFOSIZE / 2)
 
-#define NR_SG		32
+#define NR_SG		128
 
 struct clk;
 
@@ -190,7 +190,7 @@ struct msmsdcc_dma_data {
 	int				busy; /* Set if DM is busy */
 	int				active;
 	unsigned int 			result;
-	struct msm_dmov_errdata 	*err;
+	struct msm_dmov_errdata		err;
 };
 
 struct msmsdcc_pio_data {
@@ -258,17 +258,12 @@ struct msmsdcc_host {
 	int polling_enabled;
 #endif
 
-#ifdef CONFIG_MMC_MSM7X00A_RESUME_IN_WQ
-	struct work_struct	resume_task;
-#endif
 	struct tasklet_struct 	dma_tlet;
 
 
 #ifdef CONFIG_MMC_AUTO_SUSPEND
 	unsigned long           suspended;
 #endif
-	unsigned int prog_scan;
-	unsigned int prog_enable;
 	/* Command parameters */
 	unsigned int		cmd_timeout;
 	unsigned int		cmd_pio_irqmask;
@@ -279,6 +274,8 @@ struct msmsdcc_host {
 	unsigned int	dummy_52_needed;
 	unsigned int	dummy_52_state;
 
+	bool prog_scan;
+	bool prog_enable;
 };
 
 #endif
