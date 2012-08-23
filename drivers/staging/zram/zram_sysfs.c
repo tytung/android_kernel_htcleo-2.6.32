@@ -76,6 +76,57 @@ static ssize_t disksize_store(struct device *dev,
 	return len;
 }
 
+#ifdef MULTIPLE_COMPRESSORS
+static ssize_t compressor_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	char * const buf_base = buf;
+	const struct zram_compressor *p, *curr;
+	unsigned int i = 0;
+	struct zram *zram = dev_to_zram(dev);
+	curr = zram->compressor;
+	p = zram_compressors[i];
+	while (p) {
+		if (curr == p)
+			buf += sprintf(buf, "*");
+		buf += sprintf(buf, "%u - %s\n", i, p->name);
+		p = zram_compressors[++i];
+	}
+	return buf - buf_base;
+}
+
+static ssize_t compressor_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	const struct zram_compressor *p;
+	unsigned long requested;
+	unsigned int i = 0;
+	int ret;
+	struct zram *zram = dev_to_zram(dev);
+
+	if (zram->init_done) {
+		pr_info("Cannot change compressor for initialized device\n");
+		return -EBUSY;
+	}
+
+	ret = strict_strtoul(buf, 10, &requested);
+	if (ret)
+		return ret;
+
+	p = zram_compressors[i];
+	while (p && (i < requested))
+		p = zram_compressors[++i];
+
+	if (!p) {
+		pr_info("No compressor with index #%lu\n", requested);
+		return -EINVAL;
+	}
+
+	zram->compressor = p;
+	return len;
+}
+#endif /* MULTIPLE_COMPRESSORS */
+
 static ssize_t initstate_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -194,6 +245,10 @@ static ssize_t mem_used_total_show(struct device *dev,
 	return sprintf(buf, "%llu\n", val);
 }
 
+#ifdef MULTIPLE_COMPRESSORS
+static DEVICE_ATTR(compressor, S_IRUGO | S_IWUSR,
+		compressor_show, compressor_store);
+#endif
 static DEVICE_ATTR(disksize, S_IRUGO | S_IWUSR,
 		disksize_show, disksize_store);
 static DEVICE_ATTR(initstate, S_IRUGO, initstate_show, NULL);
@@ -208,6 +263,9 @@ static DEVICE_ATTR(compr_data_size, S_IRUGO, compr_data_size_show, NULL);
 static DEVICE_ATTR(mem_used_total, S_IRUGO, mem_used_total_show, NULL);
 
 static struct attribute *zram_disk_attrs[] = {
+#ifdef MULTIPLE_COMPRESSORS
+	&dev_attr_compressor.attr,
+#endif
 	&dev_attr_disksize.attr,
 	&dev_attr_initstate.attr,
 	&dev_attr_reset.attr,

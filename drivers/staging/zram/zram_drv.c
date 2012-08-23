@@ -29,11 +29,89 @@
 #include <linux/genhd.h>
 #include <linux/highmem.h>
 #include <linux/slab.h>
-#include <linux/lzo.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
 
 #include "zram_drv.h"
+
+#if defined(CONFIG_ZRAM_LZO)
+#include <linux/lzo.h>
+#ifdef MULTIPLE_COMPRESSORS
+static const struct zram_compressor lzo_compressor = {
+	.name = "LZO",
+	.workmem_bytes = LZO1X_MEM_COMPRESS,
+	.compress = &lzo1x_1_compress,
+	.decompress = &lzo1x_decompress_safe
+};
+#else /* !MULTIPLE_COMPRESSORS */
+#define WMSIZE		LZO1X_MEM_COMPRESS
+#define COMPRESS(s, sl, d, dl, wm)	\
+	lzo1x_1_compress(s, sl, d, dl, wm)
+#define DECOMPRESS(s, sl, d, dl)	\
+	lzo1x_decompress_safe(s, sl, d, dl)
+#endif /* !MULTIPLE_COMPRESSORS */
+#endif /* defined(CONFIG_ZRAM_LZO) */
+
+#if defined(CONFIG_ZRAM_SNAPPY)
+#include "../snappy/csnappy.h" /* if built in drivers/staging */
+#define WMSIZE_ORDER	((PAGE_SHIFT > 14) ? (15) : (PAGE_SHIFT+1))
+static int
+snappy_compress_(
+	const unsigned char *src,
+	size_t src_len,
+	unsigned char *dst,
+	size_t *dst_len,
+	void *workmem)
+{
+	const unsigned char *end = csnappy_compress_fragment(
+		src, (uint32_t)src_len, dst, workmem, WMSIZE_ORDER);
+	*dst_len = end - dst;
+	return 0;
+}
+static int
+snappy_decompress_(
+	const unsigned char *src,
+	size_t src_len,
+	unsigned char *dst,
+	size_t *dst_len)
+{
+	uint32_t dst_len_ = (uint32_t)*dst_len;
+	int ret = csnappy_decompress_noheader(src, src_len, dst, &dst_len_);
+	*dst_len = (size_t)dst_len_;
+	return ret;
+}
+#ifdef MULTIPLE_COMPRESSORS
+static const struct zram_compressor snappy_compressor = {
+	.name = "SNAPPY",
+	.workmem_bytes = (1 << WMSIZE_ORDER),
+	.compress = &snappy_compress_,
+	.decompress = &snappy_decompress_
+};
+#else /* !MULTIPLE_COMPRESSORS */
+#define WMSIZE		(1 << WMSIZE_ORDER)
+#define COMPRESS(s, sl, d, dl, wm)	\
+	snappy_compress_(s, sl, d, dl, wm)
+#define DECOMPRESS(s, sl, d, dl)	\
+	snappy_decompress_(s, sl, d, dl)
+#endif /* !MULTIPLE_COMPRESSORS */
+#endif /* defined(CONFIG_ZRAM_SNAPPY) */
+
+#ifdef MULTIPLE_COMPRESSORS
+const struct zram_compressor * const zram_compressors[] = {
+#if defined(CONFIG_ZRAM_LZO)
+	&lzo_compressor,
+#endif
+#if defined(CONFIG_ZRAM_SNAPPY)
+	&snappy_compressor,
+#endif
+	NULL
+};
+#define WMSIZE		(zram->compressor->workmem_bytes)
+#define COMPRESS(s, sl, d, dl, wm)	\
+	(zram->compressor->compress(s, sl, d, dl, wm))
+#define DECOMPRESS(s, sl, d, dl)	\
+	(zram->compressor->decompress(s, sl, d, dl))
+#endif /* MULTIPLE_COMPRESSORS */
 
 /* Globals */
 static int zram_major;
@@ -257,7 +335,7 @@ static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
 	cmem = kmap_atomic(zram->table[index].page, KM_USER1) +
 		zram->table[index].offset;
 
-	ret = lzo1x_decompress_safe(cmem + sizeof(*zheader),
+	ret = DECOMPRESS(cmem + sizeof(*zheader),
 				    xv_get_object_size(cmem) - sizeof(*zheader),
 				    uncmem, &clen);
 
@@ -271,7 +349,7 @@ static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
 	kunmap_atomic(user_mem, KM_USER0);
 
 	/* Should NEVER happen. Return bio error if it does. */
-	if (unlikely(ret != LZO_E_OK)) {
+	if (unlikely(ret)) {
 		pr_err("Decompression failed! err=%d, page=%u\n", ret, index);
 		zram_stat64_inc(zram, &zram->stats.failed_reads);
 		return ret;
@@ -305,13 +383,13 @@ static int zram_read_before_write(struct zram *zram, char *mem, u32 index)
 		return 0;
 	}
 
-	ret = lzo1x_decompress_safe(cmem + sizeof(*zheader),
+	ret = DECOMPRESS(cmem + sizeof(*zheader),
 				    xv_get_object_size(cmem) - sizeof(*zheader),
 				    mem, &clen);
 	kunmap_atomic(cmem, KM_USER0);
 
 	/* Should NEVER happen. Return bio error if it does. */
-	if (unlikely(ret != LZO_E_OK)) {
+	if (unlikely(ret)) {
 		pr_err("Decompression failed! err=%d, page=%u\n", ret, index);
 		zram_stat64_inc(zram, &zram->stats.failed_reads);
 		return ret;
@@ -377,17 +455,12 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 		goto out;
 	}
 
-	ret = lzo1x_1_compress(uncmem, PAGE_SIZE, src, &clen,
+	COMPRESS(uncmem, PAGE_SIZE, src, &clen,
 			       zram->compress_workmem);
 
 	kunmap_atomic(user_mem, KM_USER0);
 	if (is_partial_io(bvec))
 			kfree(uncmem);
-
-	if (unlikely(ret != LZO_E_OK)) {
-		pr_err("Compression failed! err=%d\n", ret);
-		goto out;
-	}
 
 	/*
 	 * Page is incompressible. Store it as-is (uncompressed)
@@ -648,7 +721,7 @@ int zram_init_device(struct zram *zram)
 
 	zram_set_disksize(zram, totalram_pages << PAGE_SHIFT);
 
-	zram->compress_workmem = kzalloc(LZO1X_MEM_COMPRESS, GFP_KERNEL);
+	zram->compress_workmem = kzalloc(WMSIZE, GFP_KERNEL);
 	if (!zram->compress_workmem) {
 		pr_err("Error allocating compressor working memory!\n");
 		ret = -ENOMEM;
@@ -753,6 +826,10 @@ static int create_device(struct zram *zram, int device_id)
 	/* Actual capacity set using syfs (/sys/block/zram<id>/disksize */
 	set_capacity(zram->disk, 0);
 
+	/* Can be changed using sysfs (/sys/block/zram<id>/compressor) */
+#ifdef MULTIPLE_COMPRESSORS
+	zram->compressor = zram_compressors[0];
+#endif
 	/*
 	 * To ensure that we always get PAGE_SIZE aligned
 	 * and n*PAGE_SIZED sized I/O requests.
