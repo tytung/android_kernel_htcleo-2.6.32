@@ -40,14 +40,11 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/sysfs.h>
-<<<<<<< HEAD
-=======
 
 #ifdef CONFIG_SWAP
 #include <linux/fs.h>
 #include <linux/swap.h>
 #endif
->>>>>>> ics_HWA
 
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
@@ -123,6 +120,8 @@ static int lmk_hotplug_callback(struct notifier_block *self,
 	return NOTIFY_DONE;
 }
 #endif
+
+
 
 static void lowmem_notify_killzone_approach(void);
 
