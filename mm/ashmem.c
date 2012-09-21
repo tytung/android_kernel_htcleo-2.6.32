@@ -29,9 +29,10 @@
 #include <linux/mutex.h>
 #include <linux/shmem_fs.h>
 #include <linux/ashmem.h>
+#include <asm/cacheflush.h>
 
-#define ASHMEM_NAME_PREFIX ""
-#define ASHMEM_NAME_PREFIX_LEN 0
+#define ASHMEM_NAME_PREFIX "dev/ashmem/"
+#define ASHMEM_NAME_PREFIX_LEN (sizeof(ASHMEM_NAME_PREFIX) - 1)
 #define ASHMEM_FULL_NAME_LEN (ASHMEM_NAME_LEN + ASHMEM_NAME_PREFIX_LEN)
 
 /*
@@ -45,6 +46,8 @@ struct ashmem_area {
 	struct list_head unpinned_list;	/* list of all ashmem areas */
 	struct file *file;		/* the shmem-based backing file */
 	size_t size;			/* size of the mapping, in bytes */
+	unsigned long vm_start;		/* Start address of vm_area
+					 * which maps this ashmem */
 	unsigned long prot_mask;	/* allowed prot bits, as vm_flags */
 };
 
@@ -178,7 +181,7 @@ static int ashmem_open(struct inode *inode, struct file *file)
 	struct ashmem_area *asma;
 	int ret;
 
-	ret = nonseekable_open(inode, file);
+	ret = generic_file_open(inode, file);
 	if (unlikely(ret))
 		return ret;
 
@@ -187,6 +190,7 @@ static int ashmem_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&asma->unpinned_list);
+	memcpy(asma->name, ASHMEM_NAME_PREFIX, ASHMEM_NAME_PREFIX_LEN);
 	asma->prot_mask = PROT_MASK;
 	file->private_data = asma;
 
@@ -208,6 +212,67 @@ static int ashmem_release(struct inode *ignored, struct file *file)
 	kmem_cache_free(ashmem_area_cachep, asma);
 
 	return 0;
+}
+
+static ssize_t ashmem_read(struct file *file, char __user *buf,
+			   size_t len, loff_t *pos)
+{
+	struct ashmem_area *asma = file->private_data;
+	int ret = 0;
+
+	mutex_lock(&ashmem_mutex);
+
+	/* If size is not set, or set to 0, always return EOF. */
+	if (asma->size == 0) {
+		goto out;
+        }
+
+	if (!asma->file) {
+		ret = -EBADF;
+		goto out;
+	}
+
+	ret = asma->file->f_op->read(asma->file, buf, len, pos);
+	if (ret < 0) {
+		goto out;
+	}
+
+	/** Update backing file pos, since f_ops->read() doesn't */
+	asma->file->f_pos = *pos;
+
+out:
+	mutex_unlock(&ashmem_mutex);
+	return ret;
+}
+
+static loff_t ashmem_llseek(struct file *file, loff_t offset, int origin)
+{
+	struct ashmem_area *asma = file->private_data;
+	int ret;
+
+	mutex_lock(&ashmem_mutex);
+
+	if (asma->size == 0) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (!asma->file) {
+		ret = -EBADF;
+		goto out;
+	}
+
+	ret = asma->file->f_op->llseek(asma->file, offset, origin);
+	if (ret < 0) {
+		goto out;
+	}
+
+	/** Copy f_pos from backing file, since f_ops->llseek() sets it */
+	file->f_pos = asma->file->f_pos;
+
+out:
+	mutex_unlock(&ashmem_mutex);
+	return ret;
 }
 
 static inline unsigned long
@@ -264,6 +329,7 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 		vma->vm_file = asma->file;
 	}
 	vma->vm_flags |= VM_CAN_NONLINEAR;
+	asma->vm_start = vma->vm_start;
 
 out:
 	mutex_unlock(&ashmem_mutex);
@@ -564,6 +630,69 @@ static int ashmem_pin_unpin(struct ashmem_area *asma, unsigned long cmd,
 	return ret;
 }
 
+#ifdef CONFIG_OUTER_CACHE
+static unsigned int virtaddr_to_physaddr(unsigned int virtaddr)
+{
+	unsigned int physaddr = 0;
+	pgd_t *pgd_ptr = NULL;
+	pmd_t *pmd_ptr = NULL;
+	pte_t *pte_ptr = NULL, pte;
+
+	spin_lock(&current->mm->page_table_lock);
+	pgd_ptr = pgd_offset(current->mm, virtaddr);
+	if (pgd_none(*pgd) || pgd_bad(*pgd)) {
+		pr_err("Failed to convert virtaddr %x to pgd_ptr\n",
+			virtaddr);
+		goto done;
+	}
+
+	pmd_ptr = pmd_offset(pgd_ptr, virtaddr);
+	if (pmd_none(*pmd_ptr) || pmd_bad(*pmd_ptr)) {
+		pr_err("Failed to convert pgd_ptr %p to pmd_ptr\n",
+			(void *)pgd_ptr);
+		goto done;
+	}
+
+	pte_ptr = pte_offset_map(pmd_ptr, virtaddr);
+	if (!pte_ptr) {
+		pr_err("Failed to convert pmd_ptr %p to pte_ptr\n",
+			(void *)pmd_ptr);
+		goto done;
+	}
+	pte = *pte_ptr;
+	physaddr = pte_pfn(pte);
+	pte_unmap(pte_ptr);
+done:
+	spin_unlock(&current->mm->page_table_lock);
+	physaddr <<= PAGE_SHIFT;
+	return physaddr;
+}
+#endif
+
+static int ashmem_cache_op(struct ashmem_area *asma,
+	void (*cache_func)(unsigned long vstart, unsigned long length,
+				unsigned long pstart))
+{
+#ifdef CONFIG_OUTER_CACHE
+	unsigned long vaddr;
+#endif
+	mutex_lock(&ashmem_mutex);
+#ifndef CONFIG_OUTER_CACHE
+	cache_func(asma->vm_start, asma->size, 0);
+#else
+	for (vaddr = asma->vm_start; vaddr < asma->vm_start + asma->size;
+		vaddr += PAGE_SIZE) {
+		unsigned long physaddr;
+		physaddr = virtaddr_to_physaddr(vaddr);
+		if (!physaddr)
+			return -EINVAL;
+		cache_func(vaddr, PAGE_SIZE, physaddr);
+	}
+#endif
+	mutex_unlock(&ashmem_mutex);
+	return 0;
+}
+
 static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct ashmem_area *asma = file->private_data;
@@ -603,6 +732,15 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ret = ashmem_shrink(0, GFP_KERNEL);
 			ashmem_shrink(ret, GFP_KERNEL);
 		}
+		break;
+	case ASHMEM_CACHE_FLUSH_RANGE:
+		ret = ashmem_cache_op(asma, &clean_and_invalidate_caches);
+		break;
+	case ASHMEM_CACHE_CLEAN_RANGE:
+		ret = ashmem_cache_op(asma, &clean_caches);
+		break;
+	case ASHMEM_CACHE_INV_RANGE:
+		ret = ashmem_cache_op(asma, &invalidate_caches);
 		break;
 	}
 
@@ -666,6 +804,8 @@ static struct file_operations ashmem_fops = {
 	.owner = THIS_MODULE,
 	.open = ashmem_open,
 	.release = ashmem_release,
+        .read = ashmem_read,
+        .llseek = ashmem_llseek,
 	.mmap = ashmem_mmap,
 	.unlocked_ioctl = ashmem_ioctl,
 	.compat_ioctl = ashmem_ioctl,
