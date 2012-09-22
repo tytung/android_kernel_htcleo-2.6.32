@@ -35,7 +35,15 @@
 #define GENLOCK_LOG_ERR(fmt, args...) \
 pr_err("genlock: %s: " fmt, __func__, ##args)
 
+/* The genlock magic stored in the kernel private data is used to protect
+ * against the possibility of user space passing a valid fd to a
+ * non-genlock file for genlock_attach_lock()
+ */
+#define GENLOCK_MAGIC_OK  0xD2EAD10C
+#define GENLOCK_MAGIC_BAD 0xD2EADBAD
+
 struct genlock {
+	unsigned int magic;       /* Magic for attach verification */
 	struct list_head active;  /* List of handles holding lock */
 	spinlock_t lock;          /* Spinlock to protect the lock internals */
 	wait_queue_head_t queue;  /* Holding pen for processes pending lock */
@@ -57,7 +65,7 @@ struct genlock_handle {
  * released while another process tries to attach it
  */
 
-static DEFINE_SPINLOCK(genlock_file_lock);
+static DEFINE_SPINLOCK(genlock_ref_lock);
 
 static void genlock_destroy(struct kref *kref)
 {
@@ -69,10 +77,9 @@ static void genlock_destroy(struct kref *kref)
 	 * still active after the lock gets released
 	 */
 
-	spin_lock(&genlock_file_lock);
 	if (lock->file)
 		lock->file->private_data = NULL;
-	spin_unlock(&genlock_file_lock);
+	lock->magic = GENLOCK_MAGIC_BAD;
 
 	kfree(lock);
 }
@@ -110,6 +117,7 @@ static const struct file_operations genlock_fops = {
 struct genlock *genlock_create_lock(struct genlock_handle *handle)
 {
 	struct genlock *lock;
+	void *ret;
 
 	if (IS_ERR_OR_NULL(handle)) {
 		GENLOCK_LOG_ERR("Invalid handle\n");
@@ -131,6 +139,7 @@ struct genlock *genlock_create_lock(struct genlock_handle *handle)
 	init_waitqueue_head(&lock->queue);
 	spin_lock_init(&lock->lock);
 
+	lock->magic = GENLOCK_MAGIC_OK;
 	lock->state = _UNLOCKED;
 
 	/*
@@ -138,8 +147,13 @@ struct genlock *genlock_create_lock(struct genlock_handle *handle)
 	 * other processes
 	 */
 
-	lock->file = anon_inode_getfile("genlock", &genlock_fops,
-		lock, O_RDWR);
+	ret = anon_inode_getfile("genlock", &genlock_fops, lock, O_RDWR);
+	if (IS_ERR_OR_NULL(ret)) {
+		GENLOCK_LOG_ERR("Unable to create lock inode\n");
+		kfree(lock);
+		return ret;
+	}
+	lock->file = ret;
 
 	/* Attach the new lock to the handle */
 	handle->lock = lock;
@@ -204,21 +218,30 @@ struct genlock *genlock_attach_lock(struct genlock_handle *handle, int fd)
 	 * released and then attached
 	 */
 
-	spin_lock(&genlock_file_lock);
+	spin_lock(&genlock_ref_lock);
 	lock = file->private_data;
-	spin_unlock(&genlock_file_lock);
 
 	fput(file);
 
 	if (lock == NULL) {
 		GENLOCK_LOG_ERR("File descriptor is invalid\n");
-		return ERR_PTR(-EINVAL);
+		goto fail_invalid;
+	}
+
+	if (lock->magic != GENLOCK_MAGIC_OK) {
+		GENLOCK_LOG_ERR("Magic is invalid - 0x%X\n", lock->magic);
+		goto fail_invalid;
 	}
 
 	handle->lock = lock;
 	kref_get(&lock->refcount);
+	spin_unlock(&genlock_ref_lock);
 
 	return lock;
+
+fail_invalid:
+	spin_unlock(&genlock_ref_lock);
+	return ERR_PTR(-EINVAL);
 }
 EXPORT_SYMBOL(genlock_attach_lock);
 
@@ -596,7 +619,9 @@ static void genlock_release_lock(struct genlock_handle *handle)
 	}
 	spin_unlock_irqrestore(&handle->lock->lock, flags);
 
+	spin_lock(&genlock_ref_lock);
 	kref_put(&handle->lock->refcount, genlock_destroy);
+	spin_unlock(&genlock_ref_lock);
 	handle->lock = NULL;
 	handle->active = 0;
 }
@@ -642,12 +667,19 @@ static struct genlock_handle *_genlock_get_handle(void)
 
 struct genlock_handle *genlock_get_handle(void)
 {
+	void *ret;
 	struct genlock_handle *handle = _genlock_get_handle();
 	if (IS_ERR(handle))
 		return handle;
 
-	handle->file = anon_inode_getfile("genlock-handle",
+	ret = anon_inode_getfile("genlock-handle",
 		&genlock_handle_fops, handle, O_RDWR);
+	if (IS_ERR_OR_NULL(ret)) {
+		GENLOCK_LOG_ERR("Unable to create handle inode\n");
+		kfree(handle);
+		return ret;
+	}
+	handle->file = ret;
 
 	return handle;
 }
