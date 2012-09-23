@@ -771,7 +771,7 @@ static struct android_pmem_platform_data android_pmem_adsp_pdata = {
 #else
 	.no_allocator	= 0,
 #endif
-	.cached		= 1,
+	.cached		= 0,
 };
 
 
@@ -784,7 +784,7 @@ static struct android_pmem_platform_data android_pmem_venc_pdata = {
 #else
 	.no_allocator	= 0,
 #endif
-	.cached		= 1,
+	.cached		= 0,
 };
 
 static struct platform_device android_pmem_mdp_device = {

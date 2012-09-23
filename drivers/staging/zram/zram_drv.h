@@ -41,7 +41,7 @@ struct zobj_header {
 /*-- Configurable parameters */
 
 /* Default zram disk size: 25% of total RAM */
-static const unsigned default_disksize_perc_ram = CONFIG_ZRAM_DEFAULT_PERCENTAGE;
+static const unsigned default_disksize_perc_ram = 25;
 
 /*
  * Pages that compress to size greater than this are stored
@@ -65,6 +65,13 @@ static const size_t max_zpage_size = PAGE_SIZE / 4 * 3;
 #define ZRAM_LOGICAL_BLOCK_SIZE	(1 << ZRAM_LOGICAL_BLOCK_SHIFT)
 #define ZRAM_SECTOR_PER_LOGICAL_BLOCK	\
 	(1 << (ZRAM_LOGICAL_BLOCK_SHIFT - SECTOR_SHIFT))
+
+#if defined(CONFIG_ZRAM_LZO) + defined(CONFIG_ZRAM_SNAPPY) == 0
+#error At least one of CONFIG_ZRAM_LZO, CONFIG_ZRAM_SNAPPY must be defined!
+#endif
+#if defined(CONFIG_ZRAM_LZO) + defined(CONFIG_ZRAM_SNAPPY) > 1
+#define MULTIPLE_COMPRESSORS
+#endif
 
 /* Flags for zram pages (table[page_no].flags) */
 enum zram_pageflags {
@@ -103,6 +110,9 @@ struct zram_stats {
 
 struct zram {
 	struct xv_pool *mem_pool;
+#ifdef MULTIPLE_COMPRESSORS
+	const struct zram_compressor *compressor;
+#endif
 	void *compress_workmem;
 	void *compress_buffer;
 	struct table *table;
@@ -112,8 +122,8 @@ struct zram {
 	struct request_queue *queue;
 	struct gendisk *disk;
 	int init_done;
-	/* Prevent concurrent execution of device init and reset */
-	struct mutex init_lock;
+	/* Prevent concurrent execution of device init, reset and R/W request */
+	struct rw_semaphore init_lock;
 	/*
 	 * This is the limit on amount of *uncompressed* worth of data
 	 * we can store in a disk.
@@ -130,7 +140,27 @@ extern struct attribute_group zram_disk_attr_group;
 #endif
 
 extern int zram_init_device(struct zram *zram);
-extern void zram_reset_device(struct zram *zram);
+extern void __zram_reset_device(struct zram *zram);
+
+#ifdef MULTIPLE_COMPRESSORS
+struct zram_compressor {
+	const char *name;
+	int (*compress)(
+		const unsigned char *src,
+		size_t src_len,
+		unsigned char *dst,
+		size_t *dst_len,
+		void *workmem);
+	int (*decompress)(
+		const unsigned char *src,
+		size_t src_len,
+		unsigned char *dst,
+		size_t *dst_len);
+	unsigned workmem_bytes;
+};
+
+extern const struct zram_compressor * const zram_compressors[];
+#endif
 
 #endif
 

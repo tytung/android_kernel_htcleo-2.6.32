@@ -6,8 +6,6 @@ config ZRAM
 	tristate "Compressed RAM block device support"
 	depends on BLOCK && SYSFS
 	select XVMALLOC
-	select LZO_COMPRESS
-	select LZO_DECOMPRESS
 	default n
 	help
 	  Creates virtual block devices called /dev/zramX (X = 0, 1, ...).
@@ -21,23 +19,6 @@ config ZRAM
 	  See zram.txt for more information.
 	  Project home: http://compcache.googlecode.com/
 
-config ZRAM_NUM_DEVICES
-	int "Default number of zram devices"
-	depends on ZRAM
-	range 1 32
-	default 1
-	help
-	  Select default number of zram devices. You can override this value
-	  using 'num_devices' module parameter.
-
-config ZRAM_DEFAULT_PERCENTAGE
-	int "Default number of zram percentage"
-	depends on ZRAM
-	range 10 80
-	default 25
-	help
-	  Select default zram disk size: percentage of total RAM
-
 config ZRAM_DEBUG
 	bool "Compressed RAM block device debug support"
 	depends on ZRAM
@@ -45,11 +26,15 @@ config ZRAM_DEBUG
 	help
 	  This option adds additional debugging code to the compressed
 	  RAM block device driver.
+config ZRAM_LZO
+       bool "LZO compression"
+       default y
+       depends on ZRAM
+       select LZO_COMPRESS
+       select LZO_DECOMPRESS
 
-config ZRAM_DEFAULT_DISKSIZE
-	int "Default size of zram in bytes"
-	depends on ZRAM
-	default 100663296
-	help
-	  Set default zram disk size (default ~ 96MB)
-
+config ZRAM_SNAPPY
+       bool "Snappy compression"
+       depends on ZRAM
+       select SNAPPY_COMPRESS
+       select SNAPPY_DECOMPRESS

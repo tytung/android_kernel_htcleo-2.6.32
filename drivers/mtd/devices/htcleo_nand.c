@@ -51,7 +51,7 @@ unsigned crci_mask;
 
 #include "msm_nand.h"
 
-#define MSM_NAND_DMA_BUFFER_SIZE SZ_4K
+#define MSM_NAND_DMA_BUFFER_SIZE SZ_1M
 #define MSM_NAND_DMA_BUFFER_SLOTS \
 	(MSM_NAND_DMA_BUFFER_SIZE / (sizeof(((atomic_t *)0)->counter) * 8))
 
