@@ -9,7 +9,7 @@ if [ -f arch/arm/boot/zImage ]; then
 
 mkdir -p $KERNELBASEDIR/
 rm -rf $KERNELBASEDIR/boot/*
-rm -rf $KERNELBASEDIR/system/*
+rm -rf $KERNELBASEDIR/system/lib/modules/*
 mkdir -p $KERNELBASEDIR/boot
 mkdir -p $KERNELBASEDIR/system/
 mkdir -p $KERNELBASEDIR/system/lib/
@@ -24,7 +24,7 @@ find -iname *.ko | xargs -i -t cp {} .
 rm -rf $KERNELBASEDIR/system/lib/modules/lib
 stat $KERNELBASEDIR/boot/zImage
 cd ../../../
-zip -r tytung_HWA_kernel.`date +"%Y%m%d_%H_%M"`.zip boot system META-INF
+zip -r tytung_HWA_kernel.`date +"%Y%m%d_%H_%M"`.zip boot system META-INF work nfo.prop
 else
 echo "Kernel STUCK in BUILD! no zImage exist"
 fi
