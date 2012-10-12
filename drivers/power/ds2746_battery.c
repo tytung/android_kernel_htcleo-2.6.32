@@ -73,7 +73,7 @@ static struct wake_lock vbus_wake_lock;
 #define PROC_FAST_CHARGE_NAME "fast_charge"
 
 static struct proc_dir_entry *fast_charge;
-static int allow_fast_charge = 0;
+static int allow_fast_charge = 1;
 
 static int proc_read_fast_charge(char *page, char **start, off_t off, int count,
 	int *eof, void *data)
