@@ -1,10 +1,10 @@
 #!/bin/sh
 
-export KERNELBASEDIR=$PWD/../ICS_Kernel_update-zip-files
+export KERNELBASEDIR=$PWD/../JB_Kernel_update-zip-files
 #export TOOLCHAIN=$HOME/CodeSourcery/Sourcery_G++_Lite/bin/arm-none-eabi-
 export TOOLCHAIN=$HOME/arm-2010q1/bin/arm-none-eabi-
 
-export KERNEL_FILE=HTCLEO-Kernel_2.6.32-ics_tytung_HWA
+export KERNEL_FILE=HTCLEO-Kernel_2.6.32_tytung_jellybean
 
 rm arch/arm/boot/zImage
 make htcleo_defconfig
