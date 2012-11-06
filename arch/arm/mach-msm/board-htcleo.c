@@ -525,27 +525,6 @@ static struct platform_device msm_camera_sensor_s5k3e2fx =
 	},
 };
 
-//-----PATCH for BT mac address
-int is_valid_mac_address(char *mac)
-{
-	int i =0;
-	while(i<17){
-		if( (i%3) == 2){
-			if ((mac[i] !=':') && (mac[i] = '-')) return 0;
-			if (mac[i] == '-') mac[i] = ':';
-		}else{
-			if ( !( ((mac[i] >= '0') && (mac[i] <= '9')) ||
-				((mac[i] >= 'a') && (mac[i] <= 'f')) ||
-				((mac[i] >= 'A') && (mac[i] <= 'F')))
-			) return 0;	
-		}
-		i++;
-	}
-	if (mac[i] != '\0') return 0;
-	return 1;
-}
-//-----------------------------
-
 ///////////////////////////////////////////////////////////////////////
 // bluetooth
 ///////////////////////////////////////////////////////////////////////
@@ -581,40 +560,6 @@ static int parse_tag_bdaddr(void)
 	return 0;
 }
 /* end AOSP style interface */
-
-/* for (sense roms) */
-#define MAC_ADDRESS_SIZE_C	17
-static char bdaddress[MAC_ADDRESS_SIZE_C+1] = "";
-static void bt_export_bd_address(void)
-{
-	unsigned char cTemp[6];
-	if (!is_valid_mac_address(bdaddress)){
-		memcpy(cTemp, get_bt_bd_ram(), 6);
-		sprintf(bdaddress, "%02x:%02x:%02x:%02x:%02x:%02x", cTemp[0], cTemp[1], cTemp[2], cTemp[3], cTemp[4], cTemp[5]);
-		pr_info("BD_ADDRESS=%s\n", bdaddress);
-	}
-}
-
-module_param_string(bdaddress, bdaddress, sizeof(bdaddress), S_IWUSR | S_IRUGO);
-MODULE_PARM_DESC(bdaddress, "BT MAC ADDRESS");
-
-#define MAX_BT_SIZE 0x6U
-static unsigned char bt_bd_ram[MAX_BT_SIZE] = {0x50,0xC3,0x00,0x00,0x00,0x00};
-unsigned char *get_bt_bd_ram(void)
-{
-	return (bt_bd_ram);
-}
-
-//-----added alias for bt mac address parameter--------
-static int __init htcleo_bt_macaddress_setup(char *bootconfig) 
-{
-	printk("%s: cmdline bt mac config=%s | %s\n",__FUNCTION__, bootconfig, __FILE__);
-	strncpy(bdaddress, bootconfig, MAC_ADDRESS_SIZE_C);
-    return 1;
-}
-__setup("bt.mac=", htcleo_bt_macaddress_setup);
-//-----------------------------------------------------
-/* end (sense) */
 
 #ifdef CONFIG_SERIAL_MSM_HS
 static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
@@ -1089,8 +1034,6 @@ static void __init htcleo_init(void)
 	config_gpio_table(bt_gpio_table, ARRAY_SIZE(bt_gpio_table));
 
 	parse_tag_bdaddr();
-
-	bt_export_bd_address();
 
 	htcleo_audio_init();
 

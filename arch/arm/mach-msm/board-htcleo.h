@@ -198,5 +198,8 @@ struct microp_led_platform_data {
 int htcleo_pm_set_vreg(int enable, unsigned id);
 int __init htcleo_init_panel(void);
 int htcleo_is_nand_boot(void);
+unsigned htcleo_get_vbus_state(void);
+void config_camera_on_gpios(void);
+void config_camera_off_gpios(void);
 
 #endif /* __ARCH_ARM_MACH_MSM_BOARD_HTCLEO_H */
