@@ -21,11 +21,11 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/fs.h>
-
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/utsname.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 
 #include <linux/usb/android_composite.h>
 #include <linux/usb/ch9.h>
@@ -33,6 +33,8 @@
 #include <linux/usb/gadget.h>
 
 #include "gadget_chips.h"
+#include <linux/wakelock.h>
+#include <mach/perflock.h>
 
 /*
  * Kbuild is not very cooperative with respect to linking separately
@@ -52,6 +54,8 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 
 static const char longname[] = "Gadget Android";
+static struct wake_lock usb_rndis_idle_wake_lock;
+static struct perf_lock usb_rndis_perf_lock;
 
 enum {
 	USB_FUNCTION_UMS = 0,
@@ -478,11 +482,14 @@ int android_switch_function(unsigned func)
 		dev->cdev->desc.bDeviceClass = USB_CLASS_PER_INTERFACE;
 
 #ifdef CONFIG_USB_GADGET_MSM_72K
+	/* avoid sending a disconnect switch event until after we disconnect */
 	msm_hsusb_request_reset();
 #else
 	/* force reenumeration */
 	if (dev->cdev && dev->cdev->gadget &&
 			dev->cdev->gadget->speed != USB_SPEED_UNKNOWN) {
+
+		/* avoid sending a disconnect switch event until after we disconnect */
 		usb_gadget_disconnect(dev->cdev->gadget);
 		msleep(10);
 		usb_gadget_connect(dev->cdev->gadget);
@@ -499,6 +506,7 @@ void android_enable_function(struct usb_function *f, int enable)
 
 	if (!!f->hidden != disable) {
 		f->hidden = disable;
+
 
 #ifdef CONFIG_USB_ANDROID_RNDIS
 		if (!strcmp(f->name, "rndis")) {
@@ -565,6 +573,9 @@ static int __init android_probe(struct platform_device *pdev)
 
 	printk(KERN_INFO "android_probe pdata: %p\n", pdata);
 
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+
 	if (pdata) {
 		dev->products = pdata->products;
 		dev->num_products = pdata->num_products;
@@ -593,8 +604,26 @@ static int __init android_probe(struct platform_device *pdev)
 	return usb_composite_register(&android_usb_driver);
 }
 
+static int andr_runtime_suspend(struct device *dev)
+{
+	dev_dbg(dev, "pm_runtime: suspending...\n");
+	return 0;
+}
+
+static int andr_runtime_resume(struct device *dev)
+{
+	dev_dbg(dev, "pm_runtime: resuming...\n");
+	return 0;
+}
+
+static struct dev_pm_ops andr_dev_pm_ops = {
+	.runtime_suspend = andr_runtime_suspend,
+	.runtime_resume  = andr_runtime_resume,
+};
 static struct platform_driver android_platform_driver = {
-	.driver = { .name = "android_usb", },
+	.driver = {
+		.name = "android_usb",
+		.pm   = &andr_dev_pm_ops},
 	.probe = android_probe,
 };
 
@@ -612,6 +641,8 @@ static int __init init(void)
 	dev->product_id = PRODUCT_ID;
 	_android_dev = dev;
 
+	wake_lock_init(&usb_rndis_idle_wake_lock, WAKE_LOCK_IDLE, "rndis_idle_lock");
+	perf_lock_init(&usb_rndis_perf_lock, PERF_LOCK_HIGHEST, "rndis");
 	return platform_driver_register(&android_platform_driver);
 }
 module_init(init);
