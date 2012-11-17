@@ -777,6 +777,9 @@ static int msm_reboot_call(struct notifier_block *this, unsigned long code, void
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned code = simple_strtoul(cmd + 4, 0, 16) & 0xff;
 			restart_reason = 0x6f656d00 | code;
+		} else if (!strncmp(cmd, "S", 1)) {
+			unsigned code = simple_strtoul(cmd + 1, 0, 16) & 0x00ffffff;
+			restart_reason = 0x53000000 | code;
 		} else if (!strcmp(cmd, "force-hard")) {
 			restart_reason = 0x776655AA;
 		} else {
