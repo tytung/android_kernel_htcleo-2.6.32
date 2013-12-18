@@ -193,6 +193,12 @@ static struct embedded_sdio_data htcleo_wifi_emb_data = {
 		.high_power	= 1,
 		.high_speed	= 1,
 	},
+#if defined(CONFIG_BCMDHD)
+	.cis  = {
+		.vendor         = 0x02d0,
+		.device         = 0x4329,
+	},
+#endif
 };
 
 static int htcleo_wifi_cd = 0; /* WIFI virtual 'card detect' status */

@@ -1,4 +1,4 @@
-/* linux/arch/arm/mach-msm/board-htcleo-wifi.c (from board-mahimahi-wifi.c)
+/* linux/arch/arm/mach-msm/board-htcleo-wifi.c
 */
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -16,6 +16,8 @@
 int htcleo_wifi_power(int on);
 int htcleo_wifi_reset(int on);
 int htcleo_wifi_set_carddetect(int on);
+
+#if (!defined(CONFIG_BCMDHD) || defined(CONFIG_DHD_USE_STATIC_BUF))
 
 #define PREALLOC_WLAN_NUMBER_OF_SECTIONS	4
 #define PREALLOC_WLAN_NUMBER_OF_BUFFERS		160
@@ -52,9 +54,11 @@ static void *htcleo_wifi_mem_prealloc(int section, unsigned long size)
 		return NULL;
 	return wifi_mem_array[section].mem_ptr;
 }
+#endif
 
 int __init htcleo_init_wifi_mem(void)
 {
+#if (!defined(CONFIG_BCMDHD) || defined(CONFIG_DHD_USE_STATIC_BUF))
 	int i;
 
 	for(i=0;( i < WLAN_SKB_BUF_NUM );i++) {
@@ -69,12 +73,17 @@ int __init htcleo_init_wifi_mem(void)
 		if (wifi_mem_array[i].mem_ptr == NULL)
 			return -ENOMEM;
 	}
+#endif
 	return 0;
 }
 
 static struct resource htcleo_wifi_resources[] = {
 	[0] = {
+#if !defined(CONFIG_BCMDHD)
 		.name		= "bcm4329_wlan_irq",
+#else
+		.name		= "bcmdhd_wlan_irq",
+#endif
 		.start		= MSM_GPIO_TO_INT(HTCLEO_GPIO_WIFI_IRQ),
 		.end		= MSM_GPIO_TO_INT(HTCLEO_GPIO_WIFI_IRQ),
 		.flags          = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL,
@@ -85,11 +94,19 @@ static struct wifi_platform_data htcleo_wifi_control = {
 	.set_power      = htcleo_wifi_power,
 	.set_reset      = htcleo_wifi_reset,
 	.set_carddetect = htcleo_wifi_set_carddetect,
+#if (!defined(CONFIG_BCMDHD) || defined(CONFIG_DHD_USE_STATIC_BUF))
 	.mem_prealloc   = htcleo_wifi_mem_prealloc,
+#else
+	.mem_prealloc   = NULL,
+#endif
 };
 
 static struct platform_device htcleo_wifi_device = {
-        .name           = "bcm4329_wlan",
+#if !defined(CONFIG_BCMDHD)
+		.name           = "bcm4329_wlan",
+#else
+		.name           = "bcmdhd_wlan",
+#endif
         .id             = 1,
         .num_resources  = ARRAY_SIZE(htcleo_wifi_resources),
         .resource       = htcleo_wifi_resources,
@@ -98,6 +115,7 @@ static struct platform_device htcleo_wifi_device = {
         },
 };
 
+#if (!defined(CONFIG_BCMDHD) || defined(CONFIG_DHD_USE_STATIC_BUF))
 extern unsigned char *get_wifi_nvs_ram(void);
 extern int wifi_calibration_size_set(void);
 
@@ -127,6 +145,7 @@ static unsigned htcleo_wifi_update_nvs(char *str, int add_flag)
 	wifi_calibration_size_set();
 	return 0;
 }
+#endif
 
 
 static int __init htcleo_wifi_init(void)
